@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Portfolio BCHS</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/style.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body>
+  <!-- ========= ONBOARDING OVERLAY ========= -->
+  <div id="onboarding-overlay" class="hidden"></div>
+
+  <div id="app">
+    <!-- ========= SIDEBAR ========= -->
+    <nav id="sidebar">
+      <div class="sidebar-logo">
+        <span class="logo-mark">▣</span>
+        <span class="logo-text">Portfolio<br><strong>BCHS</strong></span>
+      </div>
+      <ul class="nav-links">
+        <li>
+          <a href="#" class="nav-item active" data-page="dashboard">
+            <span class="nav-icon">◉</span> Дашборд
+          </a>
+        </li>
+        <li>
+          <a href="#" class="nav-item" data-page="portfolio">
+            <span class="nav-icon">🗂️</span> Портфель
+          </a>
+        </li>
+        <li>
+          <a href="#" class="nav-item" data-page="entry">
+            <span class="nav-icon">✎</span> Внести данные
+          </a>
+        </li>
+        <li>
+          <a href="#" class="nav-item" data-page="clients">
+            <span class="nav-icon">☰</span> Клиенты
+          </a>
+        </li>
+        <li>
+          <a href="#" class="nav-item" data-page="calendars">
+            <span class="nav-icon">📅</span> Календари
+          </a>
+        </li>
+        <li id="nav-tracker-li" style="display:none">
+          <a href="#" class="nav-item" data-page="tracker">
+            <span class="nav-icon">⏱</span> Мой трекер
+          </a>
+        </li>
+      </ul>
+
+      <!-- Keyboard hints -->
+      <div style="padding: 6px 14px; margin-top: 4px;">
+        <div class="kbd-hint" style="margin-bottom:3px"><kbd>N</kbd> Внести данные</div>
+        <div class="kbd-hint" style="margin-bottom:3px"><kbd>Esc</kbd> Дашборд</div>
+        <div class="kbd-hint"><kbd>R</kbd> Обновить</div>
+      </div>
+
+      <!-- Backup button -->
+<div style="padding: 6px 14px; margin-top: 4px;">
+  <button id="backup-btn"
+    style="width:100%;padding:7px 12px;border-radius:8px;border:1px solid var(--border);
+           background:transparent;color:var(--text-muted);font-size:12px;cursor:pointer;
+           text-align:left;transition:background 0.15s"
+    onmouseover="this.style.background='var(--surface-hover)'"
+    onmouseout="this.style.background='transparent'">
+    💾 Бэкап / Восстановить
+  </button>
+</div>
+
+
+      <!-- Role switcher -->
+      <div class="sidebar-role-section">
+        <div id="role-banner" class="role-banner role-admin">
+          <span class="role-icon">🔑</span>
+          <span class="role-name">Админ</span>
+          <span class="role-tag">Все клиенты</span>
+        </div>
+        <button id="role-toggle-btn" class="role-toggle-btn">⇄ Сменить вид</button>
+      </div>
+
+      <div class="sidebar-footer">
+        <span class="version">v6.7</span>
+      </div>
+    </nav>
+
+    <!-- ========= TOPBAR (mobile) ========= -->
+    <header id="topbar">
+      <button id="menu-toggle" aria-label="Меню">☰</button>
+      <span class="topbar-title">Portfolio BCHS</span>
+      <button id="topbar-add">+ Данные</button>
+    </header>
+
+    <!-- ========= MAIN CONTENT ========= -->
+    <main id="main-content"></main>
+  </div>
+
+  <!-- ========= MODAL ========= -->
+  <div id="modal-overlay" class="hidden">
+    <div id="modal-box">
+      <button id="modal-close">✕</button>
+      <div id="modal-content"></div>
+    </div>
+  </div>
+
+  <!-- ========= TOAST ========= -->
+  <div id="toast-container"></div>
+
+  <!-- ========= BOTTOM NAV (mobile) ========= -->
+  <nav id="bottom-nav" aria-label="Навигация">
+    <div class="bottom-nav-inner">
+      <button class="bottom-nav-btn active" data-page="dashboard">
+        <span class="bn-badge" style="display:none">0</span>
+        <span class="bn-icon">◉</span>
+        <span class="bn-label">Дашборд</span>
+      </button>
+      <button class="bottom-nav-btn" data-page="portfolio">
+        <span class="bn-icon">🗂️</span>
+        <span class="bn-label">Портфель</span>
+      </button>
+      <button class="bottom-nav-btn" data-page="entry">
+        <span class="bn-badge" style="display:none">0</span>
+        <span class="bn-icon">✎</span>
+        <span class="bn-label">Данные</span>
+      </button>
+      <button class="bottom-nav-btn" data-page="clients">
+        <span class="bn-icon">☰</span>
+        <span class="bn-label">Клиенты</span>
+      </button>
+      <button class="bottom-nav-btn" data-page="calendars">
+        <span class="bn-icon">📅</span>
+        <span class="bn-label">Календари</span>
+      </button>
+      <button class="bottom-nav-btn" id="bn-tracker" data-page="tracker" style="display:none">
+        <span class="bn-icon">⏱</span>
+        <span class="bn-label">Трекер</span>
+      </button>
+    </div>
+  </nav>
+
+  <script src="js/bundle.js"></script>
+</body>
+</html>

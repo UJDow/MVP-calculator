@@ -145,55 +145,99 @@ export const ClientsPage = {
      WIZARD FORM — 3 шага
      ═══════════════════════════════════════════════════════════ */
   showForm(client) {
-    const isEdit = !!client;
-    const v   = (f, def = '') => client ? this._esc(String(client[f] ?? def)) : def;
-    const sel = (opts, val)   => opts.map(o =>
-      `<option value="${o}" ${val === o ? 'selected' : ''}>${o}</option>`
-    ).join('');
+  const isEdit = !!client;
+  const v   = (f, def = '') => client ? this._esc(String(client[f] ?? def)) : def;
+  const sel = (opts, val)   => opts.map(o =>
+    `<option value="${o}" ${val === o ? 'selected' : ''}>${o}</option>`
+  ).join('');
 
-    const statusOpts = STATUSES.map(s =>
-      `<option value="${s}" ${(client?.status ?? 'Active') === s ? 'selected' : ''}>${s}</option>`
-    ).join('');
+  const statusOpts = STATUSES.map(s =>
+    `<option value="${s}" ${(client?.status ?? 'Active') === s ? 'selected' : ''}>${s}</option>`
+  ).join('');
 
-    // ── определяем шаги ──
-    const steps = [
-      {
-        emoji: '🏢',
-        title: 'Основное',
-        hint:  'Название, статус и тип клиента',
-        html: () => `
+  // ── стили один раз ──
+  if (!document.getElementById('wiz-styles')) {
+    const s = document.createElement('style');
+    s.id = 'wiz-styles';
+    s.textContent = `
+      .wiz-field { display:flex; flex-direction:column; gap:6px }
+      .wiz-label {
+        font-size:11px; font-weight:700; color:#94a3b8;
+        letter-spacing:.08em; text-transform:uppercase
+      }
+      .wiz-divider {
+        height:1px; background:#f1f5f9; margin:4px 0
+      }
+      .wiz-section-title {
+        font-size:12px; font-weight:700; color:#475569;
+        letter-spacing:.06em; text-transform:uppercase;
+        padding:10px 0 6px; border-bottom:2px solid #e2e8f0;
+        margin-bottom:12px
+      }
+      .form-select, .form-input {
+        transition: border-color .15s;
+      }
+      .form-select:focus, .form-input:focus {
+        border-color:#2563eb !important;
+        outline:none;
+        box-shadow:0 0 0 3px #dbeafe;
+      }
+    `;
+    document.head.appendChild(s);
+  }
+
+  const steps = [
+    {
+      emoji: '🏢',
+      title: 'Основное',
+      hint:  'Название, статус и тип',
+      html: () => `
+        <div class="wiz-field">
+          <label class="wiz-label">Название компании <span style="color:#ef4444">*</span></label>
+          <input class="form-input" id="cf-name" placeholder="ООО Пример"
+                 value="${v('name')}"
+                 style="font-size:15px;padding:12px 14px;font-weight:500" autofocus/>
+        </div>
+
+        <div class="wiz-divider" style="margin-top:16px"></div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:12px">
           <div class="wiz-field">
-            <label class="wiz-label">Название компании <span style="color:#ef4444">*</span></label>
-            <input class="form-input" id="cf-name" placeholder="ООО Пример"
-                   value="${v('name')}" style="font-size:16px;padding:12px" autofocus/>
+            <label class="wiz-label">Статус</label>
+            <select class="form-select" id="cf-status">${statusOpts}</select>
           </div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:14px">
-            <div class="wiz-field">
-              <label class="wiz-label">Статус</label>
-              <select class="form-select" id="cf-status">${statusOpts}</select>
-            </div>
-            <div class="wiz-field">
-              <label class="wiz-label">MR (₽/мес)</label>
-              <input class="form-input" id="cf-mr" type="number"
-                     value="${v('monthly_revenue','5000')}" placeholder="5000"/>
-            </div>
+          <div class="wiz-field">
+            <label class="wiz-label">MR (₽/мес)</label>
+            <input class="form-input" id="cf-mr" type="number"
+                   value="${v('monthly_revenue','5000')}" placeholder="5000"/>
           </div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px">
-            <div class="wiz-field">
-              <label class="wiz-label">Тип клиента</label>
-              <select class="form-select" id="cf-type">
-                ${sel(['Direct','Partner','Body-shop'], client?.client_type ?? 'Direct')}
-              </select>
-            </div>
-            <div class="wiz-field">
-              <label class="wiz-label">Фаза</label>
-              <select class="form-select" id="cf-phase">
-                ${sel(['Discovery','Ongoing','SLA','Winding Down'], client?.phase ?? 'Ongoing')}
-              </select>
-            </div>
+        </div>
+
+        <div class="wiz-divider" style="margin-top:16px"></div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:12px">
+          <div class="wiz-field">
+            <label class="wiz-label">Тип клиента</label>
+            <select class="form-select" id="cf-type">
+              ${sel(['Direct','Partner','Body-shop'], client?.client_type ?? 'Direct')}
+            </select>
           </div>
-          <!-- Только для Partner -->
-          <div id="cf-access-wrap" style="display:none;margin-top:12px">
+          <div class="wiz-field">
+            <label class="wiz-label">Фаза</label>
+            <select class="form-select" id="cf-phase">
+              ${sel(['Discovery','Ongoing','SLA','Winding Down'], client?.phase ?? 'Ongoing')}
+            </select>
+          </div>
+        </div>
+
+        <div id="cf-access-wrap" style="display:none">
+          <div class="wiz-divider" style="margin-top:16px"></div>
+          <div style="margin-top:12px;padding:12px 14px;background:#eff6ff;
+                      border-radius:10px;border:1px solid #bfdbfe">
+            <div style="font-size:11px;font-weight:700;color:#2563eb;
+                        letter-spacing:.06em;margin-bottom:10px">
+              🤝 ПАРТНЁРСКИЙ ДОСТУП
+            </div>
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
               <div class="wiz-field">
                 <label class="wiz-label">Доступ к конечному клиенту</label>
@@ -208,248 +252,224 @@ export const ClientsPage = {
                 </select>
               </div>
             </div>
-          </div>`
-      },
-      {
-        emoji: '📊',
-        title: 'Профиль',
-        hint:  'Стратегическая и операционная ценность',
-        html: () => `
-          <div style="background:#f8fafc;border-radius:10px;padding:14px;margin-bottom:12px">
-            <div style="font-size:11px;font-weight:700;color:#64748b;letter-spacing:.06em;margin-bottom:10px">
-              🎯 СТРАТЕГИЧЕСКАЯ ЦЕННОСТЬ
-            </div>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-              <div class="wiz-field">
-                <label class="wiz-label">Технологическая</label>
-                <select class="form-select" id="cf-tech">
-                  ${sel(['Strategic','Standard','Basic'], client?.tech_value ?? 'Standard')}
-                </select>
-              </div>
-              <div class="wiz-field">
-                <label class="wiz-label">Брендовая</label>
-                <select class="form-select" id="cf-brand">
-                  ${sel(['Top','Recognizable','Unknown'], client?.brand_value ?? 'Recognizable')}
-                </select>
-              </div>
-              <div class="wiz-field">
-                <label class="wiz-label">Потенциал роста</label>
-                <select class="form-select" id="cf-growth">
-                  ${sel(['Yes','No'], client?.growth_potential ?? 'Yes')}
-                </select>
-              </div>
-              <div class="wiz-field">
-                <label class="wiz-label">Managed Services</label>
-                <select class="form-select" id="cf-ms">
-                  ${sel(['Yes','Partial','No'], client?.managed_services_potential ?? 'Partial')}
-                </select>
-              </div>
-            </div>
           </div>
-          <div style="background:#f8fafc;border-radius:10px;padding:14px">
-            <div style="font-size:11px;font-weight:700;color:#64748b;letter-spacing:.06em;margin-bottom:10px">
-              ⚙️ ОПЕРАЦИОННЫЙ ПРОФИЛЬ
-            </div>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-              <div class="wiz-field">
-                <label class="wiz-label">Длительность контракта</label>
-                <select class="form-select" id="cf-contract">
-                  ${sel(['Stable (6+)','Medium (3-6)','Short (1-3)'], client?.contract_length ?? 'Medium (3-6)')}
-                </select>
-              </div>
-              <div class="wiz-field">
-                <label class="wiz-label">Сложность клиента</label>
-                <select class="form-select" id="cf-difficulty">
-                  ${sel(['Normal','Conflict'], client?.client_difficulty ?? 'Normal')}
-                </select>
-              </div>
-              <div class="wiz-field">
-                <label class="wiz-label">Вовлечённость</label>
-                <select class="form-select" id="cf-engagement">
-                  ${sel(['Proactive','Active','Reactive'], client?.client_engagement ?? 'Active')}
-                </select>
-              </div>
-              <div class="wiz-field">
-                <label class="wiz-label">Операц. сложность</label>
-                <select class="form-select" id="cf-opdiff">
-                  ${sel(['Normal','Hard'], client?.operational_difficulty ?? 'Normal')}
-                </select>
-              </div>
-            </div>
-          </div>`
-      },
-      {
-        emoji: '👥',
-        title: 'Команда',
-        hint:  'Кто работает с клиентом',
-        html: () => `
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-            <div class="wiz-field">
-              <label class="wiz-label">Зрелость команды</label>
-              <select class="form-select" id="cf-maturity">
-                ${sel(['Junior','Standard','Senior'], client?.team_maturity ?? 'Standard')}
-              </select>
-            </div>
-            <div class="wiz-field">
-              <label class="wiz-label">Ответственный</label>
-              <input class="form-input" id="cf-owner"
-                     value="${v('sales_owner')}" placeholder="Имя менеджера"/>
-            </div>
-          </div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px">
-            <div class="wiz-field">
-              <label class="wiz-label">Аккаунт-менеджер</label>
-              <input class="form-input" id="cf-am"
-                     value="${v('account_manager')}" placeholder="Имя АМ"/>
-            </div>
-            <div class="wiz-field">
-              <label class="wiz-label">Координатор</label>
-              <input class="form-input" id="cf-coord"
-                     value="${v('coordinator')}" placeholder="Имя координатора"/>
-            </div>
-          </div>
-          <div class="wiz-field" style="margin-top:12px">
-            <label class="wiz-label">DACH-регион</label>
-            <select class="form-select" id="cf-region">
-              ${sel(['— не выбран —','DE','AT','CH','Other'], client?.dach_region ?? '— не выбран —')}
+        </div>`
+    },
+    {
+      emoji: '📊',
+      title: 'Профиль',
+      hint:  'Стратегическая и операционная ценность',
+      html: () => `
+        <div class="wiz-section-title">🎯 Стратегическая ценность</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px">
+          <div class="wiz-field">
+            <label class="wiz-label">Технологическая</label>
+            <select class="form-select" id="cf-tech">
+              ${sel(['Strategic','Standard','Basic'], client?.tech_value ?? 'Standard')}
             </select>
           </div>
-          <div class="wiz-field" style="margin-top:12px">
-            <label class="wiz-label">Заметки о стратегии</label>
-            <textarea class="form-textarea" id="cf-notes"
-                      style="min-height:80px;resize:vertical"
-                      placeholder="Любые важные детали...">${v('strategy_notes')}</textarea>
-          </div>`
-      }
-    ];
+          <div class="wiz-field">
+            <label class="wiz-label">Брендовая</label>
+            <select class="form-select" id="cf-brand">
+              ${sel(['Top','Recognizable','Unknown'], client?.brand_value ?? 'Recognizable')}
+            </select>
+          </div>
+          <div class="wiz-field">
+            <label class="wiz-label">Потенциал роста</label>
+            <select class="form-select" id="cf-growth">
+              ${sel(['Yes','No'], client?.growth_potential ?? 'Yes')}
+            </select>
+          </div>
+          <div class="wiz-field">
+            <label class="wiz-label">Managed Services</label>
+            <select class="form-select" id="cf-ms">
+              ${sel(['Yes','Partial','No'], client?.managed_services_potential ?? 'Partial')}
+            </select>
+          </div>
+        </div>
 
-    let currentStep = 0;
+        <div class="wiz-section-title">⚙️ Операционный профиль</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+          <div class="wiz-field">
+            <label class="wiz-label">Длительность контракта</label>
+            <select class="form-select" id="cf-contract">
+              ${sel(['Stable (6+)','Medium (3-6)','Short (1-3)'], client?.contract_length ?? 'Medium (3-6)')}
+            </select>
+          </div>
+          <div class="wiz-field">
+            <label class="wiz-label">Сложность клиента</label>
+            <select class="form-select" id="cf-difficulty">
+              ${sel(['Normal','Conflict'], client?.client_difficulty ?? 'Normal')}
+            </select>
+          </div>
+          <div class="wiz-field">
+            <label class="wiz-label">Вовлечённость</label>
+            <select class="form-select" id="cf-engagement">
+              ${sel(['Proactive','Active','Reactive'], client?.client_engagement ?? 'Active')}
+            </select>
+          </div>
+          <div class="wiz-field">
+            <label class="wiz-label">Операц. сложность</label>
+            <select class="form-select" id="cf-opdiff">
+              ${sel(['Normal','Hard'], client?.operational_difficulty ?? 'Normal')}
+            </select>
+          </div>
+        </div>`
+    },
+    {
+      emoji: '👥',
+      title: 'Команда',
+      hint:  'Кто работает с клиентом',
+      html: () => `
+        <div class="wiz-section-title">👤 Ответственные</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px">
+          <div class="wiz-field">
+            <label class="wiz-label">Зрелость команды</label>
+            <select class="form-select" id="cf-maturity">
+              ${sel(['Junior','Standard','Senior'], client?.team_maturity ?? 'Standard')}
+            </select>
+          </div>
+          <div class="wiz-field">
+            <label class="wiz-label">Ответственный</label>
+            <input class="form-input" id="cf-owner"
+                   value="${v('sales_owner')}" placeholder="Имя менеджера"/>
+          </div>
+          <div class="wiz-field">
+            <label class="wiz-label">Аккаунт-менеджер</label>
+            <input class="form-input" id="cf-am"
+                   value="${v('account_manager')}" placeholder="Имя АМ"/>
+          </div>
+          <div class="wiz-field">
+            <label class="wiz-label">Координатор</label>
+            <input class="form-input" id="cf-coord"
+                   value="${v('coordinator')}" placeholder="Имя координатора"/>
+          </div>
+        </div>
 
-    // ── инжектим стили один раз ──
-    if (!document.getElementById('wiz-styles')) {
-      const s = document.createElement('style');
-      s.id = 'wiz-styles';
-      s.textContent = `
-        .wiz-field { display:flex; flex-direction:column; gap:4px }
-        .wiz-label { font-size:11px; font-weight:700; color:#6b7280;
-                     letter-spacing:.05em; text-transform:uppercase }
-      `;
-      document.head.appendChild(s);
+        <div class="wiz-section-title">🗺 Регион</div>
+        <div class="wiz-field" style="margin-bottom:20px">
+          <label class="wiz-label">DACH-регион</label>
+          <select class="form-select" id="cf-region" style="max-width:200px">
+            ${sel(['— не выбран —','DE','AT','CH','Other'], client?.dach_region ?? '— не выбран —')}
+          </select>
+        </div>
+
+        <div class="wiz-section-title">📝 Заметки</div>
+        <div class="wiz-field">
+          <label class="wiz-label">Стратегические заметки</label>
+          <textarea class="form-textarea" id="cf-notes"
+                    style="min-height:90px;resize:vertical"
+                    placeholder="Любые важные детали о клиенте...">${v('strategy_notes')}</textarea>
+        </div>`
     }
+  ];
 
-    // ── прогресс-бар ──
-    const progressHTML = () => steps.map((s, i) => `
-      <div style="display:flex;flex-direction:column;align-items:center;gap:4px;flex:1">
-        <div style="
-          width:36px;height:36px;border-radius:50%;
-          display:flex;align-items:center;justify-content:center;
-          font-size:16px;transition:all .2s;
-          ${i < currentStep
-            ? 'background:#22c55e;color:#fff'
-            : i === currentStep
-              ? 'background:#2563eb;color:#fff;box-shadow:0 0 0 3px #bfdbfe'
-              : 'background:#e5e7eb;color:#9ca3af'}
-        ">${i < currentStep ? '✓' : s.emoji}</div>
-        <div style="font-size:10px;font-weight:${i === currentStep ? '700' : '400'};
-                    color:${i === currentStep ? '#2563eb' : i < currentStep ? '#22c55e' : '#9ca3af'}">
-          ${s.title}
+  let currentStep = 0;
+
+  // ── прогресс-бар ──
+  const progressHTML = () => steps.map((s, i) => `
+    <div style="display:flex;flex-direction:column;align-items:center;gap:5px;flex:1">
+      <div style="
+        width:38px;height:38px;border-radius:50%;
+        display:flex;align-items:center;justify-content:center;
+        font-size:17px;transition:all .2s;
+        ${i < currentStep
+          ? 'background:#22c55e;color:#fff;box-shadow:0 2px 8px #86efac'
+          : i === currentStep
+            ? 'background:#2563eb;color:#fff;box-shadow:0 2px 12px #93c5fd'
+            : 'background:#f1f5f9;color:#94a3b8'}
+      ">${i < currentStep ? '✓' : s.emoji}</div>
+      <div style="
+        font-size:11px;font-weight:${i === currentStep ? '700' : '500'};
+        color:${i === currentStep ? '#2563eb' : i < currentStep ? '#22c55e' : '#94a3b8'}
+      ">${s.title}</div>
+    </div>
+    ${i < steps.length - 1 ? `
+      <div style="flex:1;height:2px;margin-top:19px;max-width:48px;border-radius:2px;
+                  background:${i < currentStep ? '#86efac' : '#e2e8f0'}"></div>
+    ` : ''}
+  `).join('');
+
+  // ── шаблон ──
+  const buildHTML = () => `
+    <div style="padding:24px 28px;width:100%;max-width:500px;box-sizing:border-box">
+
+      <div style="display:flex;align-items:center;margin-bottom:28px">
+        ${progressHTML()}
+      </div>
+
+      <div style="margin-bottom:20px">
+        <div style="font-size:20px;font-weight:700;color:#0f172a;letter-spacing:-.3px">
+          ${steps[currentStep].title}
+        </div>
+        <div style="font-size:13px;color:#94a3b8;margin-top:3px">
+          ${steps[currentStep].hint}
         </div>
       </div>
-      ${i < steps.length - 1
-        ? `<div style="flex:1;height:2px;margin-top:18px;max-width:40px;
-                       background:${i < currentStep ? '#22c55e' : '#e5e7eb'}"></div>`
-        : ''}
-    `).join('');
 
-    // ── шаблон модалки ──
-    const buildHTML = () => `
-      <div style="padding:24px;width:100%;max-width:480px;box-sizing:border-box">
+      <div id="wiz-body">${steps[currentStep].html()}</div>
 
-        <!-- прогресс -->
-        <div style="display:flex;align-items:center;margin-bottom:24px">
-          ${progressHTML()}
-        </div>
+      <div style="display:flex;gap:10px;margin-top:24px;align-items:center;
+                  border-top:1px solid #f1f5f9;padding-top:16px">
+        ${currentStep > 0
+          ? `<button id="wiz-back" class="btn btn-secondary" style="min-width:90px">← Назад</button>`
+          : ''}
+        <div style="flex:1"></div>
+        <button id="wiz-cancel" class="btn btn-secondary">Отмена</button>
+        ${currentStep < steps.length - 1
+          ? `<button id="wiz-next" class="btn btn-primary" style="min-width:110px">Далее →</button>`
+          : `<button id="wiz-save" class="btn btn-primary" style="min-width:140px">
+               ${isEdit ? '💾 Сохранить' : '🚀 Создать клиента'}
+             </button>`
+        }
+      </div>
 
-        <!-- заголовок шага -->
-        <div style="margin-bottom:16px">
-          <div style="font-size:18px;font-weight:700;color:#111827">
-            ${steps[currentStep].emoji} ${steps[currentStep].title}
-          </div>
-          <div style="font-size:13px;color:#6b7280;margin-top:2px">
-            ${steps[currentStep].hint}
-          </div>
-        </div>
+    </div>`;
 
-        <div style="border-top:1px solid #f3f4f6;margin-bottom:18px"></div>
-
-        <!-- тело шага -->
-        <div id="wiz-body">${steps[currentStep].html()}</div>
-
-        <!-- кнопки -->
-        <div style="display:flex;gap:10px;margin-top:20px;align-items:center">
-          ${currentStep > 0
-            ? `<button id="wiz-back" class="btn btn-secondary" style="min-width:80px">← Назад</button>`
-            : ''}
-          <div style="flex:1"></div>
-          <button id="wiz-cancel" class="btn btn-secondary">Отмена</button>
-          ${currentStep < steps.length - 1
-            ? `<button id="wiz-next" class="btn btn-primary" style="min-width:100px">Далее →</button>`
-            : `<button id="wiz-save" class="btn btn-primary" style="min-width:130px">
-                 ${isEdit ? '💾 Сохранить' : '🚀 Создать клиента'}
-               </button>`
-          }
-        </div>
-
-      </div>`;
-
-    // ── перерисовка ──
-    const rerender = () => {
-      const wrap = document.querySelector('#modal-overlay > div, .modal-inner, .modal-content');
-      if (wrap) wrap.innerHTML = buildHTML();
-      bindStep();
-    };
-
-    // ── биндинг кнопок и полей текущего шага ──
-    const bindStep = () => {
-      document.getElementById('wiz-cancel')
-        ?.addEventListener('click', () => window.App.closeModal?.());
-
-      document.getElementById('wiz-back')
-        ?.addEventListener('click', () => { currentStep--; rerender(); });
-
-      document.getElementById('wiz-next')
-        ?.addEventListener('click', () => {
-          if (currentStep === 0) {
-            const name = document.getElementById('cf-name')?.value.trim();
-            if (!name) {
-              document.getElementById('cf-name')?.focus();
-              window.App.toast?.('Введи название компании', 'error');
-              return;
-            }
-          }
-          currentStep++;
-          rerender();
-        });
-
-      document.getElementById('wiz-save')
-        ?.addEventListener('click', () => this._saveForm());
-
-      // показываем поля Partner только на шаге 1
-      if (currentStep === 0) {
-        const typeSelect = document.getElementById('cf-type');
-        const accessWrap = document.getElementById('cf-access-wrap');
-        const toggle = () => {
-          if (accessWrap) accessWrap.style.display =
-            typeSelect?.value === 'Partner' ? 'block' : 'none';
-        };
-        typeSelect?.addEventListener('change', toggle);
-        toggle();
-      }
-    };
-
-    window.App.openModal(buildHTML(), { hideClose: false });
+  const rerender = () => {
+    const wrap = document.querySelector('#modal-overlay > div, .modal-inner, .modal-content');
+    if (wrap) wrap.innerHTML = buildHTML();
     bindStep();
-  },
+  };
+
+  const bindStep = () => {
+    document.getElementById('wiz-cancel')
+      ?.addEventListener('click', () => window.App.closeModal?.());
+
+    document.getElementById('wiz-back')
+      ?.addEventListener('click', () => { currentStep--; rerender(); });
+
+    document.getElementById('wiz-next')
+      ?.addEventListener('click', () => {
+        if (currentStep === 0 && !document.getElementById('cf-name')?.value.trim()) {
+          document.getElementById('cf-name')?.focus();
+          window.App.toast?.('Введи название компании', 'error');
+          return;
+        }
+        currentStep++;
+        rerender();
+      });
+
+    document.getElementById('wiz-save')
+      ?.addEventListener('click', () => this._saveForm());
+
+    // Partner-toggle только на шаге 1
+    if (currentStep === 0) {
+      const typeSelect = document.getElementById('cf-type');
+      const accessWrap = document.getElementById('cf-access-wrap');
+      const toggle = () => {
+        if (accessWrap) accessWrap.style.display =
+          typeSelect?.value === 'Partner' ? 'block' : 'none';
+      };
+      typeSelect?.addEventListener('change', toggle);
+      toggle();
+    }
+  };
+
+  window.App.openModal(buildHTML(), { hideClose: false });
+  bindStep();
+},
+
 
   /* ─── SAVE ────────────────────────────────────────────────── */
   async _saveForm() {

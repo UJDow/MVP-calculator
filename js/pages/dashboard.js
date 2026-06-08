@@ -404,7 +404,7 @@ export const DashboardPage = {
     ).join('');
 
     window.App.openModal(`
-      <div style="padding:4px 0 16px">
+  <div style="padding:4px 0 16px">
         <div style="font-size:16px;font-weight:600;margin-bottom:4px">📝 Статус клиента</div>
         <div style="font-size:13px;color:var(--text-muted);margin-bottom:16px">${clientName}</div>
       </div>
@@ -554,13 +554,13 @@ export const DashboardPage = {
 
       <div class="form-group">
         <label class="form-label">Тип</label>
-        <select class="form-select" id="touch-type" style="width:100%">${typeOpts}</select>
+        <select class="form-select" id="touch-type">${typeOpts}</select>
       </div>
 
       <div class="form-group">
         <label class="form-label">Заметка</label>
         <textarea class="form-textarea" id="touch-note"
-                  style="width:100%;min-height:100px;resize:vertical;box-sizing:border-box"
+          style="min-height:100px;resize:vertical"
                   placeholder="Что обсудили, о чём договорились..."></textarea>
       </div>
 

@@ -4,7 +4,10 @@
   "description": "> **Система управления здоровьем клиентского портфеля**   > Ванильный JS SPA · RESTful Table API · Monte Carlo · 10-шаговый ClientCalc engine   > **UI:** Material Design 3 · Roboto · минимализм · elevation вместо границ",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
   },
   "repository": {
     "type": "git",

@@ -2,7 +2,7 @@
    Portfolio BCHS — Constants v7.0
    ============================================ */
 
-const SIGNALS = {
+export const SIGNALS = {
   team_scope_request:     { label: 'Запрос расширения команды/скоупа',          weight: +5,  group: 'pos_lead' },
   new_services_interest:  { label: 'Интерес к новым услугам',                   weight: +3,  group: 'pos_lead' },
   strategic_sessions:     { label: 'Стратегические сессии',                     weight: +7,  group: 'pos_lead' },
@@ -31,14 +31,14 @@ const SIGNALS = {
   churn:                  { label: 'Отток / завершение контракта',               weight: -25, group: 'neg_lag'  },
 };
 
-const SIGNAL_GROUPS = {
+export const SIGNAL_GROUPS = {
   pos_lead: { label: 'Позитивные лидирующие',     icon: '✦' },
   pos_lag:  { label: 'Позитивные результирующие', icon: '✔' },
   neg_lead: { label: 'Негативные лидирующие',     icon: '◆' },
   neg_lag:  { label: 'Негативные результирующие', icon: '✘' },
 };
 
-const PC_CRITERIA = {
+export const PC_CRITERIA = {
   people_count:        { label: 'Размер команды',        hint: '1=мало · 5=очень много'       },
   project_complexity:  { label: 'Сложность проекта',     hint: '1=простой · 5=очень сложный'  },
   reporting:           { label: 'Объём отчётности',      hint: '1=минимум · 5=очень много'    },
@@ -48,7 +48,7 @@ const PC_CRITERIA = {
   emotional_load:      { label: 'Эмоциональная нагрузка',hint: '1=низкая · 5=очень высокая'  },
 };
 
-const BCG_LABELS = {
+export const BCG_LABELS = {
   KEY:          '⭐ KEY',
   STABLE:       '🐄 STABLE',
   GROWTH:       '💎 GROWTH',
@@ -56,8 +56,7 @@ const BCG_LABELS = {
   TAIL:         '📦 TAIL',
 };
 
-// Используется в ClientsPage и DashboardPage
-const BCG_CATEGORIES = {
+export const BCG_CATEGORIES = {
   KEY:          { label: '⭐ KEY' },
   STABLE:       { label: '🐄 STABLE' },
   GROWTH:       { label: '💎 GROWTH' },
@@ -65,26 +64,25 @@ const BCG_CATEGORIES = {
   TAIL:         { label: '📦 TAIL' },
 };
 
-const PRIORITIES = [
+export const PRIORITIES = [
   'PROTECT','STRENGTHEN','RESCUE',
   'MAINTAIN','MONITOR','REVIEW',
   'INVEST','NURTURE','EVALUATE',
   'RECONSIDER','MINIMAL',
 ];
 
-const STATUSES = ['Active', 'Paused', 'Self-managed'];
+export const STATUSES = ['Active', 'Paused', 'Self-managed'];
 
-const MONTHS_RU = [
+export const MONTHS_RU = [
   'Январь','Февраль','Март','Апрель','Май','Июнь',
   'Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь',
 ];
 
-const MONTHS_SHORT = [
+export const MONTHS_SHORT = [
   'Янв','Фев','Мар','Апр','Май','Июн',
   'Июл','Авг','Сен','Окт','Ноя','Дек',
 ];
 
-// FTE константы (используются в delivery.js)
-const FTE_CURRENCIES         = ['USD', 'EUR', 'PLN', 'GBP'];
-const FTE_ALLOCATION_OPTIONS = [0.1, 0.25, 0.5, 0.75, 1.0];
-const FTE_DEFAULT_LOCATION   = 'BY';
+export const FTE_CURRENCIES         = ['USD', 'EUR', 'PLN', 'GBP'];
+export const FTE_ALLOCATION_OPTIONS = [0.1, 0.25, 0.5, 0.75, 1.0];
+export const FTE_DEFAULT_LOCATION   = 'BY';

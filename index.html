@@ -11,11 +11,9 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 </head>
 <body>
-  <!-- ========= ONBOARDING OVERLAY ========= -->
   <div id="onboarding-overlay" class="hidden"></div>
 
   <div id="app">
-    <!-- ========= SIDEBAR ========= -->
     <nav id="sidebar">
       <div class="sidebar-logo">
         <span class="logo-mark">▣</span>
@@ -112,42 +110,8 @@
     </div>
   </nav>
 
-  <!-- =====================================================
-       ПОРЯДОК СКРИПТОВ КРИТИЧЕН — не менять последовательность
-       =====================================================
-
-       Слой 1 — Фундамент (глобальные константы и вычисления)
-       Слой 2 — API-клиент и seed/backup
-       Слой 3 — Движки (зависят от констант слоя 1)
-       Слой 4 — Страницы (зависят от API, Calc, движков)
-       Слой 5 — Роутер (самый последний, запускает App.init)
-       ===================================================== -->
-
-  <!-- Слой 1: Константы и формулы (ничего не зависит от других файлов) -->
-  <script src="js/constants.js"></script>
-  <script src="js/calc.js"></script>
-
-  <!-- Слой 2: Сетевой слой + утилиты -->
-  <script src="js/api.js"></script>
-  <script src="js/seed.js"></script>
-  <script src="js/backup.js"></script>
-
-  <!-- Слой 3: Движки (зависят от констант) -->
-  <script src="js/calendar_engine.js"></script>
-  <script src="js/role_radar.js"></script>
-
-  <!-- Слой 4: Страницы (зависят от API, Calc, движков) -->
-  <script src="js/pages/dashboard.js"></script>
-  <script src="js/pages/portfolio.js"></script>
-  <script src="js/pages/clients.js"></script>
-  <script src="js/pages/entry.js"></script>
-  <script src="js/pages/detail.js"></script>
-  <script src="js/pages/delivery.js"></script>
-  <script src="js/pages/tracker.js"></script>
-  <script src="js/pages/calendars.js"></script>
-
-  <!-- Слой 5: Роутер и инициализация (самый последний) -->
-  <script src="js/app.js"></script>
+  <!-- Единственный скрипт — Vite сам разберёт все импорты -->
+  <script type="module" src="js/app.js"></script>
 
 </body>
 </html>

@@ -2,7 +2,12 @@
    Portfolio BCHS — Backup / Restore v7.0
    ============================================ */
 
-const Backup = {
+import { API } from './api.js';
+import { App } from './app.js';
+
+const BASE_URL = 'https://bchs-api.lexsnitko.workers.dev';
+
+export const Backup = {
 
   openModal() {
     App.openModal(`
@@ -41,7 +46,7 @@ const Backup = {
     try {
       App.toast('⏳ Собираем данные...', '');
       const fetchTable = (name, limit = 2000) =>
-        fetch(`tables/${name}?limit=${limit}`)
+        fetch(`${BASE_URL}/tables/${name}?limit=${limit}`)
           .then(r => r.json())
           .then(j => Array.isArray(j.data) ? j.data : (Array.isArray(j) ? j : []))
           .catch(() => []);
@@ -123,7 +128,7 @@ const Backup = {
         for (const row of rows) {
           const payload = { ...row };
           ['id', 'gs_project_id', 'gs_table_name', 'created_at', 'updated_at'].forEach(k => delete payload[k]);
-          await fetch(`tables/${name}`, {
+          await fetch(`${BASE_URL}/tables/${name}`, {
             method:  'POST',
             headers: { 'Content-Type': 'application/json' },
             body:    JSON.stringify(payload),

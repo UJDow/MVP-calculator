@@ -3,8 +3,10 @@
    ClientCalc (BCG/Priority) + Calc (bCHS/PC/Final)
    ============================================ */
 
+import { SIGNALS, PC_CRITERIA, MONTHS_SHORT } from './constants.js';
+
 /* ======== CLIENT CALC ENGINE ======== */
-const ClientCalc = {
+export const ClientCalc = {
   financialValue(mr) {
     const v = +mr || 0;
     if (v >= 25000) return 'HIGH';
@@ -180,7 +182,7 @@ const ClientCalc = {
 };
 
 /* ======== bCHS + SCORING CALC ======== */
-const Calc = {
+export const Calc = {
 
   computeBCHS(entry) {
     if (!entry) return null;
@@ -389,14 +391,12 @@ const Calc = {
       if (pe) { lb = be; lp = pe; break; }
     }
     if (!lb && sortedB.length > 0) lb = sortedB[sortedB.length - 1];
-    // Fallback для RoleRadar (v7.0)
     if (!lp && sortedP.length > 0) lp = sortedP[sortedP.length - 1];
 
     const bchs    = this.computeBCHS(lb);
     const pcScore = this.computePC(lp);
     const loyalty = this.loyaltyPct(bchs);
 
-    // Revenue Efficiency из последней FTE-записи
     let revenueEfficiency = null;
     const clientFte = fArr
       .filter(e => String(e.client_id) === String(client.id))
@@ -409,7 +409,7 @@ const Calc = {
         const planned = (m.planned_hours !== null && m.planned_hours !== undefined && m.planned_hours !== '')
           ? Number(m.planned_hours)
           : window.CalendarEngine
-            ? CalendarEngine.getPlannedHours(m.location || 'BY', last.month, m.allocation || 1.0)
+            ? window.CalendarEngine.getPlannedHours(m.location || 'BY', last.month, m.allocation || 1.0)
             : Math.round(168 * (m.allocation || 1.0));
         const eff = planned > 0 ? (m.actual_hours || 0) / planned : 0;
         tp += planned;
@@ -441,7 +441,6 @@ const Calc = {
       label:   `${MONTHS_SHORT[e.month - 1]} ${e.year}`,
     }));
 
-    // Псевдонимы для обратной совместимости
     const monthlyData   = monthly;
     const bchsHistory   = sortedB;
     const pcHistory     = sortedP;
@@ -450,7 +449,6 @@ const Calc = {
     const trend         = this.trend3m(monthly);
     const pctPot        = potential;
 
-    // Риск выручки
     const phase  = client.phase || '';
     const mr     = Number(client.monthly_revenue) || 0;
     const eng    = client.client_engagement || 'Active';
@@ -472,7 +470,6 @@ const Calc = {
     const riskCls   = isWD ? 'neutral' : riskRate >= 0.30 ? 'danger' : riskRate >= 0.15 ? 'warning' : 'positive';
     const riskColor = isWD ? '#6B7280' : riskRate >= 0.30 ? '#EF4444' : riskRate >= 0.15 ? '#F59E0B' : '#10B981';
 
-    // Стоимость часа
     const totalHrs = Number(client.total_hours) || 0;
     const rphWD    = isWD;
     const revenuePerHour = (!rphWD && totalHrs > 0)

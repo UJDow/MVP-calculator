@@ -1,15 +1,24 @@
-/* js/onboarding.js
+/* ============================================
+   js/onboarding.js — Role Onboarding (ES Module)
+   Portfolio BCHS v7.0
    Fullscreen экран выбора роли при первом запуске.
-   Показывается когда 'bchs_role' отсутствует в localStorage.
-   После выбора скрывается, основной интерфейс становится виден.
-   ---------------------------------------------------------------- */
+   ============================================ */
 
-const RoleOnboarding = {
+import {
+  ROLE_CONFIG,
+  getCurrentRole,
+  setCurrentRole,
+  applyRoleToNav,
+} from './role_config.js';
 
-  /* ── Ключ localStorage ─────────────────────────────────────── */
+/* ══════════════════════════════════════════════
+   RoleOnboarding — полноэкранный выбор роли
+══════════════════════════════════════════════ */
+export const RoleOnboarding = {
+
   _ROLE_KEY: 'bchs_role',
+  _onDone:   null,
 
-  /* Три роли с метаданными для карточек */
   _ROLES: [
     {
       id:          'service_delivery',
@@ -34,31 +43,38 @@ const RoleOnboarding = {
     },
   ],
 
-  /* ── Публичный API ─────────────────────────────────────────── */
+  /* ── Публичный API ────────────────────────────────────────── */
 
-  /** Нужно ли показывать онбординг? */
+  /**
+   * Нужно ли показывать онбординг?
+   * Возвращает true если роль не выбрана или не существует в конфиге.
+   */
   isNeeded() {
     try {
       const role = localStorage.getItem(this._ROLE_KEY);
-      return !role || !window.ROLE_CONFIG?.[role];
+      return !role || !ROLE_CONFIG[role];
     } catch {
-      return false; // localStorage недоступен — пропускаем
+      return false; // localStorage недоступен — пропускаем онбординг
     }
   },
 
-  /** Показать онбординг поверх интерфейса */
+  /**
+   * Показать онбординг поверх интерфейса.
+   * @param {Function} onDone — callback(roleId) после выбора роли
+   */
   show(onDone) {
-    this._onDone = onDone || (() => {});
+    this._onDone = onDone ?? (() => {});
     const overlay = this._buildOverlay();
     document.body.appendChild(overlay);
-    // Анимация появления карточек с задержкой
+
+    /* Анимация появления — ждём следующий кадр */
     requestAnimationFrame(() => {
       overlay.classList.add('rob-visible');
       this._animateCards(overlay);
     });
   },
 
-  /* ── Построение DOM ─────────────────────────────────────────── */
+  /* ── Построение DOM ─────────────────────────────────────── */
 
   _buildOverlay() {
     const el = document.createElement('div');
@@ -85,7 +101,8 @@ const RoleOnboarding = {
           ${cards}
         </div>
         <div class="rob-footer">
-          <button class="btn btn-primary rob-start-btn" id="rob-start-btn" disabled>
+          <button class="btn btn-primary rob-start-btn"
+                  id="rob-start-btn" disabled>
             Начать работу
           </button>
           <div class="rob-hint" id="rob-hint">Выберите роль чтобы продолжить</div>
@@ -96,7 +113,8 @@ const RoleOnboarding = {
   _cardHTML(role, index) {
     const tags = role.tags.map(t => `<span class="rob-tag">${t}</span>`).join('');
     return `
-      <div class="rob-card" data-role="${role.id}" style="animation-delay:${index * 100}ms">
+      <div class="rob-card" data-role="${role.id}"
+           style="animation-delay:${index * 100}ms">
         <div class="rob-card-icon">${role.icon}</div>
         <div class="rob-card-label">${role.label}</div>
         <div class="rob-card-desc">${role.description}</div>
@@ -104,45 +122,47 @@ const RoleOnboarding = {
       </div>`;
   },
 
-  /* ── Анимация карточек ──────────────────────────────────────── */
+  /* ── Анимация карточек ───────────────────────────────────── */
 
   _animateCards(overlay) {
-    const cards = overlay.querySelectorAll('.rob-card');
-    cards.forEach((card, i) => {
+    overlay.querySelectorAll('.rob-card').forEach((card, i) => {
       setTimeout(() => card.classList.add('rob-card-visible'), i * 110);
     });
   },
 
-  /* ── Логика событий ─────────────────────────────────────────── */
+  /* ── События ────────────────────────────────────────────── */
 
   _attachEvents(overlay) {
     let selected = null;
 
-    // Клик по карточке
+    /* Клик по карточке роли */
     overlay.addEventListener('click', e => {
       const card = e.target.closest('.rob-card');
       if (!card) return;
 
-      overlay.querySelectorAll('.rob-card').forEach(c => c.classList.remove('selected'));
+      overlay.querySelectorAll('.rob-card')
+        .forEach(c => c.classList.remove('selected'));
       card.classList.add('selected');
       selected = card.dataset.role;
 
-      // Активируем кнопку
       const btn  = overlay.querySelector('#rob-start-btn');
       const hint = overlay.querySelector('#rob-hint');
-      btn.disabled = false;
-      const cfg = window.ROLE_CONFIG?.[selected];
+      if (btn) btn.disabled = false;
+
+      /* Показываем welcome_message из ROLE_CONFIG */
+      const cfg = ROLE_CONFIG[selected];
       if (hint && cfg) hint.textContent = cfg.welcome_message;
     });
 
-    // Кнопка «Начать работу»
-    overlay.querySelector('#rob-start-btn').addEventListener('click', () => {
-      if (!selected) return;
-      this._save(selected, overlay);
-    });
+    /* Кнопка «Начать работу» */
+    overlay.querySelector('#rob-start-btn')
+      ?.addEventListener('click', () => {
+        if (!selected) return;
+        this._save(selected, overlay);
+      });
   },
 
-  /* ── Сохранение и финал ─────────────────────────────────────── */
+  /* ── Сохранение и завершение ─────────────────────────────── */
 
   _save(roleId, overlay) {
     try {
@@ -151,55 +171,58 @@ const RoleOnboarding = {
       console.warn('[RoleOnboarding] localStorage недоступен:', e.message);
     }
 
-    // Применяем к навигации
-    if (typeof applyRoleToNav === 'function') applyRoleToNav();
+    /* Применяем роль к навигации немедленно */
+    applyRoleToNav();
 
-    // Анимация закрытия
+    /* Анимация закрытия */
     overlay.classList.add('rob-hiding');
     setTimeout(() => {
       overlay.remove();
-      // Показываем welcome toast
       this._showWelcome(roleId);
-      // Вызываем callback
-      this._onDone(roleId);
+      this._onDone?.(roleId);
     }, 380);
   },
 
   _showWelcome(roleId) {
-    const cfg = window.ROLE_CONFIG?.[roleId];
+    const cfg = ROLE_CONFIG[roleId];
     if (!cfg) return;
-    // Используем App.toast если доступен, иначе простой div
-    if (typeof App !== 'undefined' && App.toast) {
-      App.toast(`${cfg.icon || '✅'} ${cfg.welcome_message}`, 'success');
-    }
+    /* window.App доступен т.к. app.js уже выполнился к этому моменту */
+    window.App?.toast(`${cfg.icon || '✅'} ${cfg.welcome_message}`, 'success');
   },
 };
 
-/* ── Инлайн-виджет смены роли для страницы настроек ────────────
-   Вызывается из ClientsPage или Settings.
-   ---------------------------------------------------------------- */
-const RoleSelector = {
+/* ══════════════════════════════════════════════
+   RoleSelector — инлайн-виджет смены роли
+   Используется в ClientsPage или Settings.
+══════════════════════════════════════════════ */
+export const RoleSelector = {
 
-  /** Рендерит блок выбора роли в переданный контейнер */
+  /**
+   * Рендерит блок выбора роли в переданный контейнер.
+   * @param {string} containerId — id DOM-элемента
+   */
   render(containerId) {
     const el = document.getElementById(containerId);
     if (!el) return;
-    const current = getCurrentRole?.() || 'csm_analyst';
+    const current = getCurrentRole();
     el.innerHTML = this._html(current);
     this._attachEvents(el, current);
   },
 
   _html(current) {
-    const cards = Object.entries(window.ROLE_CONFIG || {}).map(([id, cfg]) => {
-      const active = id === current ? 'rs-card-active' : '';
-      const tags   = (cfg.modules ? [] : []).join('');
+    const cards = Object.entries(ROLE_CONFIG).map(([id, cfg]) => {
+      const isActive = id === current;
       return `
-        <div class="rs-card ${active}" data-role="${id}">
+        <div class="rs-card${isActive ? ' rs-card-active' : ''}"
+             data-role="${id}">
           <span class="rs-icon">${cfg.icon || '●'}</span>
           <span class="rs-label">${cfg.label}</span>
-          ${id === current ? '<span class="rs-current-badge">текущая</span>' : ''}
+          ${isActive
+            ? '<span class="rs-current-badge">текущая</span>'
+            : ''}
         </div>`;
     }).join('');
+
     return `
       <div class="rs-wrap">
         <div class="form-section-title" style="margin-bottom:12px">🔖 Моя роль</div>
@@ -210,28 +233,39 @@ const RoleSelector = {
 
   _attachEvents(el, current) {
     let picked = current;
+
     el.querySelectorAll('.rs-card').forEach(card => {
       card.addEventListener('click', () => {
-        el.querySelectorAll('.rs-card').forEach(c => c.classList.remove('rs-card-active'));
+        el.querySelectorAll('.rs-card')
+          .forEach(c => c.classList.remove('rs-card-active'));
         card.classList.add('rs-card-active');
         picked = card.dataset.role;
-        if (picked !== current) {
-          if (typeof setCurrentRole === 'function') setCurrentRole(picked);
-          if (typeof applyRoleToNav === 'function') applyRoleToNav();
-          const msg = el.querySelector('#rs-msg');
-          if (msg) {
-            const cfg = window.ROLE_CONFIG?.[picked];
-            msg.textContent = `✅ Роль изменена на «${cfg?.label}»`;
-            msg.style.display = 'block';
-          }
-          if (typeof App !== 'undefined' && App.toast) {
-            App.toast(`Роль изменена на «${window.ROLE_CONFIG?.[picked]?.label}»`, 'success');
-          }
+
+        if (picked === current) return;   // роль не изменилась
+
+        /* Сохраняем и применяем */
+        setCurrentRole(picked);
+        applyRoleToNav();
+
+        /* Сообщение в контейнере */
+        const msg = el.querySelector('#rs-msg');
+        if (msg) {
+          const cfg = ROLE_CONFIG[picked];
+          msg.textContent  = `✅ Роль изменена на «${cfg?.label ?? picked}»`;
+          msg.style.display = 'block';
         }
+
+        /* Toast через window.App */
+        const cfg = ROLE_CONFIG[picked];
+        window.App?.toast(
+          `Роль изменена на «${cfg?.label ?? picked}»`,
+          'success'
+        );
       });
     });
   },
 };
 
+/* ── Expose globals для обратной совместимости ── */
 window.RoleOnboarding = RoleOnboarding;
 window.RoleSelector   = RoleSelector;

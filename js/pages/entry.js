@@ -306,175 +306,107 @@ export const EntryPage = {
       .addEventListener('click', () => this._resetForm());
   },
 
-  /* ═══════════════════════════════════════════════════════════
-     AI PARSER
-     ═══════════════════════════════════════════════════════════ */
   async _parseStatusWithAI() {
-    const text = (document.getElementById('ai-status-input')?.value || '').trim();
-    if (!text) { window.App.toast('Введите текст статуса', 'error'); return; }
+  const text = (document.getElementById('ai-status-input')?.value || '').trim();
+  if (!text) { window.App.toast('Введите текст статуса', 'error'); return; }
 
-    const apiKey = localStorage.getItem('bchs_deepseek_key') || '';
-    if (!apiKey) {
-      window.App.toast('Нет DeepSeek ключа — сохраните его в разделе MC', 'error');
-      return;
-    }
+  const btn    = document.getElementById('ai-parse-btn');
+  const status = document.getElementById('ai-parse-status');
+  const result = document.getElementById('ai-parse-result');
 
-    const btn    = document.getElementById('ai-parse-btn');
-    const status = document.getElementById('ai-parse-status');
-    const result = document.getElementById('ai-parse-result');
+  btn.disabled    = true;
+  btn.textContent = '⏳ Анализирую...';
+  if (status) status.textContent = 'Отправляю запрос к AI...';
+  if (result) result.classList.add('hidden');
 
-    btn.disabled    = true;
-    btn.textContent = '⏳ Анализирую...';
-    if (status) status.textContent = 'Отправляю запрос к AI...';
-    if (result) result.classList.add('hidden');
+  try {
+    const data    = await API.callAI(null, { type: 'status', text });
+    const content = data?.choices?.[0]?.message?.content ?? '';
+    if (!content) throw new Error('Пустой ответ от AI');
 
-    const signalDescriptions = Object.entries(SIGNALS).map(([key, def]) =>
-      `  "${key}": "${def.label}" (вес ${def.weight > 0 ? '+' : ''}${def.weight})`
-    ).join('\n');
-
-    const pcDescriptions = Object.entries(PC_CRITERIA).map(([key, def]) =>
-      `  "${key}": "${def.label}" — ${def.hint}`
-    ).join('\n');
-
-    const signalDefaults = Object.keys(SIGNALS)
-      .map(k => `"${k}": false`).join(', ');
-    const pcDefaults = Object.keys(PC_CRITERIA)
-      .map(k => `"${k}": 2`).join(', ');
-
-    const prompt = `Ты — аналитик клиентского портфеля. Проанализируй текст статуса клиента и определи:
-1. Какие сигналы bCHS активны
-2. Оценки PC Score по каждому критерию (1-5)
-
-ТЕКСТ СТАТУСА:
-"${text}"
-
-ДОСТУПНЫЕ СИГНАЛЫ bCHS (key: описание):
-${signalDescriptions}
-
-КРИТЕРИИ PC SCORE (key: описание — шкала):
-${pcDescriptions}
-
-ПРАВИЛА:
-- Для сигналов: включай только те которые явно упоминаются или явно подразумеваются из текста
-- Для PC: оцени каждый критерий от 1 до 5 на основе контекста. Если информации нет — ставь 2 (нейтральное)
-- Будь консервативен: лучше не включить сомнительный сигнал чем включить лишний
-
-Верни ТОЛЬКО валидный JSON без markdown:
-{
-  "signals": { ${signalDefaults} },
-  "pc": { ${pcDefaults} },
-  "explanation": "<2-3 предложения>"
-}`;
-
+    let parsed;
     try {
-      const resp = await fetch('https://api.deepseek.com/chat/completions', {
-        method:  'POST',
-        headers: {
-          'Content-Type':  'application/json',
-          'Authorization': `Bearer ${apiKey}`,
-        },
-        body: JSON.stringify({
-          model:       'deepseek-chat',
-          temperature: 0.2,
-          max_tokens:  800,
-          messages: [
-            {
-              role:    'system',
-              content: 'Ты аналитик клиентского портфеля. Отвечай ТОЛЬКО валидным JSON без markdown.',
-            },
-            { role: 'user', content: prompt },
-          ],
-        }),
-      });
-
-      if (!resp.ok) throw new Error(`API error ${resp.status}`);
-
-      const data    = await resp.json();
-      const content = data?.choices?.[0]?.message?.content ?? '';
-      if (!content) throw new Error('Пустой ответ от AI');
-
-      let parsed;
-      try {
-        const match = content.match(/\{[\s\S]*\}/);
-        parsed = JSON.parse(match ? match[0] : content);
-      } catch {
-        throw new Error('AI вернул невалидный JSON');
-      }
-
-      /* Применяем сигналы */
-      const activatedSignals = [];
-      if (parsed.signals) {
-        for (const [key, val] of Object.entries(parsed.signals)) {
-          if (!SIGNALS[key]) continue;
-          this.signals[key] = !!val;
-          const cb   = document.getElementById(`sig-${key}`);
-          if (cb) cb.checked = !!val;
-          const item = document.getElementById(`signal-item-${key}`);
-          if (item) {
-            item.classList.remove('checked-pos', 'checked-neg');
-            if (val) {
-              item.classList.add(
-                SIGNALS[key].weight > 0 ? 'checked-pos' : 'checked-neg'
-              );
-              activatedSignals.push(
-                `${SIGNALS[key].label} (${SIGNALS[key].weight > 0 ? '+' : ''}${SIGNALS[key].weight})`
-              );
-            }
-          }
-        }
-      }
-
-      /* Применяем PC значения */
-      if (parsed.pc) {
-        for (const [key, val] of Object.entries(parsed.pc)) {
-          if (!PC_CRITERIA[key]) continue;
-          const v = parseInt(val);
-          if (v >= 1 && v <= 5) {
-            this.pcValues[key] = v;
-            document.querySelectorAll(`.pc-btn[data-key="${key}"]`)
-              .forEach(b => b.classList.toggle('active', parseInt(b.dataset.val) === v));
-            const badge = document.getElementById(`pc-val-${key}`);
-            if (badge) badge.textContent = v;
-          }
-        }
-      }
-
-      this._updatePreview();
-
-      /* Показываем результат */
-      if (result) {
-        result.classList.remove('hidden');
-        const signalSummary = activatedSignals.length > 0
-          ? `<div style="margin-bottom:6px">
-               <strong>✅ Активированы сигналы (${activatedSignals.length}):</strong><br>
-               ${activatedSignals.join(' · ')}
-             </div>`
-          : `<div style="margin-bottom:6px">⚪ Значимых сигналов не обнаружено</div>`;
-
-        result.innerHTML = `
-          ${signalSummary}
-          ${parsed.explanation
-            ? `<div style="color:var(--text-muted);font-style:italic">
-                 💡 ${parsed.explanation}
-               </div>`
-            : ''}
-          <div style="margin-top:8px;font-size:11px;color:var(--text-muted)">
-            ⚠️ Проверьте и скорректируйте результаты вручную перед сохранением
-          </div>`;
-      }
-
-      if (status) status.textContent = `✅ Готово · ${activatedSignals.length} сигналов`;
-      window.App.toast(`🤖 AI расставил ${activatedSignals.length} сигналов`, 'success');
-
-    } catch (e) {
-      console.error('[EntryPage AI Parse]', e);
-      if (status) status.textContent = '❌ Ошибка';
-      window.App.toast('Ошибка AI: ' + e.message, 'error');
-    } finally {
-      btn.disabled    = false;
-      btn.textContent = '🤖 Распознать сигналы';
+      const match = content.match(/\{[\s\S]*\}/);
+      parsed = JSON.parse(match ? match[0] : content);
+    } catch {
+      throw new Error('AI вернул невалидный JSON');
     }
-  },
+
+    /* Применяем сигналы */
+    const activatedSignals = [];
+    if (parsed.signals) {
+      for (const [key, val] of Object.entries(parsed.signals)) {
+        if (!SIGNALS[key]) continue;
+        this.signals[key] = !!val;
+        const cb   = document.getElementById(`sig-${key}`);
+        if (cb) cb.checked = !!val;
+        const item = document.getElementById(`signal-item-${key}`);
+        if (item) {
+          item.classList.remove('checked-pos', 'checked-neg');
+          if (val) {
+            item.classList.add(
+              SIGNALS[key].weight > 0 ? 'checked-pos' : 'checked-neg'
+            );
+            activatedSignals.push(
+              `${SIGNALS[key].label} (${SIGNALS[key].weight > 0 ? '+' : ''}${SIGNALS[key].weight})`
+            );
+          }
+        }
+      }
+    }
+
+    /* Применяем PC значения */
+    if (parsed.pc) {
+      for (const [key, val] of Object.entries(parsed.pc)) {
+        if (!PC_CRITERIA[key]) continue;
+        const v = parseInt(val);
+        if (v >= 1 && v <= 5) {
+          this.pcValues[key] = v;
+          document.querySelectorAll(`.pc-btn[data-key="${key}"]`)
+            .forEach(b => b.classList.toggle('active', parseInt(b.dataset.val) === v));
+          const badge = document.getElementById(`pc-val-${key}`);
+          if (badge) badge.textContent = v;
+        }
+      }
+    }
+
+    this._updatePreview();
+
+    /* Показываем результат */
+    if (result) {
+      result.classList.remove('hidden');
+      const signalSummary = activatedSignals.length > 0
+        ? `<div style="margin-bottom:6px">
+             <strong>✅ Активированы сигналы (${activatedSignals.length}):</strong><br>
+             ${activatedSignals.join(' · ')}
+           </div>`
+        : `<div style="margin-bottom:6px">⚪ Значимых сигналов не обнаружено</div>`;
+
+      result.innerHTML = `
+        ${signalSummary}
+        ${parsed.explanation
+          ? `<div style="color:var(--text-muted);font-style:italic">
+               💡 ${parsed.explanation}
+             </div>`
+          : ''}
+        <div style="margin-top:8px;font-size:11px;color:var(--text-muted)">
+          ⚠️ Проверьте и скорректируйте результаты вручную перед сохранением
+        </div>`;
+    }
+
+    if (status) status.textContent = `✅ Готово · ${activatedSignals.length} сигналов`;
+    window.App.toast(`🤖 AI расставил ${activatedSignals.length} сигналов`, 'success');
+
+  } catch (e) {
+    console.error('[EntryPage AI Parse]', e);
+    if (status) status.textContent = '❌ Ошибка';
+    window.App.toast('Ошибка AI: ' + e.message, 'error');
+  } finally {
+    btn.disabled    = false;
+    btn.textContent = '🤖 Распознать сигналы';
+  }
+},
+
 
   /* ─── CHECK EXISTING ──────────────────────────────────────── */
   async checkExisting() {

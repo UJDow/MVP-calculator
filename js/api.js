@@ -242,6 +242,23 @@ export const API = {
     await this._delete(`tables/status_entries/${id}`);
   },
 
+  /* ── AI proxy ───────────────────────────────────────────────── */
+async callAI(messages, options = {}) {
+  const r = await fetch(`${BASE_URL}/ai/chat`, {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model:       options.model       ?? 'deepseek-chat',
+      temperature: options.temperature ?? 0.3,
+      max_tokens:  options.max_tokens  ?? 1000,
+      messages,
+    }),
+  });
+  if (!r.ok) throw new Error(`AI proxy error: ${r.status}`);
+  return r.json();
+},
+
+
   /* ══════════════════════════════════════════
      PORTFOLIO STRATEGIES
   ══════════════════════════════════════════ */

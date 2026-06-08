@@ -394,99 +394,58 @@ export const DashboardPage = {
       .addEventListener('click', () => this._saveStatus(clientId));
   },
 
-  /* ─── AI ANALYSIS ─────────────────────────────────────────── */
-  async _runStatusAI() {
-    const text   = (document.getElementById('status-text')?.value || '').trim();
-    if (!text) { window.App.toast('Введите текст статуса', 'error'); return; }
+ async _runStatusAI() {
+  const text = (document.getElementById('status-text')?.value || '').trim();
+  if (!text) { window.App.toast('Введите текст статуса', 'error'); return; }
 
-    const apiKey = localStorage.getItem('bchs_deepseek_key') || '';
-    if (!apiKey) { window.App.toast('Нет DeepSeek ключа', 'error'); return; }
+  const btn    = document.getElementById('status-ai-btn');
+  const status = document.getElementById('status-ai-status');
+  const result = document.getElementById('status-ai-result');
 
-    const btn    = document.getElementById('status-ai-btn');
-    const status = document.getElementById('status-ai-status');
-    const result = document.getElementById('status-ai-result');
+  btn.disabled       = true;
+  btn.textContent    = '⏳ Анализирую...';
+  status.textContent = 'Отправляю запрос...';
 
-    btn.disabled    = true;
-    btn.textContent = '⏳ Анализирую...';
-    status.textContent = 'Отправляю запрос...';
+  try {
+    const data = await API.callAI(null, {
+      type: 'status',
+      text,
+    });
 
-    const signalLines = Object.entries(SIGNALS).map(([key, def]) =>
-      `"${key}": "${def.label}" (${def.weight > 0 ? '+' : ''}${def.weight})`
-    ).join('\n');
+    const content = data?.choices?.[0]?.message?.content ?? '';
+    const match   = content.match(/\{[\s\S]*\}/);
+    const parsed  = JSON.parse(match ? match[0] : content);
 
-    const pcLines = Object.entries(PC_CRITERIA).map(([key, def]) =>
-      `"${key}": "${def.label}" — ${def.hint}`
-    ).join('\n');
+    document.getElementById('status-save-btn').dataset.parsed = JSON.stringify(parsed);
 
-    const prompt = `Аналитик клиентского портфеля. Проанализируй текст:
-"${text}"
+    const activeCount = Object.values(parsed.signals || {}).filter(Boolean).length;
 
-СИГНАЛЫ bCHS:
-${signalLines}
+    result.classList.remove('hidden');
+    result.innerHTML = `
+      <div style="margin-bottom:6px">
+        <strong>✅ Активных сигналов: ${activeCount}</strong>
+      </div>
+      ${parsed.explanation
+        ? `<div style="color:var(--text-muted);font-style:italic">💡 ${parsed.explanation}</div>`
+        : ''}
+      <div style="margin-top:6px;font-size:11px;color:var(--text-muted)">
+        ⚠️ Нажмите «Сохранить» чтобы применить
+      </div>`;
 
-КРИТЕРИИ PC:
-${pcLines}
+    status.textContent = `✅ ${activeCount} сигналов`;
+    window.App.toast(`🤖 AI нашёл ${activeCount} сигналов`, 'success');
 
-Верни ТОЛЬКО JSON:
-{
-  "signals": { ${Object.keys(SIGNALS).map(k => `"${k}": false`).join(', ')} },
-  "pc": { ${Object.keys(PC_CRITERIA).map(k => `"${k}": 2`).join(', ')} },
-  "explanation": "..."
-}`;
+  } catch (e) {
+    console.error('[StatusModal AI]', e);
+    status.textContent = '❌ Ошибка';
+    window.App.toast('Ошибка AI: ' + e.message, 'error');
+  } finally {
+    btn.disabled    = false;
+    btn.textContent = '🤖 Распознать сигналы';
+  }
+},
 
-    try {
-      const resp = await fetch('https://api.deepseek.com/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type':  'application/json',
-          'Authorization': `Bearer ${apiKey}`,
-        },
-        body: JSON.stringify({
-          model:       'deepseek-chat',
-          temperature: 0.2,
-          max_tokens:  800,
-          messages: [
-            { role: 'system', content: 'Отвечай ТОЛЬКО валидным JSON без markdown.' },
-            { role: 'user',   content: prompt },
-          ],
-        }),
-      });
 
-      if (!resp.ok) throw new Error(`API error ${resp.status}`);
-
-      const data    = await resp.json();
-      const content = data?.choices?.[0]?.message?.content ?? '';
-      const match   = content.match(/\{[\s\S]*\}/);
-      const parsed  = JSON.parse(match ? match[0] : content);
-
-      document.getElementById('status-save-btn').dataset.parsed = JSON.stringify(parsed);
-
-      const activeCount = Object.values(parsed.signals || {}).filter(Boolean).length;
-
-      result.classList.remove('hidden');
-      result.innerHTML = `
-        <div style="margin-bottom:6px">
-          <strong>✅ Активных сигналов: ${activeCount}</strong>
-        </div>
-        ${parsed.explanation
-          ? `<div style="color:var(--text-muted);font-style:italic">💡 ${parsed.explanation}</div>`
-          : ''}
-        <div style="margin-top:6px;font-size:11px;color:var(--text-muted)">
-          ⚠️ Нажмите «Сохранить» чтобы применить
-        </div>`;
-
-      status.textContent = `✅ ${activeCount} сигналов`;
-      window.App.toast(`🤖 AI нашёл ${activeCount} сигналов`, 'success');
-
-    } catch (e) {
-      console.error('[StatusModal AI]', e);
-      status.textContent = '❌ Ошибка';
-      window.App.toast('Ошибка AI: ' + e.message, 'error');
-    } finally {
-      btn.disabled    = false;
-      btn.textContent = '🤖 Распознать сигналы';
-    }
-  },
 
   /* ─── SAVE STATUS ─────────────────────────────────────────── */
   async _saveStatus(clientId) {

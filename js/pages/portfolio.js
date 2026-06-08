@@ -292,78 +292,63 @@ export const PortfolioPage = {
     }
   },
 
-  /* ── AI: генерация одного горизонта ── */
   async _aiHorizon(key, summary) {
-    const apiKey = localStorage.getItem('bchs_deepseek_key') || '';
-    if (!apiKey) { alert('Введите DeepSeek API ключ в настройках'); return; }
+  const btn = document.getElementById(`pf-ai-btn-${key}`);
+  if (btn) { btn.disabled = true; btn.textContent = '⏳'; }
 
-    const btn = document.getElementById(`pf-ai-btn-${key}`);
-    if (btn) { btn.disabled = true; btn.textContent = '⏳'; }
+  const horizonLabels = {
+    short: 'краткосрочная (1 месяц)',
+    mid:   'среднесрочная (1–2 квартала)',
+    long:  'долгосрочная (4 квартала)',
+  };
 
-    const horizonLabels = {
-      short: 'краткосрочная (1 месяц)',
-      mid:   'среднесрочная (1–2 квартала)',
-      long:  'долгосрочная (4 квартала)',
+  try {
+    const top3text = summary.top3Risk
+      .map(r => `${r.name} ($${r.risk.toLocaleString('ru-RU')}, ${r.pct}%)`)
+      .join('; ') || 'нет';
+
+    const data = await API.callAI(null, {
+      type:    'horizon',
+      horizon: key,
+      summary: {
+        total:        summary.total,
+        avgLoyalty:   summary.avgLoyalty,
+        totalRisk:    summary.totalRisk,
+        bcgCount:     summary.bcgCount,
+        top3Risk:     top3text,
+        avgPotential: summary.avgPotential,
+      },
+    });
+
+    const content = data?.choices?.[0]?.message?.content ?? '';
+    if (!content) throw new Error('Пустой ответ от AI');
+
+    const match  = content.match(/\{[\s\S]*\}/);
+    const parsed = JSON.parse(match ? match[0] : content);
+
+    const setVal = (id, val) => {
+      const el = document.getElementById(id);
+      if (el) el.value = val || '';
     };
+    setVal(`pf-${key}-title`,    parsed.title);
+    setVal(`pf-${key}-goal`,     parsed.goal);
+    setVal(`pf-${key}-actions`,  parsed.actions);
+    setVal(`pf-${key}-metric`,   parsed.success_metric);
+    setVal(`pf-${key}-deadline`, parsed.deadline);
 
-    try {
-      const top3text = summary.top3Risk
-        .map(r => `${r.name} ($${r.risk.toLocaleString('ru-RU')}, ${r.pct}%)`)
-        .join('; ') || 'нет';
+    window.App.toast(
+      `🤖 AI стратегия для горизонта «${horizonLabels[key]}» заполнена`,
+      'success'
+    );
 
-      const prompt =
-        `Ты стратегический аналитик CSM-портфеля. ` +
-        `Предложи стратегию для горизонта: ${horizonLabels[key]}.\n\n` +
-        `ДАННЫЕ ПОРТФЕЛЯ:\n` +
-        `- Всего клиентов: ${summary.total}\n` +
-        `- Лояльность: ${summary.avgLoyalty !== null ? summary.avgLoyalty + '%' : 'нет данных'}\n` +
-        `- Revenue at Risk: $${summary.totalRisk.toLocaleString('ru-RU')}\n` +
-        `- BCG: KEY=${summary.bcgCount.KEY}, STABLE=${summary.bcgCount.STABLE}, ` +
-        `GROWTH=${summary.bcgCount.GROWTH}, GROWTH_EARLY=${summary.bcgCount.GROWTH_EARLY}, ` +
-        `TAIL=${summary.bcgCount.TAIL}\n` +
-        `- Топ-3 риска: ${top3text}\n` +
-        `- Средняя реализация потенциала: ` +
-        `${summary.avgPotential !== null ? summary.avgPotential + '%' : 'нет данных'}\n\n` +
-        `Верни СТРОГО валидный JSON без markdown:\n` +
-        `{"title":"...","goal":"...","actions":"...","success_metric":"...","deadline":"YYYY-MM-DD"}`;
+  } catch (e) {
+    console.error('[AI Horizon]', e);
+    window.App.toast('Ошибка AI: ' + e.message, 'error');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '🤖'; }
+  }
+},
 
-      const resp = await fetch('https://api.deepseek.com/chat/completions', {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
-        body: JSON.stringify({
-          model: 'deepseek-chat', temperature: 0.3, max_tokens: 600,
-          messages: [
-            { role: 'system', content: 'Ты аналитик CSM-портфеля. Отвечай ТОЛЬКО валидным JSON без markdown.' },
-            { role: 'user',   content: prompt },
-          ],
-        }),
-      });
-      if (!resp.ok) throw new Error(`DeepSeek ${resp.status}`);
-
-      const data    = await resp.json();
-      const content = data?.choices?.[0]?.message?.content ?? '';
-      const match   = content.match(/\{[\s\S]*\}/);
-      const parsed  = JSON.parse(match ? match[0] : content);
-
-      const setVal = (id, val) => {
-        const el = document.getElementById(id);
-        if (el) el.value = val || '';
-      };
-      setVal(`pf-${key}-title`,    parsed.title);
-      setVal(`pf-${key}-goal`,     parsed.goal);
-      setVal(`pf-${key}-actions`,  parsed.actions);
-      setVal(`pf-${key}-metric`,   parsed.success_metric);
-      setVal(`pf-${key}-deadline`, parsed.deadline);
-
-      window.App.toast(`🤖 AI стратегия для горизонта «${horizonLabels[key]}» заполнена`, 'success');
-
-    } catch (e) {
-      console.error('[AI Horizon]', e);
-      alert('Ошибка AI: ' + e.message);
-    } finally {
-      if (btn) { btn.disabled = false; btn.textContent = '🤖'; }
-    }
-  },
 
   /* ══════════════════════════════════════════
      ТАБ 2 — СТРАТЕГИЯ ПО АККАУНТАМ
@@ -618,60 +603,58 @@ export const PortfolioPage = {
 
     /* ── AI handler ── */
     document.getElementById('as-ai-btn')?.addEventListener('click', async () => {
-      const aiKey = localStorage.getItem('bchs_deepseek_key') || '';
-      if (!aiKey) { alert('Введите DeepSeek API ключ в настройках'); return; }
+  const aiBtn = document.getElementById('as-ai-btn');
+  if (aiBtn) { aiBtn.disabled = true; aiBtn.textContent = '⏳...'; }
 
-      const aiBtn = document.getElementById('as-ai-btn');
-      if (aiBtn) { aiBtn.disabled = true; aiBtn.textContent = '⏳...'; }
-      try {
-        const prompt =
-          `Ты CSM-аналитик. Предложи стратегию работы с клиентом.\n\n` +
-          `ПРОФИЛЬ: ${c.name} · BCG: ${bcg} · Приоритет: ${c.key_account_priority || '—'} ` +
-          `· MR: $${Number(c.monthly_revenue || 0).toLocaleString('ru-RU')}\n` +
-          `bCHS текущий: ${row.bchs !== null ? row.bchs : 'нет данных'} · Тренд: ${trendLabel}\n` +
-          `MC прогноз 3М: bCHS медиана ${mc3m} · Риск оттока ${churn3}\n` +
-          `MC прогноз 12М: bCHS медиана ${mc12m} · ` +
-          `Риск оттока ${mc ? mc.horizons['12m'].churn_rate.toFixed(1) + '%' : '—'}\n` +
-          `Engagement: ${c.client_engagement || '—'} · Phase: ${c.phase || '—'}\n` +
-          `Revenue at Risk: $${(row.revenueAtRisk || 0).toLocaleString('ru-RU')}\n\n` +
-          `Верни СТРОГО валидный JSON без markdown:\n` +
-          `{"goal":"...","actions":"...","success_metric":"...","deadline":"YYYY-MM-DD"}`;
-
-        const resp = await fetch('https://api.deepseek.com/chat/completions', {
-          method:  'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${aiKey}` },
-          body: JSON.stringify({
-            model: 'deepseek-chat', temperature: 0.3, max_tokens: 600,
-            messages: [
-              { role: 'system', content: 'Ты CSM-аналитик. Отвечай ТОЛЬКО валидным JSON без markdown.' },
-              { role: 'user',   content: prompt },
-            ],
-          }),
-        });
-        if (!resp.ok) throw new Error(`DeepSeek ${resp.status}`);
-
-        const data    = await resp.json();
-        const content = data?.choices?.[0]?.message?.content ?? '';
-        const match   = content.match(/\{[\s\S]*\}/);
-        const parsed  = JSON.parse(match ? match[0] : content);
-
-        const setVal = (id, val) => {
-          const el = document.getElementById(id);
-          if (el) el.value = val || '';
-        };
-        setVal('as-goal',     parsed.goal);
-        setVal('as-actions',  parsed.actions);
-        setVal('as-metric',   parsed.success_metric);
-        setVal('as-deadline', parsed.deadline);
-
-        window.App.toast('🤖 AI предложение заполнено — проверьте и сохраните', 'success');
-      } catch (e) {
-        console.error('[AI Account]', e);
-        alert('Ошибка AI: ' + e.message);
-      } finally {
-        if (aiBtn) { aiBtn.disabled = false; aiBtn.textContent = '🤖 AI предложить'; }
-      }
+  try {
+    const data = await API.callAI(null, {
+      type:    'account',
+      client: {
+        name:               c.name,
+        bcg:                bcg,
+        priority:           c.key_account_priority || '—',
+        monthly_revenue:    c.monthly_revenue || 0,
+        engagement:         c.client_engagement || '—',
+        phase:              c.phase || '—',
+        revenue_at_risk:    row.revenueAtRisk || 0,
+      },
+      metrics: {
+        bchs_current: row.bchs,
+        trend:        trendLabel,
+        mc_3m_median: mc3m,
+        mc_3m_churn:  churn3,
+        mc_12m_median: mc12m,
+        mc_12m_churn:  mc
+          ? mc.horizons['12m'].churn_rate.toFixed(1) + '%'
+          : '—',
+      },
     });
+
+    const content = data?.choices?.[0]?.message?.content ?? '';
+    if (!content) throw new Error('Пустой ответ от AI');
+
+    const match  = content.match(/\{[\s\S]*\}/);
+    const parsed = JSON.parse(match ? match[0] : content);
+
+    const setVal = (id, val) => {
+      const el = document.getElementById(id);
+      if (el) el.value = val || '';
+    };
+    setVal('as-goal',     parsed.goal);
+    setVal('as-actions',  parsed.actions);
+    setVal('as-metric',   parsed.success_metric);
+    setVal('as-deadline', parsed.deadline);
+
+    window.App.toast('🤖 AI предложение заполнено — проверьте и сохраните', 'success');
+
+  } catch (e) {
+    console.error('[AI Account]', e);
+    window.App.toast('Ошибка AI: ' + e.message, 'error');
+  } finally {
+    if (aiBtn) { aiBtn.disabled = false; aiBtn.textContent = '🤖 AI предложить'; }
+  }
+});
+
   },
 
   /* ══════════════════════════════════════════

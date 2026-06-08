@@ -392,89 +392,109 @@ export const PortfolioPage = {
   }
 },
 
-_askDirection(options) {
+_askDirection() {
   return new Promise(resolve => {
-    const presets = options.filter(o => o.id !== 'custom');
+    const opts = [
+      { id: 'retention',    icon: '🛡️', label: 'Удержание',    hint: 'Снизить риски оттока, укрепить отношения с клиентами' },
+      { id: 'growth',       icon: '🚀', label: 'Рост',          hint: 'Апсейл, расширение услуг, новые возможности' },
+      { id: 'optimization', icon: '⚡', label: 'Оптимизация',   hint: 'Эффективность команды, процессов и покрытия' },
+      { id: 'custom',       icon: '✏️', label: 'Своё',          hint: 'Опиши направление самостоятельно' },
+    ];
+
+    const cardsHTML = opts.map(o => `
+      <div class="dir-option" data-id="${o.id}" style="
+        border:2px solid #e5e7eb;border-radius:12px;padding:16px;cursor:pointer;
+        transition:all .18s;background:#fff;
+      ">
+        <div style="font-size:22px;margin-bottom:6px">${o.icon}</div>
+        <div style="font-weight:600;font-size:15px;margin-bottom:4px">${o.label}</div>
+        <div style="font-size:13px;color:#6b7280;line-height:1.4">${o.hint}</div>
+      </div>`).join('');
 
     const html = `
-      <div style="max-width:440px">
-        <div style="font-size:15px;font-weight:700;margin-bottom:16px">
-          🎯 Выбери направление стратегии
+      <div style="padding:24px;max-width:480px;width:100%">
+        <h3 style="margin:0 0 20px;font-size:18px;font-weight:700">🎯 Выбери направление стратегии</h3>
+
+        <div id="dir-cards" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:8px">
+          ${cardsHTML}
         </div>
 
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">
-          ${presets.map(o => `
-            <div class="dir-option" data-id="${o.id}"
-                 style="padding:10px 14px;border:1px solid var(--border);
-                        border-radius:var(--radius);cursor:pointer;transition:all 0.15s">
-              <div style="font-weight:600">${o.label}</div>
-              <div style="font-size:11px;color:var(--text-muted)">${o.hint}</div>
-            </div>`).join('')}
-        </div>
-
-        <div style="text-align:center;font-size:11px;color:var(--text-muted);
-                    margin-bottom:12px">— или опиши своё —</div>
-
-        <textarea class="form-textarea" id="custom-dir-input"
-                  style="min-height:90px;resize:vertical;margin-bottom:16px"
-                  placeholder="Например: сфокусироваться на апсейле KEY-клиентов и снижении оттока TAIL..."></textarea>
-
-        <div style="display:flex;gap:8px">
-          <button class="btn btn-primary btn-sm" id="dir-confirm" disabled>
-            Генерировать →
-          </button>
-          <button class="btn btn-secondary btn-sm" id="dir-cancel">Отмена</button>
+        <div id="dir-text-wrap" style="display:none">
+          <div id="dir-selected-label" style="
+            font-size:14px;font-weight:600;color:#2563eb;margin-bottom:10px;
+          "></div>
+          <textarea id="dir-custom-input" class="form-textarea" style="
+            width:100%;min-height:120px;resize:vertical;font-size:14px;
+            border:2px solid #2563eb;border-radius:10px;padding:12px;
+            box-sizing:border-box;
+          " placeholder="Уточни или измени направление..."></textarea>
+          <div style="display:flex;gap:10px;margin-top:14px">
+            <button id="dir-confirm" class="btn btn-primary" style="flex:1">Генерировать →</button>
+            <button id="dir-back" class="btn btn-secondary">← Назад</button>
+            <button id="dir-cancel" class="btn btn-secondary">Отмена</button>
+          </div>
         </div>
       </div>`;
 
-    window.App.openModal(html);
-    let selected = null;
+    window.App.openModal(html, { hideClose: false });
 
-    /* Клик по пресету — заполняет textarea и подсвечивает */
-    document.querySelectorAll('.dir-option').forEach(el => {
-      el.addEventListener('click', () => {
-        document.querySelectorAll('.dir-option').forEach(e => {
-          e.style.background  = '';
-          e.style.borderColor = 'var(--border)';
-        });
-        el.style.background  = 'rgba(99,102,241,0.08)';
-        el.style.borderColor = '#6366f1';
-        selected = el.dataset.id;
+    const hints = {
+      retention:    'Снизить риски оттока, укрепить отношения с клиентами',
+      growth:       'Апсейл, расширение услуг, новые возможности',
+      optimization: 'Эффективность команды, процессов и покрытия',
+      custom:       '',
+    };
+    const labels = {
+      retention: '🛡️ Удержание', growth: '🚀 Рост',
+      optimization: '⚡ Оптимизация', custom: '✏️ Своё направление',
+    };
 
-        /* Подставляем hint в textarea как отправную точку */
-        const opt = options.find(o => o.id === selected);
-        const ta  = document.getElementById('custom-dir-input');
-        if (ta && opt) ta.value = opt.hint;
-
-        document.getElementById('dir-confirm').disabled = false;
+    document.querySelectorAll('.dir-option').forEach(card => {
+      card.addEventListener('mouseenter', () => {
+        card.style.borderColor = '#2563eb';
+        card.style.background  = '#eff6ff';
+      });
+      card.addEventListener('mouseleave', () => {
+        card.style.borderColor = '#e5e7eb';
+        card.style.background  = '#fff';
+      });
+      card.addEventListener('click', () => {
+        const id = card.dataset.id;
+        // скрываем карточки
+        document.getElementById('dir-cards').style.display = 'none';
+        // показываем поле
+        const wrap  = document.getElementById('dir-text-wrap');
+        const lbl   = document.getElementById('dir-selected-label');
+        const input = document.getElementById('dir-custom-input');
+        lbl.textContent = labels[id];
+        input.value     = id === 'custom' ? '' : hints[id];
+        wrap.style.display = 'block';
+        input.focus();
+        // кнопка «Назад»
+        document.getElementById('dir-back').onclick = () => {
+          wrap.style.display  = 'none';
+          document.getElementById('dir-cards').style.display = 'grid';
+        };
+        // кнопка «Генерировать»
+        document.getElementById('dir-confirm').onclick = () => {
+          const val = input.value.trim();
+          window.App.closeModal?.();
+          resolve(val || hints[id] || id);
+        };
+        // кнопка «Отмена»
+        document.getElementById('dir-cancel').onclick = () => {
+          window.App.closeModal?.();
+          resolve(null);
+        };
       });
     });
 
-    /* Ручной ввод тоже разблокирует кнопку */
-    document.getElementById('custom-dir-input')?.addEventListener('input', e => {
-      document.getElementById('dir-confirm').disabled = e.target.value.trim() === '';
-      if (e.target.value.trim()) {
-        /* Снимаем выделение пресетов если пишем вручную */
-        document.querySelectorAll('.dir-option').forEach(el => {
-          el.style.background  = '';
-          el.style.borderColor = 'var(--border)';
-        });
-        selected = 'custom';
-      }
-    });
-
-    document.getElementById('dir-confirm')?.addEventListener('click', () => {
-      const text = document.getElementById('custom-dir-input')?.value.trim();
-      window.App.closeModal();
-      resolve(text || selected || null);
-    });
-
-    document.getElementById('dir-cancel')?.addEventListener('click', () => {
-      window.App.closeModal();
-      resolve(null);
-    });
+    // крестик закрыть
+    document.querySelector('.modal-close, [data-modal-close]')
+      ?.addEventListener('click', () => resolve(null));
   });
 },
+
 
 
 _showVariantPicker(key, variants, horizonLabel) {
@@ -730,16 +750,19 @@ _showVariantPicker(key, variants, horizonLabel) {
           <textarea class="form-textarea" id="as-actions" style="min-height:80px"
                     placeholder="Конкретные шаги...">${v('actions')}</textarea>
         </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:16px">
-          <div class="form-group" style="margin:0">
-            <label class="form-label">Метрика успеха</label>
-            <input class="form-input" id="as-metric"
-                   value="${v('success_metric')}" placeholder="Как измерим" />
-          </div>
-          <div class="form-group" style="margin:0">
-            <label class="form-label">Дедлайн</label>
-            <input class="form-input" type="date" id="as-deadline" value="${v('deadline')}" />
-          </div>
+        <div class="form-group">
+  <label class="form-label">Метрика успеха</label>
+  <textarea class="form-textarea" id="pf-${key}-metric"
+            style="min-height:80px;resize:vertical"
+            placeholder="Как измерим результат">${v('success_metric')}</textarea>
+</div>
+<div class="form-group" style="max-width:220px">
+  <label class="form-label">Дедлайн</label>
+  <input class="form-input" type="date"
+         id="pf-${key}-deadline"
+         value="${v('deadline')}" />
+</div>
+
           <div class="form-group" style="margin:0">
             <label class="form-label">Статус</label>
             <select class="form-select" id="as-status">${statuses}</select>

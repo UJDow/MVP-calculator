@@ -190,7 +190,7 @@ export const DashboardPage = {
       <div class="client-row${expanded ? ' expanded' : ''}" data-id="${c.id}">
         <div class="row-main">
           <span class="client-name" title="${c.name}">
-            ${c.name}${this._touchIndicator(c.id, c.bcg_category)}
+            ${c.name}${this._touchIndicator(c.id, c.bcg_category, row)}
           </span>
           <span class="badge ${row.badge.cls}">${row.badge.label}</span>
           <span class="focus-text" title="${row.focus}">${row.focus}</span>
@@ -306,34 +306,70 @@ export const DashboardPage = {
       </div>`;
   },
 
-  _touchUrgency(clientId, bcgCategory) {
-    const BCG_FREQUENCY = { KEY:14, GROWTH:21, GROWTH_EARLY:14, STABLE:30, TAIL:60 };
-    const freq    = BCG_FREQUENCY[bcgCategory] ?? 30;
-    const now     = Date.now();
-    const last    = (this.touchPoints || [])
-      .filter(tp => String(tp.client_id) === String(clientId) && tp.completed_at)
-      .sort((a, b) => new Date(b.completed_at) - new Date(a.completed_at))[0];
-    const lastTime = last ? new Date(last.completed_at).getTime() : 0;
-    const diffDays = Math.round((now - lastTime) / (24 * 60 * 60 * 1000));
-    if (diffDays >= freq)       return 'overdue';
-    if (diffDays >= freq * 0.8) return 'due';
-    return 'ok';
-  },
+  _touchUrgency(clientId, bcgCategory, row) {
+  const BCG_FREQUENCY = { KEY:14, GROWTH:21, GROWTH_EARLY:14, STABLE:42, TAIL:90 };
+  const freq = BCG_FREQUENCY[bcgCategory] ?? 30;
+  const now  = Date.now();
 
-  _touchIndicator(clientId, bcgCategory) {
-    const urgency = this._touchUrgency(clientId, bcgCategory);
-    if (urgency === 'ok') return '';
-    if (urgency === 'overdue') return `
-      <span title="Давно не было касания" style="
-        margin-left:5px;font-size:10px;background:#fef2f2;color:#ef4444;
-        border-radius:4px;padding:1px 5px;vertical-align:middle;cursor:default">
-        📍 просрочено</span>`;
-    return `
-      <span title="Скоро нужно связаться" style="
-        margin-left:5px;font-size:10px;background:#fffbeb;color:#f59e0b;
-        border-radius:4px;padding:1px 5px;vertical-align:middle;cursor:default">
-        📍 скоро</span>`;
-  },
+  const last = (this.touchPoints || [])
+    .filter(tp => String(tp.client_id) === String(clientId) && tp.completed_at)
+    .sort((a, b) => new Date(b.completed_at) - new Date(a.completed_at))[0];
+
+  const daysSinceLast = last
+    ? Math.round((now - new Date(last.completed_at).getTime()) / 86400000)
+    : null;
+
+  /* ── 1. НЕМЕДЛЕННО — плохие метрики ── */
+  const bchs         = row?.bchs ?? null;
+  const trendDown    = row?.trend?.direction === 'down';
+  const riskPct      = row?.riskPct ?? 0;
+  const churnHigh    = false; /* MC данных нет в dashboard row */
+
+  if (bchs !== null && bchs < -10)            return 'immediate';
+  if (trendDown && bchs !== null && bchs < 0) return 'immediate';
+  if (riskPct > 30)                           return 'immediate';
+
+  /* ── 2. СРОЧНО — ухудшение ── */
+  if (trendDown && bchs !== null && bchs < 20) return 'overdue';
+  if (riskPct > 15)                            return 'overdue';
+
+  /* ── 3. ПЛАНОВОЕ — по расписанию (только если касание уже было) ── */
+  if (daysSinceLast === null) return 'ok'; /* нет истории → молчим */
+  if (daysSinceLast >= freq)        return 'overdue';
+  if (daysSinceLast >= freq * 0.75) return 'due';
+
+  return 'ok';
+},
+
+
+  _touchIndicator(clientId, bcgCategory, row) {
+  const urgency = this._touchUrgency(clientId, bcgCategory, row);
+  if (urgency === 'ok') return '';
+
+  const styles = {
+    immediate: 'background:#fef2f2;color:#ef4444;border:1px solid #fecaca',
+    overdue:   'background:#fef2f2;color:#ef4444;border:1px solid #fecaca',
+    due:       'background:#fffbeb;color:#f59e0b;border:1px solid #fde68a',
+  };
+  const labels = {
+    immediate: '📍 срочно',
+    overdue:   '📍 просрочено',
+    due:       '📍 скоро',
+  };
+  const titles = {
+    immediate: 'Требует немедленного касания',
+    overdue:   'Давно не было касания',
+    due:       'Скоро нужно связаться',
+  };
+
+  return `<span title="${titles[urgency]}" style="
+    margin-left:5px;font-size:10px;${styles[urgency]};
+    border-radius:4px;padding:1px 5px;
+    vertical-align:middle;cursor:default;white-space:nowrap">
+    ${labels[urgency]}
+  </span>`;
+},
+
 
   _daysAgo(date) {
     const days = Math.round((Date.now() - date.getTime()) / (24 * 60 * 60 * 1000));

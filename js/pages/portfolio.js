@@ -99,7 +99,7 @@ export const PortfolioPage = {
             <div class="form-section-title" style="margin:0">Стратегические горизонты</div>
             <button class="btn btn-primary btn-sm" id="pf-save-btn">💾 Сохранить всё</button>
           </div>
-          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px">
+          <div style="display:grid;grid-template-columns:1fr;gap:16px">
             ${this._horizonFormHTML('short', '🔴 Краткосрочная', '1 месяц',      this._portfolioData.short)}
             ${this._horizonFormHTML('mid',   '🟡 Среднесрочная', '1–2 квартала', this._portfolioData.mid)}
             ${this._horizonFormHTML('long',  '🟢 Долгосрочная',  '4 квартала',   this._portfolioData.long)}
@@ -224,45 +224,62 @@ export const PortfolioPage = {
   },
 
   _horizonFormHTML(key, label, period, saved) {
-    const v = f => saved ? (saved[f] || '') : '';
-    return `
-      <div style="background:var(--surface);border:1px solid var(--border);
-                  border-radius:var(--radius);padding:16px">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
-          <div style="font-size:13px;font-weight:700">${label}
-            <span style="font-size:11px;color:var(--text-muted);font-weight:400">${period}</span>
-          </div>
-          <button id="pf-ai-btn-${key}" class="btn btn-secondary btn-sm"
-                  style="padding:3px 8px;font-size:13px;line-height:1"
-                  title="🤖 AI стратегия для этого горизонта">🤖</button>
+  const v = f => saved ? (saved[f] || '') : '';
+  return `
+    <div style="background:var(--surface);border:1px solid var(--border);
+                border-radius:var(--radius);padding:20px;display:flex;
+                flex-direction:column;gap:12px">
+      <div style="display:flex;align-items:center;
+                  justify-content:space-between">
+        <div style="font-size:13px;font-weight:700">${label}
+          <span style="font-size:11px;color:var(--text-muted);
+                       font-weight:400;margin-left:4px">${period}</span>
         </div>
-        <div class="form-group" style="margin-bottom:8px">
-          <label class="form-label">Название</label>
-          <input class="form-input" id="pf-${key}-title" value="${v('title')}"
-                 placeholder="Например: Операционная чистота" />
-        </div>
-        <div class="form-group" style="margin-bottom:8px">
-          <label class="form-label">Цель</label>
-          <textarea class="form-textarea" id="pf-${key}-goal"
-                    style="min-height:72px" placeholder="Что хотим достичь...">${v('goal')}</textarea>
-        </div>
-        <div class="form-group" style="margin-bottom:8px">
-          <label class="form-label">Действия</label>
-          <textarea class="form-textarea" id="pf-${key}-actions"
-                    style="min-height:72px" placeholder="Конкретные шаги...">${v('actions')}</textarea>
-        </div>
-        <div class="form-group" style="margin-bottom:8px">
+        <button id="pf-ai-btn-${key}" class="btn btn-secondary btn-sm"
+                style="padding:4px 10px;font-size:12px;white-space:nowrap"
+                title="🤖 AI предложит 3 варианта стратегии">
+          🤖 AI варианты
+        </button>
+      </div>
+
+      <div class="form-group" style="margin:0">
+        <label class="form-label">Название</label>
+        <input class="form-input" id="pf-${key}-title"
+               value="${v('title')}"
+               placeholder="Например: Операционная чистота" />
+      </div>
+
+      <div class="form-group" style="margin:0">
+        <label class="form-label">Цель</label>
+        <textarea class="form-textarea" id="pf-${key}-goal"
+                  style="min-height:100px;resize:vertical"
+                  placeholder="Что хотим достичь...">${v('goal')}</textarea>
+      </div>
+
+      <div class="form-group" style="margin:0">
+        <label class="form-label">Действия</label>
+        <textarea class="form-textarea" id="pf-${key}-actions"
+                  style="min-height:120px;resize:vertical"
+                  placeholder="Конкретные шаги...">${v('actions')}</textarea>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div class="form-group" style="margin:0">
           <label class="form-label">Метрика успеха</label>
-          <input class="form-input" id="pf-${key}-metric" value="${v('success_metric')}"
+          <input class="form-input" id="pf-${key}-metric"
+                 value="${v('success_metric')}"
                  placeholder="Как измерим результат" />
         </div>
-        <div class="form-group" style="margin-bottom:0">
+        <div class="form-group" style="margin:0">
           <label class="form-label">Дедлайн</label>
-          <input class="form-input" type="date" id="pf-${key}-deadline"
+          <input class="form-input" type="date"
+                 id="pf-${key}-deadline"
                  value="${v('deadline')}" />
         </div>
-      </div>`;
-  },
+      </div>
+    </div>`;
+},
+
 
   _readHorizon(key) {
     const g = id => document.getElementById(id)?.value.trim() ?? '';

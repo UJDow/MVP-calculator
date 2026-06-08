@@ -2,9 +2,10 @@
    Portfolio BCHS — API Layer (unified)
    ============================================ */
 
+const BASE_URL = 'https://bchs-api.lexsnitko.workers.dev';
+
 const API = {
 
-  /* ---- safe JSON helper ---- */
   async _safeJson(r) {
     if (!r.ok) {
       const text = await r.text().catch(() => '');
@@ -14,7 +15,6 @@ const API = {
     return r.json().catch(() => null);
   },
 
-  /* ---- Cache ---- */
   _bchsCache: null,
   _pcCache: null,
   _statusCache: null,
@@ -25,9 +25,8 @@ const API = {
     this._statusCache = null;
   },
 
-  /* ---- Generic fetch ---- */
   async _fetchAll(table) {
-    const r = await fetch(`tables/${table}?limit=2000`);
+    const r = await fetch(`${BASE_URL}/tables/${table}?limit=2000`);
     const j = await this._safeJson(r);
     if (!j) return [];
     return Array.isArray(j.data) ? j.data : (Array.isArray(j) ? j : []);
@@ -35,25 +34,24 @@ const API = {
 
   /* ---- Clients ---- */
   async getClients() {
-    const r = await fetch('tables/clients?limit=500');
+    const r = await fetch(`${BASE_URL}/tables/clients?limit=500`);
     const j = await this._safeJson(r);
     if (!j) return [];
     return Array.isArray(j.data) ? j.data : (Array.isArray(j) ? j : []);
   },
 
   async getClient(id) {
-    const r = await fetch(`tables/clients/${id}`);
+    const r = await fetch(`${BASE_URL}/tables/clients/${id}`);
     return await this._safeJson(r);
   },
 
   async createClient(data) {
     const payload = { ...data };
     if (!payload.id) delete payload.id;
-    // Attach computed fields
     const computed = ClientCalc.compute(data);
     Object.assign(payload, computed);
     delete payload.bcg_alert;
-    const r = await fetch('tables/clients', {
+    const r = await fetch(`${BASE_URL}/tables/clients`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
@@ -67,7 +65,7 @@ const API = {
     Object.assign(payload, computed);
     ['id','gs_project_id','gs_table_name','created_at','updated_at','bcg_alert']
       .forEach(k => delete payload[k]);
-    const r = await fetch(`tables/clients/${id}`, {
+    const r = await fetch(`${BASE_URL}/tables/clients/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
@@ -76,7 +74,7 @@ const API = {
   },
 
   async deleteClient(id) {
-    await fetch(`tables/clients/${id}`, { method: 'DELETE' });
+    await fetch(`${BASE_URL}/tables/clients/${id}`, { method: 'DELETE' });
   },
 
   /* ---- bCHS Entries ---- */
@@ -86,7 +84,6 @@ const API = {
     return this._bchsCache;
   },
 
-  // alias for backward compat
   async getAllBCHSEntries() { return this.getAllBCHS(); },
 
   async getBCHSFor(clientId) {
@@ -94,7 +91,6 @@ const API = {
     return all.filter(e => String(e.client_id) === String(clientId));
   },
 
-  // alias
   async getBCHSEntries(clientId) { return this.getBCHSFor(clientId); },
 
   async getBCHSEntry(clientId, month, year) {
@@ -110,14 +106,14 @@ const API = {
       payload[key] = signals[key] === true ? 1 : 0;
     }
     if (existing) {
-      const r = await fetch(`tables/bchs_entries/${existing.id}`, {
+      const r = await fetch(`${BASE_URL}/tables/bchs_entries/${existing.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
       return await this._safeJson(r);
     } else {
-      const r = await fetch('tables/bchs_entries', {
+      const r = await fetch(`${BASE_URL}/tables/bchs_entries`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -133,7 +129,6 @@ const API = {
     return this._pcCache;
   },
 
-  // alias
   async getAllPCEntries() { return this.getAllPC(); },
 
   async getPCFor(clientId) {
@@ -141,7 +136,6 @@ const API = {
     return all.filter(e => String(e.client_id) === String(clientId));
   },
 
-  // alias
   async getPCEntries(clientId) { return this.getPCFor(clientId); },
 
   async getPCEntry(clientId, month, year) {
@@ -158,14 +152,14 @@ const API = {
       payload[key] = (v !== null && v !== undefined) ? Number(v) : null;
     }
     if (existing) {
-      const r = await fetch(`tables/pc_entries/${existing.id}`, {
+      const r = await fetch(`${BASE_URL}/tables/pc_entries/${existing.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
       return await this._safeJson(r);
     } else {
-      const r = await fetch('tables/pc_entries', {
+      const r = await fetch(`${BASE_URL}/tables/pc_entries`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -196,10 +190,10 @@ const API = {
       day, month, year,
       status_note:  statusText || '',
       signals_json: JSON.stringify(parsedSignals || {}),
-      pc_json:      JSON.stringify(parsedPC     || {}),
+      pc_json:      JSON.stringify(parsedPC      || {}),
       updated_at:   now,
     };
-    const r = await fetch('tables/status_entries', {
+    const r = await fetch(`${BASE_URL}/tables/status_entries`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
@@ -209,6 +203,6 @@ const API = {
 
   async deleteStatusEntry(id) {
     this._statusCache = null;
-    await fetch(`tables/status_entries/${id}`, { method: 'DELETE' });
+    await fetch(`${BASE_URL}/tables/status_entries/${id}`, { method: 'DELETE' });
   },
 };

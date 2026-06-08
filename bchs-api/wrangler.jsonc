@@ -1,0 +1,16 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "bchs-api",
+  "main": "src/index.js",
+  "compatibility_date": "2026-06-08",
+  "observability": {
+    "enabled": true
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "calculatormvp-db",
+      "database_id": "d8b4a8c9-fbb6-47a6-9478-a9033fffb866"
+    }
+  ]
+}

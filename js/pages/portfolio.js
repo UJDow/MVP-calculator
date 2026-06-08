@@ -409,8 +409,10 @@ _askDirection(options) {
             </div>`).join('')}
         </div>
         <div id="custom-dir-wrap" style="display:none;margin-bottom:16px">
-          <input class="form-input" id="custom-dir-input"
-                 placeholder="Опиши направление..." />
+  <textarea class="form-textarea" id="custom-dir-input"
+            style="min-height:80px;resize:vertical"
+            placeholder="Опиши направление — например: сфокусироваться на апсейле KEY-клиентов и снижении оттока TAIL"></textarea>
+</div>
         </div>
         <div style="display:flex;gap:8px">
           <button class="btn btn-primary btn-sm" id="dir-confirm" disabled>

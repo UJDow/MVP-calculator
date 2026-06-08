@@ -263,20 +263,20 @@ export const PortfolioPage = {
                   placeholder="Конкретные шаги...">${v('actions')}</textarea>
       </div>
 
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-        <div class="form-group" style="margin:0">
-          <label class="form-label">Метрика успеха</label>
-          <input class="form-input" id="pf-${key}-metric"
-                 value="${v('success_metric')}"
-                 placeholder="Как измерим результат" />
-        </div>
-        <div class="form-group" style="margin:0">
-          <label class="form-label">Дедлайн</label>
-          <input class="form-input" type="date"
-                 id="pf-${key}-deadline"
-                 value="${v('deadline')}" />
-        </div>
-      </div>
+      <div style="display:grid;grid-template-columns:2fr 1fr;gap:10px">
+  <div class="form-group" style="margin:0">
+    <label class="form-label">Метрика успеха</label>
+    <input class="form-input" id="pf-${key}-metric"
+           value="${v('success_metric')}"
+           placeholder="Как измерим результат" />
+  </div>
+  <div class="form-group" style="margin:0">
+    <label class="form-label">Дедлайн</label>
+    <input class="form-input" type="date"
+           id="pf-${key}-deadline"
+           value="${v('deadline')}" />
+  </div>
+</div>
     </div>`;
 },
 

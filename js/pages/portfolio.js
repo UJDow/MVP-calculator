@@ -110,9 +110,9 @@ export const PortfolioPage = {
         ?.addEventListener('click', () => this._savePortfolioStrats());
 
       ['short', 'mid', 'long'].forEach(key => {
-        document.getElementById(`pf-ai-btn-${key}`)
-          ?.addEventListener('click', () => this._aiHorizon(key, summary));
-      });
+  document.getElementById(`pf-ai-btn-${key}`)
+    ?.addEventListener('click', () => this._aiHorizon(key, summary, computed));
+});
 
     } catch (e) {
       console.error('[PortfolioPage._renderPortfolioTab]', e);
@@ -292,7 +292,7 @@ export const PortfolioPage = {
     }
   },
 
-  async _aiHorizon(key, summary) {
+  async _aiHorizon(key, summary, computed) {
   const btn = document.getElementById(`pf-ai-btn-${key}`);
   if (btn) { btn.disabled = true; btn.textContent = '⏳'; }
 
@@ -302,44 +302,70 @@ export const PortfolioPage = {
     long:  'долгосрочная (4 квартала)',
   };
 
+  /* Сначала спрашиваем направление */
+  const direction = await this._askDirection([
+    { id: 'retention',    label: '🛡️ Удержание',  hint: 'снизить риски, удержать клиентов' },
+    { id: 'growth',       label: '🚀 Рост',        hint: 'апсейл, расширение, новые услуги' },
+    { id: 'optimization', label: '⚡ Оптимизация', hint: 'эффективность команды и процессов' },
+    { id: 'custom',       label: '✍️ Своё',        hint: 'введи направление вручную' },
+  ]);
+
+  if (direction === null) {
+    if (btn) { btn.disabled = false; btn.textContent = '🤖'; }
+    return;
+  }
+
+  if (btn) btn.textContent = '⏳ Генерирую...';
+
   try {
-    const top3text = summary.top3Risk
-      .map(r => `${r.name} ($${r.risk.toLocaleString('ru-RU')}, ${r.pct}%)`)
-      .join('; ') || 'нет';
+    /* Клиентский снапшот — топ-10 по риску */
+    const clientsSnapshot = (computed || [])
+      .filter(r => r.bchs !== null)
+      .sort((a, b) => (b.revenueAtRisk || 0) - (a.revenueAtRisk || 0))
+      .slice(0, 10)
+      .map(r => ({
+        name:  r.client.name,
+        bcg:   r.client.bcg_category,
+        bchs:  r.bchs,
+        trend: r.trend?.label ?? '—',
+        mr:    r.client.monthly_revenue || 0,
+        churn: null,
+        risk:  r.revenueAtRisk || 0,
+      }));
 
     const data = await API.callAI(null, {
-      type:    'horizon',
-      horizon: key,
+      type:      'horizon',
+      horizon:   key,
+      direction,
+      max_tokens: 1800,
       summary: {
         total:        summary.total,
         avgLoyalty:   summary.avgLoyalty,
         totalRisk:    summary.totalRisk,
         bcgCount:     summary.bcgCount,
-        top3Risk:     top3text,
+        top3Risk:     summary.top3Risk.map(r =>
+          `${r.name} ($${r.risk.toLocaleString('ru-RU')}, ${r.pct}%)`
+        ).join('; ') || 'нет',
         avgPotential: summary.avgPotential,
+      },
+      clients_snapshot:    clientsSnapshot,
+      existing_strategies: {
+        short: this._portfolioData.short,
+        mid:   this._portfolioData.mid,
+        long:  this._portfolioData.long,
       },
     });
 
     const content = data?.choices?.[0]?.message?.content ?? '';
     if (!content) throw new Error('Пустой ответ от AI');
 
-    const match  = content.match(/\{[\s\S]*\}/);
-    const parsed = JSON.parse(match ? match[0] : content);
+    const match   = content.match(/\{[\s\S]*\}/);
+    const parsed  = JSON.parse(match ? match[0] : content);
+    const variants = parsed.variants ?? [];
 
-    const setVal = (id, val) => {
-      const el = document.getElementById(id);
-      if (el) el.value = val || '';
-    };
-    setVal(`pf-${key}-title`,    parsed.title);
-    setVal(`pf-${key}-goal`,     parsed.goal);
-    setVal(`pf-${key}-actions`,  parsed.actions);
-    setVal(`pf-${key}-metric`,   parsed.success_metric);
-    setVal(`pf-${key}-deadline`, parsed.deadline);
+    if (!variants.length) throw new Error('AI не вернул варианты');
 
-    window.App.toast(
-      `🤖 AI стратегия для горизонта «${horizonLabels[key]}» заполнена`,
-      'success'
-    );
+    this._showVariantPicker(key, variants, horizonLabels[key]);
 
   } catch (e) {
     console.error('[AI Horizon]', e);
@@ -348,6 +374,128 @@ export const PortfolioPage = {
     if (btn) { btn.disabled = false; btn.textContent = '🤖'; }
   }
 },
+
+_askDirection(options) {
+  return new Promise(resolve => {
+    const html = `
+      <div style="max-width:400px">
+        <div style="font-size:15px;font-weight:700;margin-bottom:16px">
+          🎯 Выбери направление стратегии
+        </div>
+        <div style="display:grid;gap:8px;margin-bottom:16px">
+          ${options.map(o => `
+            <div class="dir-option" data-id="${o.id}"
+                 style="padding:10px 14px;border:1px solid var(--border);
+                        border-radius:var(--radius);cursor:pointer;transition:all 0.15s">
+              <div style="font-weight:600">${o.label}</div>
+              <div style="font-size:11px;color:var(--text-muted)">${o.hint}</div>
+            </div>`).join('')}
+        </div>
+        <div id="custom-dir-wrap" style="display:none;margin-bottom:16px">
+          <input class="form-input" id="custom-dir-input"
+                 placeholder="Опиши направление..." />
+        </div>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-primary btn-sm" id="dir-confirm" disabled>
+            Генерировать →
+          </button>
+          <button class="btn btn-secondary btn-sm" id="dir-cancel">Отмена</button>
+        </div>
+      </div>`;
+
+    window.App.openModal(html);
+    let selected = null;
+
+    document.querySelectorAll('.dir-option').forEach(el => {
+      el.addEventListener('click', () => {
+        document.querySelectorAll('.dir-option').forEach(e => {
+          e.style.background  = '';
+          e.style.borderColor = 'var(--border)';
+        });
+        el.style.background  = 'rgba(99,102,241,0.08)';
+        el.style.borderColor = '#6366f1';
+        selected = el.dataset.id;
+        document.getElementById('custom-dir-wrap').style.display =
+          selected === 'custom' ? 'block' : 'none';
+        if (selected === 'custom')
+          document.getElementById('custom-dir-input').focus();
+        document.getElementById('dir-confirm').disabled = false;
+      });
+    });
+
+    document.getElementById('dir-confirm')?.addEventListener('click', () => {
+      let result = selected;
+      if (selected === 'custom')
+        result = document.getElementById('custom-dir-input')?.value.trim() || 'custom';
+      window.App.closeModal();
+      resolve(result);
+    });
+
+    document.getElementById('dir-cancel')?.addEventListener('click', () => {
+      window.App.closeModal();
+      resolve(null);
+    });
+  });
+},
+
+_showVariantPicker(key, variants, horizonLabel) {
+  const cards = variants.map((v, i) => `
+    <div class="variant-card" data-idx="${i}"
+         style="padding:14px;border:1px solid var(--border);border-radius:var(--radius);
+                cursor:pointer;margin-bottom:10px;transition:all 0.15s">
+      <div style="font-weight:700;margin-bottom:6px;color:#6366f1">
+        ${v.label ?? `Вариант ${i + 1}`}
+      </div>
+      <div style="font-size:12px;color:var(--text-secondary);margin-bottom:4px">
+        <strong>Цель:</strong> ${v.goal ?? '—'}
+      </div>
+      <div style="font-size:11px;color:var(--text-muted)">
+        📅 ${v.deadline ?? '—'} · 🎯 ${v.success_metric ?? '—'}
+      </div>
+    </div>`).join('');
+
+  window.App.openModal(`
+    <div style="max-width:520px">
+      <div style="font-size:15px;font-weight:700;margin-bottom:4px">
+        🤖 3 варианта стратегии
+      </div>
+      <div style="font-size:12px;color:var(--text-muted);margin-bottom:16px">
+        ${horizonLabel} · Выбери понравившийся — он заполнится в форму
+      </div>
+      <div id="variant-list">${cards}</div>
+      <button class="btn btn-secondary btn-sm" id="variant-cancel"
+              style="margin-top:4px">Отмена</button>
+    </div>`);
+
+  document.querySelectorAll('.variant-card').forEach(card => {
+    card.addEventListener('mouseenter', () => {
+      card.style.background  = 'rgba(99,102,241,0.06)';
+      card.style.borderColor = '#6366f1';
+    });
+    card.addEventListener('mouseleave', () => {
+      card.style.background  = '';
+      card.style.borderColor = 'var(--border)';
+    });
+    card.addEventListener('click', () => {
+      const v = variants[parseInt(card.dataset.idx)];
+      const s = (id, val) => { const el = document.getElementById(id); if (el) el.value = val || ''; };
+      s(`pf-${key}-title`,    v.title    ?? v.label ?? '');
+      s(`pf-${key}-goal`,     v.goal     ?? '');
+      s(`pf-${key}-actions`,  v.actions  ?? '');
+      s(`pf-${key}-metric`,   v.success_metric ?? '');
+      s(`pf-${key}-deadline`, v.deadline ?? '');
+      window.App.closeModal();
+      window.App.toast(`✅ Вариант применён — проверьте и нажмите «Сохранить всё»`, 'success');
+    });
+  });
+
+  document.getElementById('variant-cancel')?.addEventListener('click', () => {
+    window.App.closeModal();
+  });
+},
+
+
+
 
 
   /* ══════════════════════════════════════════

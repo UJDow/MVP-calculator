@@ -12,143 +12,159 @@ function json(data, status = 200) {
 }
 
 /* ── Промпты формируются здесь — фронт их не видит ── */
+
 function buildMessages(body) {
-  const type = body.type || 'raw';
+  const type = body.type ?? 'raw';
 
   if (type === 'status') {
+    const text = body.text ?? '';
     return [
       {
         role: 'system',
-        content: 'Ты аналитик клиентского портфеля. Отвечай ТОЛЬКО валидным JSON без markdown.',
+        content:
+          'Ты CSM-аналитик. Анализируй текст статуса клиента. ' +
+          'Отвечай ТОЛЬКО валидным JSON без markdown и без пояснений.',
       },
       {
         role: 'user',
-        content: `Проанализируй текст статуса клиента и определи сигналы лояльности.
-
-ТЕКСТ: "${body.text || ''}"
-
-СИГНАЛЫ bCHS (key: описание, вес):
-team_scope_request: Запрос расширения команды (+5)
-new_services_interest: Интерес к новым услугам (+3)
-strategic_sessions: Стратегические сессии (+7)
-fast_responses: Быстрые ответы (+2)
-internal_events: Приглашение на внутренние события (+3)
-shared_business_plans: Совместное планирование (+3)
-contract_renewal: Продление контракта (+24)
-upsell: Апселл (+16)
-cross_sell: Кросс-селл (+13)
-positive_feedback: Положительная обратная связь (+5)
-slow_responses: Медленные ответы (-2)
-missed_meetings: Пропуск встреч (-3)
-no_planning: Отказ от планирования (-3)
-detailed_report_request: Запрос детальной отчётности (-2)
-scope_reduction: Сокращение скоупа (-4)
-competitor_mentions: Упоминание конкурентов (-5)
-new_decision_maker: Новый ЛПР (-3)
-exit_questions: Вопросы об условиях расторжения (-8)
-reduced_frequency: Снижение частоты взаимодействий (-2)
-no_growth_response: Нет реакции на предложения роста (-2)
-complaint: Жалоба / эскалация (-3)
-payment_delay_10_30: Задержка оплаты 10-30 дней (-4)
-specialist_replacement: Замена специалиста (-5)
-escalation: Эскалация до топ-менеджмента (-10)
-payment_delay_30plus: Задержка оплаты 30+ дней (-8)
-churn: Отток / завершение контракта (-25)
-
-КРИТЕРИИ PC (key: описание, шкала 1-5):
-people_count: Размер команды (1=мало, 5=очень много)
-project_complexity: Сложность проекта (1=простой, 5=очень сложный)
-reporting: Объём отчётности (1=минимум, 5=очень много)
-risk_probability: Вероятность рисков (1=низкая, 5=очень высокая)
-risk_consequences: Последствия рисков (1=незначит., 5=критичные)
-face_role: Роль лица компании (1=фоновая, 5=ключевая)
-emotional_load: Эмоциональная нагрузка (1=низкая, 5=очень высокая)
-
-Верни ТОЛЬКО JSON:
-{
-  "signals": {
-    "team_scope_request": false, "new_services_interest": false,
-    "strategic_sessions": false, "fast_responses": false,
-    "internal_events": false, "shared_business_plans": false,
-    "contract_renewal": false, "upsell": false, "cross_sell": false,
-    "positive_feedback": false, "slow_responses": false,
-    "missed_meetings": false, "no_planning": false,
-    "detailed_report_request": false, "scope_reduction": false,
-    "competitor_mentions": false, "new_decision_maker": false,
-    "exit_questions": false, "reduced_frequency": false,
-    "no_growth_response": false, "complaint": false,
-    "payment_delay_10_30": false, "specialist_replacement": false,
-    "escalation": false, "payment_delay_30plus": false, "churn": false
-  },
-  "pc": {
-    "people_count": 2, "project_complexity": 2, "reporting": 2,
-    "risk_probability": 2, "risk_consequences": 2,
-    "face_role": 2, "emotional_load": 2
-  },
-  "explanation": "краткое объяснение на русском"
-}`,
+        content:
+          `Проанализируй текст статуса клиента и верни JSON:\n` +
+          `{"signals":{"sig1":true,"sig2":false,...},"pc":{"key1":3,"key2":4,...},"explanation":"..."}\n\n` +
+          `Текст статуса:\n${text}`,
       },
     ];
   }
 
   if (type === 'horizon') {
-    const { horizon, summary } = body;
-    const hLabels = {
-      short: 'краткосрочная (1 месяц)',
-      mid:   'среднесрочная (1-2 квартала)',
-      long:  'долгосрочная (4 квартала)',
-    };
-    const top3 = (summary.top3Risk || [])
-      .map(r => `${r.name} ($${r.risk}, ${r.pct}%)`)
-      .join('; ') || 'нет';
+  const h      = body.horizon   ?? 'short';
+  const s      = body.summary   ?? {};
+  const dir    = body.direction ?? null;
+  const exist  = body.existing_strategies ?? {};
+  const snap   = body.clients_snapshot    ?? [];
 
-    return [
-      {
-        role: 'system',
-        content: 'Ты стратегический аналитик CSM-портфеля. Отвечай ТОЛЬКО валидным JSON без markdown.',
-      },
-      {
-        role: 'user',
-        content: `Предложи стратегию для горизонта: ${hLabels[horizon] || horizon}.
+  const labels = {
+    short: 'краткосрочная (1 месяц)',
+    mid:   'среднесрочная (1–2 квартала)',
+    long:  'долгосрочная (4 квартала)',
+  };
 
-ДАННЫЕ ПОРТФЕЛЯ:
-- Всего клиентов: ${summary.total}
-- Лояльность: ${summary.avgLoyalty !== null ? summary.avgLoyalty + '%' : 'нет данных'}
-- Revenue at Risk: $${summary.totalRisk}
-- BCG: KEY=${summary.bcgCount.KEY}, STABLE=${summary.bcgCount.STABLE}, GROWTH=${summary.bcgCount.GROWTH}, TAIL=${summary.bcgCount.TAIL}
-- Топ-3 риска: ${top3}
-- Средняя реализация потенциала: ${summary.avgPotential !== null ? summary.avgPotential + '%' : 'нет данных'}
+  const dirText = dir
+    ? `\nНАПРАВЛЕНИЕ от менеджера: "${dir}"\nОбязательно учитывай это направление как главный приоритет.\n`
+    : '';
 
-Верни ТОЛЬКО JSON:
-{"title":"...","goal":"...","actions":"...","success_metric":"...","deadline":"YYYY-MM-DD"}`,
-      },
-    ];
-  }
+  const existText = Object.entries(exist)
+    .filter(([, v]) => v?.goal)
+    .map(([k, v]) => `- ${labels[k] ?? k}: ${v.goal}`)
+    .join('\n') || 'не заданы';
 
-  if (type === 'account') {
-    const { client, metrics } = body;
-    return [
-      {
-        role: 'system',
-        content: 'Ты CSM-аналитик. Отвечай ТОЛЬКО валидным JSON без markdown.',
-      },
-      {
-        role: 'user',
-        content: `Предложи стратегию работы с клиентом.
+  const snapText = snap.length
+    ? snap.map(c =>
+        `  • ${c.name} [${c.bcg}] bCHS:${c.bchs ?? '—'} тренд:${c.trend ?? '—'} ` +
+        `MR:$${c.mr ?? 0} отток:${c.churn ?? '—'}% риск:$${c.risk ?? 0}`
+      ).join('\n')
+    : 'нет данных';
 
-ПРОФИЛЬ: ${client.name} · BCG: ${client.bcg} · Приоритет: ${client.priority} · MR: $${client.mr}
-bCHS текущий: ${metrics.bchs} · Тренд: ${metrics.trend}
-MC прогноз 3М: bCHS медиана ${metrics.mc3m} · Риск оттока ${metrics.churn3}
-Revenue at Risk: $${metrics.revenueAtRisk}
+  return [
+    {
+      role: 'system',
+      content:
+        'Ты стратегический аналитик CSM-портфеля с опытом 10+ лет. ' +
+        'Генерируй конкретные, реалистичные стратегии на основе данных. ' +
+        'Отвечай ТОЛЬКО валидным JSON без markdown.',
+    },
+    {
+      role: 'user',
+      content:
+        `Предложи 3 ВАРИАНТА стратегии для горизонта: ${labels[h] ?? h}.` +
+        `${dirText}\n` +
+        `СВОДКА ПОРТФЕЛЯ:\n` +
+        `- Всего клиентов: ${s.total ?? '—'}\n` +
+        `- Средняя лояльность: ${s.avgLoyalty != null ? s.avgLoyalty + '%' : 'нет данных'}\n` +
+        `- Revenue at Risk: $${(s.totalRisk ?? 0).toLocaleString('ru-RU')}\n` +
+        `- BCG: KEY=${s.bcgCount?.KEY ?? 0}, STABLE=${s.bcgCount?.STABLE ?? 0}, ` +
+        `GROWTH=${s.bcgCount?.GROWTH ?? 0}, GROWTH_EARLY=${s.bcgCount?.GROWTH_EARLY ?? 0}, ` +
+        `TAIL=${s.bcgCount?.TAIL ?? 0}\n` +
+        `- Топ-3 риска: ${s.top3Risk ?? 'нет'}\n` +
+        `- Средняя реализация потенциала: ${s.avgPotential != null ? s.avgPotential + '%' : 'нет данных'}\n\n` +
+        `КЛИЕНТЫ ПОРТФЕЛЯ (топ по риску):\n${snapText}\n\n` +
+        `УЖЕ НАПИСАННЫЕ СТРАТЕГИИ (не повторяй, развивай логику):\n${existText}\n\n` +
+        `Верни СТРОГО валидный JSON с 3 вариантами:\n` +
+        `{"variants":[` +
+        `{"label":"Вариант 1: название","title":"...","goal":"...","actions":"...","success_metric":"...","deadline":"YYYY-MM-DD"},` +
+        `{"label":"Вариант 2: название","title":"...","goal":"...","actions":"...","success_metric":"...","deadline":"YYYY-MM-DD"},` +
+        `{"label":"Вариант 3: название","title":"...","goal":"...","actions":"...","success_metric":"...","deadline":"YYYY-MM-DD"}` +
+        `]}`,
+    },
+  ];
+}
 
-Верни ТОЛЬКО JSON:
-{"goal":"...","actions":"...","success_metric":"...","deadline":"YYYY-MM-DD"}`,
-      },
-    ];
-  }
+if (type === 'account') {
+  const c    = body.client   ?? {};
+  const m    = body.metrics  ?? {};
+  const dir  = body.direction ?? null;
+  const hist = body.bchs_history       ?? [];
+  const sigs = body.active_signals     ?? [];
+  const pc   = body.pc_components      ?? {};
+  const prev = body.previous_strategies ?? [];
 
-  /* raw — сырые messages как fallback */
-  return body.messages || [];
+  const dirText = dir
+    ? `\nНАПРАВЛЕНИЕ от менеджера: "${dir}"\nЭто главный приоритет стратегии.\n`
+    : '';
+
+  const histText = hist.length
+    ? hist.map(h => `${h.month}/${h.year}: bCHS=${h.bchs ?? '—'} лояльность=${h.loyalty ?? '—'}%`).join(', ')
+    : 'нет истории';
+
+  const sigsText = sigs.length
+    ? sigs.join(', ')
+    : 'активных сигналов нет';
+
+  const pcText = Object.keys(pc).length
+    ? Object.entries(pc).map(([k, v]) => `${k}:${v}`).join(', ')
+    : 'нет данных';
+
+  const prevText = prev.length
+    ? prev.map(p => `- ${p.goal?.slice(0, 80) ?? '—'} [${p.status ?? '—'}, ${p.created_at?.slice(0, 10) ?? '—'}]`).join('\n')
+    : 'предыдущих стратегий нет';
+
+  return [
+    {
+      role: 'system',
+      content:
+        'Ты опытный CSM-аналитик. Предлагай конкретные действия, ' +
+        'учитывай историю и контекст клиента. ' +
+        'Отвечай ТОЛЬКО валидным JSON без markdown.',
+    },
+    {
+      role: 'user',
+      content:
+        `Предложи 3 ВАРИАНТА стратегии работы с клиентом.` +
+        `${dirText}\n` +
+        `ПРОФИЛЬ: ${c.name ?? '—'} · BCG: ${c.bcg ?? '—'} · ` +
+        `Приоритет: ${c.priority ?? '—'} · MR: $${Number(c.monthly_revenue ?? 0).toLocaleString('ru-RU')}\n` +
+        `Engagement: ${c.engagement ?? '—'} · Phase: ${c.phase ?? '—'}\n\n` +
+        `МЕТРИКИ:\n` +
+        `- bCHS текущий: ${m.bchs_current ?? '—'} · Тренд: ${m.trend ?? '—'}\n` +
+        `- MC 3М: медиана ${m.mc_3m_median ?? '—'} · отток ${m.mc_3m_churn ?? '—'}\n` +
+        `- MC 12М: медиана ${m.mc_12m_median ?? '—'} · отток ${m.mc_12m_churn ?? '—'}\n` +
+        `- Revenue at Risk: $${Number(c.revenue_at_risk ?? 0).toLocaleString('ru-RU')}\n\n` +
+        `ИСТОРИЯ bCHS (последние месяцы): ${histText}\n\n` +
+        `АКТИВНЫЕ СИГНАЛЫ: ${sigsText}\n\n` +
+        `PC КОМПОНЕНТЫ: ${pcText}\n\n` +
+        `ПРЕДЫДУЩИЕ СТРАТЕГИИ:\n${prevText}\n\n` +
+        `Верни СТРОГО валидный JSON с 3 вариантами:\n` +
+        `{"variants":[` +
+        `{"label":"Вариант 1: название","goal":"...","actions":"...","success_metric":"...","deadline":"YYYY-MM-DD"},` +
+        `{"label":"Вариант 2: название","goal":"...","actions":"...","success_metric":"...","deadline":"YYYY-MM-DD"},` +
+        `{"label":"Вариант 3: название","goal":"...","actions":"...","success_metric":"...","deadline":"YYYY-MM-DD"}` +
+        `]}`,
+    },
+  ];
+}
+
+
+  /* raw — фронт сам передаёт messages */
+  return body.messages ?? [];
 }
 
 export default {

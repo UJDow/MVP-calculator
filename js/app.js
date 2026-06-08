@@ -16,6 +16,8 @@ import { TrackerPage }   from './pages/tracker.js';
 import { PortfolioPage } from './pages/portfolio.js';
 import { applyRoleToNav } from './role_config.js';
 import { Backup }        from './backup.js';
+import { TouchPointsPage } from './pages/touchpoints.js';
+
 
 export const App = {
   currentPage:  null,
@@ -124,6 +126,11 @@ export const App = {
       case 'dashboard':
         await DashboardPage.render();
         break;
+
+       case 'touchpoints':
+        await TouchPointsPage.render();
+        break;
+
 
       case 'entry':
         await EntryPage.render(param ?? null);

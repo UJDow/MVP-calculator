@@ -276,4 +276,68 @@ async getAccountStrategies() {
   const r = await this._get('tables/account_strategies?limit=500');
   return Array.isArray(r) ? r : (Array.isArray(r?.data) ? r.data : []);
 },
+
+  async getAccountStrategies() {
+    const r = await this._get('tables/account_strategies?limit=500');
+    return Array.isArray(r) ? r : (Array.isArray(r?.data) ? r.data : []);
+  },
+
+  /* ── Touch Points ──────────────────────────────────────────── */
+  async getTouchPoints() {
+    const r = await this._get('tables/touch_points?limit=2000');
+    return Array.isArray(r) ? r : (Array.isArray(r?.data) ? r.data : []);
+  },
+
+  async saveTouchPoint(data) {
+    if (data.id) {
+      return this._put(`tables/touch_points/${data.id}`, data);
+    }
+    return this._post('tables/touch_points', data);
+  },
+
+  async completeTouchPoint(id, notes = '') {
+    return this._put(`tables/touch_points/${id}`, {
+      completed_at: new Date().toISOString(),
+      notes,
+      updated_at:   new Date().toISOString(),
+    });
+  },
+
+  async deleteTouchPoint(id) {
+    return this._delete(`tables/touch_points/${id}`);
+  },
+
+  async upsertPortfolioStrategy(horizon, data) {
+    const all = await this.getPortfolioStrategies();
+    const existing = all.find(s => s.horizon === horizon);
+    const payload  = { ...data, horizon, updated_at: new Date().toISOString() };
+    if (existing) {
+      return this._put(`tables/portfolio_strategies/${existing.id}`, payload);
+    }
+    return this._post('tables/portfolio_strategies', payload);
+  },
+
+  async saveAccountStrategy(clientId, data) {
+    const all = await this.getAccountStrategies();
+    const existing = all.find(
+      s => String(s.client_id) === String(clientId) && s.status !== 'Done'
+    );
+    const payload = {
+      ...data,
+      client_id:  clientId,
+      updated_at: new Date().toISOString(),
+    };
+    if (existing) {
+      return this._put(`tables/account_strategies/${existing.id}`, payload);
+    }
+    return this._post('tables/account_strategies', payload);
+  },
+
+  async getAccountStrategyFor(clientId) {
+    const all = await this.getAccountStrategies();
+    return all
+      .filter(s => String(s.client_id) === String(clientId) && s.status !== 'Done')
+      .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))[0] ?? null;
+  },
 };
+

@@ -244,19 +244,27 @@ export const API = {
 
   /* ── AI proxy ───────────────────────────────────────────────── */
 async callAI(messages, options = {}) {
+  const { model, temperature, max_tokens, ...rest } = options;
+
+  const body = {
+    model:       model       ?? 'deepseek-chat',
+    temperature: temperature ?? 0.3,
+    max_tokens:  max_tokens  ?? 1000,
+    ...rest,                    // сюда попадают type, text, horizon, summary, client, metrics
+  };
+
+  // добавляем messages только если они есть (для raw-режима)
+  if (messages) body.messages = messages;
+
   const r = await fetch(`${BASE_URL}/ai/chat`, {
     method:  'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      model:       options.model       ?? 'deepseek-chat',
-      temperature: options.temperature ?? 0.3,
-      max_tokens:  options.max_tokens  ?? 1000,
-      messages,
-    }),
+    body:    JSON.stringify(body),
   });
   if (!r.ok) throw new Error(`AI proxy error: ${r.status}`);
   return r.json();
 },
+
 
 
   async getPortfolioStrategies() {

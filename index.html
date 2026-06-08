@@ -22,59 +22,33 @@
         <span class="logo-text">Portfolio<br><strong>BCHS</strong></span>
       </div>
       <ul class="nav-links">
-        <li>
-          <a href="#" class="nav-item active" data-page="dashboard">
-            <span class="nav-icon">◉</span> Дашборд
-          </a>
-        </li>
-        <li>
-          <a href="#" class="nav-item" data-page="portfolio">
-            <span class="nav-icon">🗂️</span> Портфель
-          </a>
-        </li>
-        <li>
-          <a href="#" class="nav-item" data-page="entry">
-            <span class="nav-icon">✎</span> Внести данные
-          </a>
-        </li>
-        <li>
-          <a href="#" class="nav-item" data-page="clients">
-            <span class="nav-icon">☰</span> Клиенты
-          </a>
-        </li>
-        <li>
-          <a href="#" class="nav-item" data-page="calendars">
-            <span class="nav-icon">📅</span> Календари
-          </a>
-        </li>
+        <li><a href="#" class="nav-item active" data-page="dashboard"><span class="nav-icon">◉</span> Дашборд</a></li>
+        <li><a href="#" class="nav-item" data-page="portfolio"><span class="nav-icon">🗂️</span> Портфель</a></li>
+        <li><a href="#" class="nav-item" data-page="entry"><span class="nav-icon">✎</span> Внести данные</a></li>
+        <li><a href="#" class="nav-item" data-page="clients"><span class="nav-icon">☰</span> Клиенты</a></li>
+        <li><a href="#" class="nav-item" data-page="calendars"><span class="nav-icon">📅</span> Календари</a></li>
         <li id="nav-tracker-li" style="display:none">
-          <a href="#" class="nav-item" data-page="tracker">
-            <span class="nav-icon">⏱</span> Мой трекер
-          </a>
+          <a href="#" class="nav-item" data-page="tracker"><span class="nav-icon">⏱</span> Мой трекер</a>
         </li>
       </ul>
 
-      <!-- Keyboard hints -->
-      <div style="padding: 6px 14px; margin-top: 4px;">
+      <div style="padding:6px 14px;margin-top:4px;">
         <div class="kbd-hint" style="margin-bottom:3px"><kbd>N</kbd> Внести данные</div>
         <div class="kbd-hint" style="margin-bottom:3px"><kbd>Esc</kbd> Дашборд</div>
         <div class="kbd-hint"><kbd>R</kbd> Обновить</div>
       </div>
 
-      <!-- Backup button -->
-<div style="padding: 6px 14px; margin-top: 4px;">
-  <button id="backup-btn"
-    style="width:100%;padding:7px 12px;border-radius:8px;border:1px solid var(--border);
-           background:transparent;color:var(--text-muted);font-size:12px;cursor:pointer;
-           text-align:left;transition:background 0.15s"
-    onmouseover="this.style.background='var(--surface-hover)'"
-    onmouseout="this.style.background='transparent'">
-    💾 Бэкап / Восстановить
-  </button>
-</div>
+      <div style="padding:6px 14px;margin-top:4px;">
+        <button id="backup-btn"
+          style="width:100%;padding:7px 12px;border-radius:8px;border:1px solid var(--border);
+                 background:transparent;color:var(--text-muted);font-size:12px;cursor:pointer;
+                 text-align:left;transition:background 0.15s"
+          onmouseover="this.style.background='var(--surface-hover)'"
+          onmouseout="this.style.background='transparent'">
+          💾 Бэкап / Восстановить
+        </button>
+      </div>
 
-
-      <!-- Role switcher -->
       <div class="sidebar-role-section">
         <div id="role-banner" class="role-banner role-admin">
           <span class="role-icon">🔑</span>
@@ -85,22 +59,19 @@
       </div>
 
       <div class="sidebar-footer">
-        <span class="version">v6.7</span>
+        <span class="version">v7.0</span>
       </div>
     </nav>
 
-    <!-- ========= TOPBAR (mobile) ========= -->
     <header id="topbar">
       <button id="menu-toggle" aria-label="Меню">☰</button>
       <span class="topbar-title">Portfolio BCHS</span>
       <button id="topbar-add">+ Данные</button>
     </header>
 
-    <!-- ========= MAIN CONTENT ========= -->
     <main id="main-content"></main>
   </div>
 
-  <!-- ========= MODAL ========= -->
   <div id="modal-overlay" class="hidden">
     <div id="modal-box">
       <button id="modal-close">✕</button>
@@ -108,10 +79,8 @@
     </div>
   </div>
 
-  <!-- ========= TOAST ========= -->
   <div id="toast-container"></div>
 
-  <!-- ========= BOTTOM NAV (mobile) ========= -->
   <nav id="bottom-nav" aria-label="Навигация">
     <div class="bottom-nav-inner">
       <button class="bottom-nav-btn active" data-page="dashboard">
@@ -143,6 +112,42 @@
     </div>
   </nav>
 
-  <script src="js/bundle.js"></script>
+  <!-- =====================================================
+       ПОРЯДОК СКРИПТОВ КРИТИЧЕН — не менять последовательность
+       =====================================================
+
+       Слой 1 — Фундамент (глобальные константы и вычисления)
+       Слой 2 — API-клиент и seed/backup
+       Слой 3 — Движки (зависят от констант слоя 1)
+       Слой 4 — Страницы (зависят от API, Calc, движков)
+       Слой 5 — Роутер (самый последний, запускает App.init)
+       ===================================================== -->
+
+  <!-- Слой 1: Константы и формулы (ничего не зависит от других файлов) -->
+  <script src="js/constants.js"></script>
+  <script src="js/calc.js"></script>
+
+  <!-- Слой 2: Сетевой слой + утилиты -->
+  <script src="js/api.js"></script>
+  <script src="js/seed.js"></script>
+  <script src="js/backup.js"></script>
+
+  <!-- Слой 3: Движки (зависят от констант) -->
+  <script src="js/calendar_engine.js"></script>
+  <script src="js/role_radar.js"></script>
+
+  <!-- Слой 4: Страницы (зависят от API, Calc, движков) -->
+  <script src="js/pages/dashboard.js"></script>
+  <script src="js/pages/portfolio.js"></script>
+  <script src="js/pages/clients.js"></script>
+  <script src="js/pages/entry.js"></script>
+  <script src="js/pages/detail.js"></script>
+  <script src="js/pages/delivery.js"></script>
+  <script src="js/pages/tracker.js"></script>
+  <script src="js/pages/calendars.js"></script>
+
+  <!-- Слой 5: Роутер и инициализация (самый последний) -->
+  <script src="js/app.js"></script>
+
 </body>
 </html>

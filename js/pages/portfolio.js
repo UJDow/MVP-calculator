@@ -263,19 +263,17 @@ export const PortfolioPage = {
                   placeholder="Конкретные шаги...">${v('actions')}</textarea>
       </div>
 
-      <div style="display:grid;grid-template-columns:2fr 1fr;gap:10px">
-  <div class="form-group" style="margin:0">
-    <label class="form-label">Метрика успеха</label>
-    <input class="form-input" id="pf-${key}-metric"
-           value="${v('success_metric')}"
-           placeholder="Как измерим результат" />
-  </div>
-  <div class="form-group" style="margin:0">
-    <label class="form-label">Дедлайн</label>
-    <input class="form-input" type="date"
-           id="pf-${key}-deadline"
-           value="${v('deadline')}" />
-  </div>
+      <div class="form-group" style="margin:0">
+  <label class="form-label">Метрика успеха</label>
+  <textarea class="form-textarea" id="pf-${key}-metric"
+            style="min-height:80px;resize:vertical"
+            placeholder="Как измерим результат">${v('success_metric')}</textarea>
+</div>
+<div class="form-group" style="margin:0;max-width:220px">
+  <label class="form-label">Дедлайн</label>
+  <input class="form-input" type="date"
+         id="pf-${key}-deadline"
+         value="${v('deadline')}" />
 </div>
     </div>`;
 },
@@ -750,16 +748,16 @@ _showVariantPicker(key, variants, horizonLabel) {
           <textarea class="form-textarea" id="as-actions" style="min-height:80px"
                     placeholder="Конкретные шаги...">${v('actions')}</textarea>
         </div>
-        <div class="form-group">
+        <div class="form-group" style="margin-bottom:10px">
   <label class="form-label">Метрика успеха</label>
-  <textarea class="form-textarea" id="pf-${key}-metric"
+  <textarea class="form-textarea" id="as-metric"
             style="min-height:80px;resize:vertical"
             placeholder="Как измерим результат">${v('success_metric')}</textarea>
 </div>
-<div class="form-group" style="max-width:220px">
+<div class="form-group" style="margin-bottom:10px;max-width:220px">
   <label class="form-label">Дедлайн</label>
   <input class="form-input" type="date"
-         id="pf-${key}-deadline"
+         id="as-deadline"
          value="${v('deadline')}" />
 </div>
 

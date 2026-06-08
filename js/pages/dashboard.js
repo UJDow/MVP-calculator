@@ -7,22 +7,18 @@ import { SIGNALS, PC_CRITERIA, MONTHS_RU, BCG_CATEGORIES } from '../constants.js
 import { Calc } from '../calc.js';
 import { API } from '../api.js';
 
-/* ══════════════════════════════════════════════════════════════
-   DASHBOARD PAGE
-   ══════════════════════════════════════════════════════════════ */
-
 export const DashboardPage = {
-  allClients: [],
-  allBCHS:    [],
-  allPC:      [],
-  computed:   [],
-  expandedId: null,
+  allClients:  [],
+  allBCHS:     [],
+  allPC:       [],
+  computed:    [],
+  touchPoints: [],
+  expandedId:  null,
   filterBCG:    '',
   filterAction: '',
   filterHealth: '',
   searchQ:      '',
 
-  /* ─── RENDER ──────────────────────────────────────────────── */
   async render() {
     const main = document.getElementById('main-content');
     main.innerHTML = `
@@ -82,7 +78,6 @@ export const DashboardPage = {
     await this.load();
   },
 
-  /* ─── FILTERS ─────────────────────────────────────────────── */
   bindFilters() {
     document.getElementById('dash-search')
       .addEventListener('input', e => {
@@ -106,13 +101,13 @@ export const DashboardPage = {
       });
   },
 
-  /* ─── LOAD DATA ───────────────────────────────────────────── */
   async load() {
     try {
-      [this.allClients, this.allBCHS, this.allPC] = await Promise.all([
+      [this.allClients, this.allBCHS, this.allPC, this.touchPoints] = await Promise.all([
         API.getClients(),
         API.getAllBCHSEntries(),
         API.getAllPCEntries(),
+        API.getTouchPoints().catch(() => []),
       ]);
 
       this.computed = this.allClients.map(c => ({
@@ -138,19 +133,17 @@ export const DashboardPage = {
     }
   },
 
-  /* ─── FILTERING ───────────────────────────────────────────── */
   filtered() {
     return this.computed.filter(row => {
       const c = row.client;
-      if (this.searchQ    && !c.name.toLowerCase().includes(this.searchQ)) return false;
-      if (this.filterBCG  && c.bcg_category      !== this.filterBCG)       return false;
-      if (this.filterAction && row.badge.cls      !== this.filterAction)    return false;
-      if (this.filterHealth && row.health.key     !== this.filterHealth)    return false;
+      if (this.searchQ     && !c.name.toLowerCase().includes(this.searchQ)) return false;
+      if (this.filterBCG   && c.bcg_category   !== this.filterBCG)          return false;
+      if (this.filterAction && row.badge.cls    !== this.filterAction)       return false;
+      if (this.filterHealth && row.health.key   !== this.filterHealth)       return false;
       return true;
     });
   },
 
-  /* ─── RENDER LIST ─────────────────────────────────────────── */
   renderList() {
     const rows  = this.filtered();
     const alert = rows.filter(r => r.section === 'alert');
@@ -176,7 +169,6 @@ export const DashboardPage = {
     this._bindRowClicks();
   },
 
-  /* ─── SECTION BLOCK ───────────────────────────────────────── */
   _renderSection(title, rows, cls) {
     return `
       <div class="dash-section ${cls}">
@@ -188,7 +180,6 @@ export const DashboardPage = {
       </div>`;
   },
 
-  /* ─── ROW ─────────────────────────────────────────────────── */
   _renderRow(row) {
     const c            = row.client;
     const loyaltyStr   = row.loyalty !== null ? `${row.loyalty}%` : '—';
@@ -198,7 +189,9 @@ export const DashboardPage = {
     return `
       <div class="client-row${expanded ? ' expanded' : ''}" data-id="${c.id}">
         <div class="row-main">
-          <span class="client-name" title="${c.name}">${c.name}</span>
+          <span class="client-name" title="${c.name}">
+            ${c.name}${this._touchIndicator(c.id, c.bcg_category)}
+          </span>
           <span class="badge ${row.badge.cls}">${row.badge.label}</span>
           <span class="focus-text" title="${row.focus}">${row.focus}</span>
         </div>
@@ -213,7 +206,6 @@ export const DashboardPage = {
       ${expanded ? this._renderExpanded(row) : ''}`;
   },
 
-  /* ─── EXPANDED ROW ────────────────────────────────────────── */
   _renderExpanded(row) {
     const c   = row.client;
     const bcg = BCG_CATEGORIES[c.bcg_category];
@@ -223,6 +215,14 @@ export const DashboardPage = {
     const julData = row.monthlyData?.find(d => d.month === 7 && d.year === 2026);
 
     const fmtLoyalty = d => (d && d.loyalty !== null) ? `${d.loyalty}%` : '—';
+
+    /* Последнее касание для этого клиента */
+    const lastTP = (this.touchPoints || [])
+      .filter(tp => String(tp.client_id) === String(c.id) && tp.completed_at)
+      .sort((a, b) => new Date(b.completed_at) - new Date(a.completed_at))[0];
+    const lastTouchStr = lastTP
+      ? this._daysAgo(new Date(lastTP.completed_at))
+      : 'никогда';
 
     return `
       <div class="row-detail" data-detail-id="${c.id}">
@@ -274,6 +274,14 @@ export const DashboardPage = {
             <span class="detail-stat-sub">история</span>
           </div>
 
+          <div class="detail-stat">
+            <span class="detail-stat-label">Последнее касание</span>
+            <span class="detail-stat-value" style="font-size:13px">${lastTouchStr}</span>
+            <span class="detail-stat-sub">
+              каждые ${({KEY:14,GROWTH:21,GROWTH_EARLY:14,STABLE:30,TAIL:60}[c.bcg_category]??30)}д
+            </span>
+          </div>
+
         </div>
         <div class="detail-actions">
           <button class="btn btn-primary btn-sm"
@@ -289,11 +297,53 @@ export const DashboardPage = {
                   data-id="${c.id}" data-name="${c.name}">
             📝 Статус
           </button>
+          <button class="btn btn-secondary btn-sm"
+                  data-action="touch"
+                  data-id="${c.id}" data-name="${c.name}">
+            📍 Касание
+          </button>
         </div>
       </div>`;
   },
 
-  /* ─── ROW CLICK EVENTS ────────────────────────────────────── */
+  _touchUrgency(clientId, bcgCategory) {
+    const BCG_FREQUENCY = { KEY:14, GROWTH:21, GROWTH_EARLY:14, STABLE:30, TAIL:60 };
+    const freq    = BCG_FREQUENCY[bcgCategory] ?? 30;
+    const now     = Date.now();
+    const last    = (this.touchPoints || [])
+      .filter(tp => String(tp.client_id) === String(clientId) && tp.completed_at)
+      .sort((a, b) => new Date(b.completed_at) - new Date(a.completed_at))[0];
+    const lastTime = last ? new Date(last.completed_at).getTime() : 0;
+    const diffDays = Math.round((now - lastTime) / (24 * 60 * 60 * 1000));
+    if (diffDays >= freq)       return 'overdue';
+    if (diffDays >= freq * 0.8) return 'due';
+    return 'ok';
+  },
+
+  _touchIndicator(clientId, bcgCategory) {
+    const urgency = this._touchUrgency(clientId, bcgCategory);
+    if (urgency === 'ok') return '';
+    if (urgency === 'overdue') return `
+      <span title="Давно не было касания" style="
+        margin-left:5px;font-size:10px;background:#fef2f2;color:#ef4444;
+        border-radius:4px;padding:1px 5px;vertical-align:middle;cursor:default">
+        📍 просрочено</span>`;
+    return `
+      <span title="Скоро нужно связаться" style="
+        margin-left:5px;font-size:10px;background:#fffbeb;color:#f59e0b;
+        border-radius:4px;padding:1px 5px;vertical-align:middle;cursor:default">
+        📍 скоро</span>`;
+  },
+
+  _daysAgo(date) {
+    const days = Math.round((Date.now() - date.getTime()) / (24 * 60 * 60 * 1000));
+    if (days === 0) return 'сегодня';
+    if (days === 1) return 'вчера';
+    if (days < 7)   return `${days} дн. назад`;
+    if (days < 30)  return `${Math.round(days / 7)} нед. назад`;
+    return `${Math.round(days / 30)} мес. назад`;
+  },
+
   _bindRowClicks() {
     document.querySelectorAll('.client-row').forEach(el => {
       el.addEventListener('click', e => {
@@ -301,7 +351,6 @@ export const DashboardPage = {
         const id = el.dataset.id;
         this.expandedId = this.expandedId === id ? null : id;
         this.renderList();
-        /* восстанавливаем значения фильтров после перерисовки */
         document.getElementById('dash-search').value   = this.searchQ;
         document.getElementById('filter-bcg').value    = this.filterBCG;
         document.getElementById('filter-action').value = this.filterAction;
@@ -329,11 +378,16 @@ export const DashboardPage = {
         this.openStatusModal(btn.dataset.id, btn.dataset.name);
       });
     });
+
+    /* ── Touch handler ── */
+    document.querySelectorAll('[data-action="touch"]').forEach(btn => {
+      btn.addEventListener('click', e => {
+        e.stopPropagation();
+        this._openTouchModal(btn.dataset.id, btn.dataset.name);
+      });
+    });
   },
 
-  /* ═══════════════════════════════════════════════════════════
-     STATUS MODAL
-     ═══════════════════════════════════════════════════════════ */
   openStatusModal(clientId, clientName) {
     const now = new Date();
 
@@ -386,68 +440,60 @@ export const DashboardPage = {
 
     document.getElementById('status-cancel-btn')
       .addEventListener('click', () => window.App.closeModal());
-
     document.getElementById('status-ai-btn')
       .addEventListener('click', () => this._runStatusAI(clientId));
-
     document.getElementById('status-save-btn')
       .addEventListener('click', () => this._saveStatus(clientId));
   },
 
- async _runStatusAI() {
-  const text = (document.getElementById('status-text')?.value || '').trim();
-  if (!text) { window.App.toast('Введите текст статуса', 'error'); return; }
+  async _runStatusAI() {
+    const text = (document.getElementById('status-text')?.value || '').trim();
+    if (!text) { window.App.toast('Введите текст статуса', 'error'); return; }
 
-  const btn    = document.getElementById('status-ai-btn');
-  const status = document.getElementById('status-ai-status');
-  const result = document.getElementById('status-ai-result');
+    const btn    = document.getElementById('status-ai-btn');
+    const status = document.getElementById('status-ai-status');
+    const result = document.getElementById('status-ai-result');
 
-  btn.disabled       = true;
-  btn.textContent    = '⏳ Анализирую...';
-  status.textContent = 'Отправляю запрос...';
+    btn.disabled       = true;
+    btn.textContent    = '⏳ Анализирую...';
+    status.textContent = 'Отправляю запрос...';
 
-  try {
-    const data = await API.callAI(null, {
-      type: 'status',
-      text,
-    });
+    try {
+      const data = await API.callAI(null, { type: 'status', text });
 
-    const content = data?.choices?.[0]?.message?.content ?? '';
-    const match   = content.match(/\{[\s\S]*\}/);
-    const parsed  = JSON.parse(match ? match[0] : content);
+      const content = data?.choices?.[0]?.message?.content ?? '';
+      const match   = content.match(/\{[\s\S]*\}/);
+      const parsed  = JSON.parse(match ? match[0] : content);
 
-    document.getElementById('status-save-btn').dataset.parsed = JSON.stringify(parsed);
+      document.getElementById('status-save-btn').dataset.parsed = JSON.stringify(parsed);
 
-    const activeCount = Object.values(parsed.signals || {}).filter(Boolean).length;
+      const activeCount = Object.values(parsed.signals || {}).filter(Boolean).length;
 
-    result.classList.remove('hidden');
-    result.innerHTML = `
-      <div style="margin-bottom:6px">
-        <strong>✅ Активных сигналов: ${activeCount}</strong>
-      </div>
-      ${parsed.explanation
-        ? `<div style="color:var(--text-muted);font-style:italic">💡 ${parsed.explanation}</div>`
-        : ''}
-      <div style="margin-top:6px;font-size:11px;color:var(--text-muted)">
-        ⚠️ Нажмите «Сохранить» чтобы применить
-      </div>`;
+      result.classList.remove('hidden');
+      result.innerHTML = `
+        <div style="margin-bottom:6px">
+          <strong>✅ Активных сигналов: ${activeCount}</strong>
+        </div>
+        ${parsed.explanation
+          ? `<div style="color:var(--text-muted);font-style:italic">💡 ${parsed.explanation}</div>`
+          : ''}
+        <div style="margin-top:6px;font-size:11px;color:var(--text-muted)">
+          ⚠️ Нажмите «Сохранить» чтобы применить
+        </div>`;
 
-    status.textContent = `✅ ${activeCount} сигналов`;
-    window.App.toast(`🤖 AI нашёл ${activeCount} сигналов`, 'success');
+      status.textContent = `✅ ${activeCount} сигналов`;
+      window.App.toast(`🤖 AI нашёл ${activeCount} сигналов`, 'success');
 
-  } catch (e) {
-    console.error('[StatusModal AI]', e);
-    status.textContent = '❌ Ошибка';
-    window.App.toast('Ошибка AI: ' + e.message, 'error');
-  } finally {
-    btn.disabled    = false;
-    btn.textContent = '🤖 Распознать сигналы';
-  }
-},
+    } catch (e) {
+      console.error('[StatusModal AI]', e);
+      status.textContent = '❌ Ошибка';
+      window.App.toast('Ошибка AI: ' + e.message, 'error');
+    } finally {
+      btn.disabled    = false;
+      btn.textContent = '🤖 Распознать сигналы';
+    }
+  },
 
-
-
-  /* ─── SAVE STATUS ─────────────────────────────────────────── */
   async _saveStatus(clientId) {
     const month   = parseInt(document.getElementById('status-month').value);
     const year    = parseInt(document.getElementById('status-year').value);
@@ -468,7 +514,7 @@ export const DashboardPage = {
 
       const pcData = {};
       for (const key of Object.keys(PC_CRITERIA)) {
-        const val  = parsed?.pc?.[key];
+        const val = parsed?.pc?.[key];
         pcData[key] = (val >= 1 && val <= 5) ? val : null;
       }
 
@@ -489,5 +535,58 @@ export const DashboardPage = {
       saveBtn.disabled    = false;
       saveBtn.textContent = '💾 Сохранить';
     }
+  },
+
+  _openTouchModal(clientId, clientName) {
+    const typeOpts = [
+      ['checkin', '💬 Check-in'],
+      ['call',    '📞 Звонок'],
+      ['meeting', '🤝 Встреча'],
+      ['qbr',     '📊 QBR'],
+      ['email',   '📧 Email'],
+    ].map(([k, v]) => `<option value="${k}">${v}</option>`).join('');
+
+    window.App.openModal(`
+      <div style="max-width:380px">
+        <div style="font-size:15px;font-weight:700;margin-bottom:4px">
+          📍 Отметить касание
+        </div>
+        <div style="font-size:12px;color:var(--text-muted);margin-bottom:16px">
+          ${clientName}
+        </div>
+        <div class="form-group">
+          <label class="form-label">Тип</label>
+          <select class="form-select" id="touch-type">${typeOpts}</select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Заметка (необязательно)</label>
+          <textarea class="form-textarea" id="touch-note"
+                    style="min-height:70px;resize:vertical"
+                    placeholder="Что обсудили..."></textarea>
+        </div>
+        <div style="display:flex;gap:8px;margin-top:4px">
+          <button class="btn btn-primary" id="touch-confirm" style="flex:1">
+            ✓ Сохранить
+          </button>
+          <button class="btn btn-secondary"
+                  onclick="window.App.closeModal()">Отмена</button>
+        </div>
+      </div>`);
+
+    document.getElementById('touch-confirm')?.addEventListener('click', async () => {
+      const type  = document.getElementById('touch-type')?.value  ?? 'checkin';
+      const notes = document.getElementById('touch-note')?.value.trim() ?? '';
+      try {
+        await API.saveTouchPoint({ client_id: clientId, type,
+          completed_at: new Date().toISOString(), notes });
+        this.touchPoints.push({ client_id: clientId, type,
+          completed_at: new Date().toISOString(), notes });
+        window.App.closeModal();
+        window.App.toast(`✅ Касание с ${clientName} отмечено`, 'success');
+        this.renderList();
+      } catch (e) {
+        window.App.toast('❌ Ошибка: ' + e.message, 'error');
+      }
+    });
   },
 };

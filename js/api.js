@@ -259,45 +259,13 @@ async callAI(messages, options = {}) {
 },
 
 
-  /* ══════════════════════════════════════════
-     PORTFOLIO STRATEGIES
-  ══════════════════════════════════════════ */
   async getPortfolioStrategies() {
-    return (await this._get('tables/portfolio_strategies?limit=100')) || [];
-  },
+  const r = await this._get('tables/portfolio_strategies?limit=100');
+  return Array.isArray(r) ? r : (Array.isArray(r?.data) ? r.data : []);
+},
 
-  async upsertPortfolioStrategy(horizon, data) {
-    const all      = await this.getPortfolioStrategies();
-    const existing = all.find(r => r.horizon === horizon);
-    const payload  = { horizon, ...data };
-    ['id','gs_project_id','gs_table_name','created_at','updated_at']
-      .forEach(k => delete payload[k]);
-    return existing
-      ? this._put(`tables/portfolio_strategies/${existing.id}`, payload)
-      : this._post('tables/portfolio_strategies', payload);
-  },
-
-  /* ══════════════════════════════════════════
-     ACCOUNT STRATEGIES
-  ══════════════════════════════════════════ */
-  async getAccountStrategies() {
-    return (await this._get('tables/account_strategies?limit=500')) || [];
-  },
-
-  async getAccountStrategyFor(clientId) {
-    const all = await this.getAccountStrategies();
-    return all
-      .filter(r => String(r.client_id) === String(clientId) && r.status !== 'Done')
-      .sort((a, b) => b.created_at - a.created_at)[0] ?? null;
-  },
-
-  async saveAccountStrategy(clientId, data) {
-    const existing = await this.getAccountStrategyFor(clientId);
-    const payload  = { client_id: clientId, ...data };
-    ['id','gs_project_id','gs_table_name','created_at','updated_at']
-      .forEach(k => delete payload[k]);
-    return existing
-      ? this._put(`tables/account_strategies/${existing.id}`, payload)
-      : this._post('tables/account_strategies', payload);
-  },
+async getAccountStrategies() {
+  const r = await this._get('tables/account_strategies?limit=500');
+  return Array.isArray(r) ? r : (Array.isArray(r?.data) ? r.data : []);
+},
 };

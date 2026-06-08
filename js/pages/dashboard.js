@@ -538,55 +538,153 @@ export const DashboardPage = {
   },
 
   _openTouchModal(clientId, clientName) {
-    const typeOpts = [
-      ['checkin', '💬 Check-in'],
-      ['call',    '📞 Звонок'],
-      ['meeting', '🤝 Встреча'],
-      ['qbr',     '📊 QBR'],
-      ['email',   '📧 Email'],
-    ].map(([k, v]) => `<option value="${k}">${v}</option>`).join('');
+  const typeOpts = [
+    ['checkin', '💬 Check-in'],
+    ['call',    '📞 Звонок'],
+    ['meeting', '🤝 Встреча'],
+    ['qbr',     '📊 QBR'],
+    ['email',   '📧 Email'],
+  ].map(([k, v]) => `<option value="${k}">${v}</option>`).join('');
 
-    window.App.openModal(`
-      <div style="max-width:380px">
-        <div style="font-size:15px;font-weight:700;margin-bottom:4px">
-          📍 Отметить касание
-        </div>
-        <div style="font-size:12px;color:var(--text-muted);margin-bottom:16px">
-          ${clientName}
-        </div>
-        <div class="form-group">
-          <label class="form-label">Тип</label>
-          <select class="form-select" id="touch-type">${typeOpts}</select>
-        </div>
-        <div class="form-group">
-          <label class="form-label">Заметка (необязательно)</label>
-          <textarea class="form-textarea" id="touch-note"
-                    style="min-height:70px;resize:vertical"
-                    placeholder="Что обсудили..."></textarea>
-        </div>
-        <div style="display:flex;gap:8px;margin-top:4px">
-          <button class="btn btn-primary" id="touch-confirm" style="flex:1">
-            ✓ Сохранить
-          </button>
-          <button class="btn btn-secondary"
-                  onclick="window.App.closeModal()">Отмена</button>
-        </div>
-      </div>`);
+  window.App.openModal(`
+    <div style="width:100%;box-sizing:border-box">
 
-    document.getElementById('touch-confirm')?.addEventListener('click', async () => {
-      const type  = document.getElementById('touch-type')?.value  ?? 'checkin';
-      const notes = document.getElementById('touch-note')?.value.trim() ?? '';
-      try {
-        await API.saveTouchPoint({ client_id: clientId, type,
-          completed_at: new Date().toISOString(), notes });
-        this.touchPoints.push({ client_id: clientId, type,
-          completed_at: new Date().toISOString(), notes });
-        window.App.closeModal();
-        window.App.toast(`✅ Касание с ${clientName} отмечено`, 'success');
-        this.renderList();
-      } catch (e) {
-        window.App.toast('❌ Ошибка: ' + e.message, 'error');
+      <div style="font-size:15px;font-weight:700;margin-bottom:2px">📍 Отметить касание</div>
+      <div style="font-size:12px;color:var(--text-muted);margin-bottom:20px">${clientName}</div>
+
+      <div class="form-group">
+        <label class="form-label">Тип</label>
+        <select class="form-select" id="touch-type" style="width:100%">${typeOpts}</select>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Заметка</label>
+        <textarea class="form-textarea" id="touch-note"
+                  style="width:100%;min-height:100px;resize:vertical;box-sizing:border-box"
+                  placeholder="Что обсудили, о чём договорились..."></textarea>
+      </div>
+
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap">
+        <button class="btn btn-secondary btn-sm" id="touch-ai-btn">🤖 Распознать сигналы</button>
+        <span id="touch-ai-status" style="font-size:12px;color:var(--text-muted)"></span>
+      </div>
+
+      <div id="touch-ai-result" class="hidden"
+           style="margin-bottom:14px;padding:10px 14px;
+                  background:rgba(16,185,129,0.08);
+                  border:1px solid rgba(16,185,129,0.2);
+                  border-radius:8px;font-size:12px;
+                  color:var(--text-secondary);line-height:1.6">
+      </div>
+
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-primary" id="touch-confirm" style="flex:1">✓ Сохранить</button>
+        <button class="btn btn-secondary" onclick="window.App.closeModal()">Отмена</button>
+      </div>
+
+    </div>`);
+
+  /* ── AI распознавание сигналов ── */
+  document.getElementById('touch-ai-btn')?.addEventListener('click', async () => {
+    const text = document.getElementById('touch-note')?.value.trim() ?? '';
+    if (!text) { window.App.toast('Введи заметку для распознавания', 'error'); return; }
+
+    const aiBtn   = document.getElementById('touch-ai-btn');
+    const aiSt    = document.getElementById('touch-ai-status');
+    const aiRes   = document.getElementById('touch-ai-result');
+    aiBtn.disabled    = true;
+    aiBtn.textContent = '⏳ Анализирую...';
+    aiSt.textContent  = '';
+
+    try {
+      const data    = await API.callAI(null, { type: 'status', text });
+      const content = data?.choices?.[0]?.message?.content ?? '';
+      const match   = content.match(/\{[\s\S]*\}/);
+      const parsed  = JSON.parse(match ? match[0] : content);
+
+      /* сохраняем parsed чтобы использовать при сохранении */
+      document.getElementById('touch-confirm').dataset.parsed = JSON.stringify(parsed);
+
+      const count = Object.values(parsed.signals || {}).filter(Boolean).length;
+      aiRes.classList.remove('hidden');
+      aiRes.innerHTML = `
+        <strong>✅ Найдено сигналов: ${count}</strong>
+        ${parsed.explanation
+          ? `<div style="margin-top:4px;color:var(--text-muted);font-style:italic">
+               💡 ${parsed.explanation}</div>`
+          : ''}
+        <div style="margin-top:4px;font-size:11px;color:var(--text-muted)">
+          Сигналы запишутся при сохранении касания
+        </div>`;
+      aiSt.textContent = `✅ ${count} сигналов`;
+
+    } catch (e) {
+      aiSt.textContent = '❌ Ошибка AI';
+      window.App.toast('Ошибка AI: ' + e.message, 'error');
+    } finally {
+      aiBtn.disabled    = false;
+      aiBtn.textContent = '🤖 Распознать сигналы';
+    }
+  });
+
+  /* ── Сохранение ── */
+  document.getElementById('touch-confirm')?.addEventListener('click', async () => {
+    const type   = document.getElementById('touch-type')?.value   ?? 'checkin';
+    const notes  = document.getElementById('touch-note')?.value.trim() ?? '';
+    const rawParsed = document.getElementById('touch-confirm').dataset.parsed;
+    const parsed = rawParsed ? JSON.parse(rawParsed) : null;
+
+    try {
+      /* Сохраняем касание */
+      await API.saveTouchPoint({
+        client_id:    clientId,
+        type,
+        completed_at: new Date().toISOString(),
+        notes,
+      });
+
+      /* Если AI распознал сигналы — пишем в bchs_entry текущего месяца */
+      if (parsed?.signals) {
+        const now = new Date();
+        const signalData = {};
+        for (const key of Object.keys(SIGNALS)) {
+          signalData[key] = !!(parsed.signals[key]);
+        }
+        if (notes) signalData.status_note = notes;
+
+        const pcData = {};
+        for (const key of Object.keys(PC_CRITERIA)) {
+          const val = parsed?.pc?.[key];
+          pcData[key] = (val >= 1 && val <= 5) ? val : null;
+        }
+
+        await Promise.all([
+          API.saveBCHSEntry(clientId, now.getMonth() + 1, now.getFullYear(), signalData),
+          API.savePCEntry(clientId,   now.getMonth() + 1, now.getFullYear(), pcData),
+        ]);
+        API.clearCache();
       }
-    });
-  },
+
+      /* Обновляем локальный кеш touch points */
+      this.touchPoints.push({
+        client_id:    clientId,
+        type,
+        completed_at: new Date().toISOString(),
+        notes,
+      });
+
+      window.App.closeModal();
+      window.App.toast(
+        parsed?.signals
+          ? `✅ Касание отмечено, сигналы записаны`
+          : `✅ Касание с ${clientName} отмечено`,
+        'success'
+      );
+      this.renderList();
+
+    } catch (e) {
+      window.App.toast('❌ Ошибка: ' + e.message, 'error');
+    }
+  });
+},
 };

@@ -394,13 +394,16 @@ export const PortfolioPage = {
 
 _askDirection(options) {
   return new Promise(resolve => {
+    const presets = options.filter(o => o.id !== 'custom');
+
     const html = `
-      <div style="max-width:400px">
+      <div style="max-width:440px">
         <div style="font-size:15px;font-weight:700;margin-bottom:16px">
           🎯 Выбери направление стратегии
         </div>
-        <div style="display:grid;gap:8px;margin-bottom:16px">
-          ${options.map(o => `
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">
+          ${presets.map(o => `
             <div class="dir-option" data-id="${o.id}"
                  style="padding:10px 14px;border:1px solid var(--border);
                         border-radius:var(--radius);cursor:pointer;transition:all 0.15s">
@@ -408,12 +411,14 @@ _askDirection(options) {
               <div style="font-size:11px;color:var(--text-muted)">${o.hint}</div>
             </div>`).join('')}
         </div>
-        <div id="custom-dir-wrap" style="display:none;margin-bottom:16px">
-  <textarea class="form-textarea" id="custom-dir-input"
-            style="min-height:80px;resize:vertical"
-            placeholder="Опиши направление — например: сфокусироваться на апсейле KEY-клиентов и снижении оттока TAIL"></textarea>
-</div>
-        </div>
+
+        <div style="text-align:center;font-size:11px;color:var(--text-muted);
+                    margin-bottom:12px">— или опиши своё —</div>
+
+        <textarea class="form-textarea" id="custom-dir-input"
+                  style="min-height:90px;resize:vertical;margin-bottom:16px"
+                  placeholder="Например: сфокусироваться на апсейле KEY-клиентов и снижении оттока TAIL..."></textarea>
+
         <div style="display:flex;gap:8px">
           <button class="btn btn-primary btn-sm" id="dir-confirm" disabled>
             Генерировать →
@@ -425,6 +430,7 @@ _askDirection(options) {
     window.App.openModal(html);
     let selected = null;
 
+    /* Клик по пресету — заполняет textarea и подсвечивает */
     document.querySelectorAll('.dir-option').forEach(el => {
       el.addEventListener('click', () => {
         document.querySelectorAll('.dir-option').forEach(e => {
@@ -434,20 +440,33 @@ _askDirection(options) {
         el.style.background  = 'rgba(99,102,241,0.08)';
         el.style.borderColor = '#6366f1';
         selected = el.dataset.id;
-        document.getElementById('custom-dir-wrap').style.display =
-          selected === 'custom' ? 'block' : 'none';
-        if (selected === 'custom')
-          document.getElementById('custom-dir-input').focus();
+
+        /* Подставляем hint в textarea как отправную точку */
+        const opt = options.find(o => o.id === selected);
+        const ta  = document.getElementById('custom-dir-input');
+        if (ta && opt) ta.value = opt.hint;
+
         document.getElementById('dir-confirm').disabled = false;
       });
     });
 
+    /* Ручной ввод тоже разблокирует кнопку */
+    document.getElementById('custom-dir-input')?.addEventListener('input', e => {
+      document.getElementById('dir-confirm').disabled = e.target.value.trim() === '';
+      if (e.target.value.trim()) {
+        /* Снимаем выделение пресетов если пишем вручную */
+        document.querySelectorAll('.dir-option').forEach(el => {
+          el.style.background  = '';
+          el.style.borderColor = 'var(--border)';
+        });
+        selected = 'custom';
+      }
+    });
+
     document.getElementById('dir-confirm')?.addEventListener('click', () => {
-      let result = selected;
-      if (selected === 'custom')
-        result = document.getElementById('custom-dir-input')?.value.trim() || 'custom';
+      const text = document.getElementById('custom-dir-input')?.value.trim();
       window.App.closeModal();
-      resolve(result);
+      resolve(text || selected || null);
     });
 
     document.getElementById('dir-cancel')?.addEventListener('click', () => {
@@ -456,6 +475,7 @@ _askDirection(options) {
     });
   });
 },
+
 
 _showVariantPicker(key, variants, horizonLabel) {
   const cards = variants.map((v, i) => `

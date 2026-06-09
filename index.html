@@ -11,45 +11,38 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 
   <style>
-    /* ── nav icon sizing ── */
-    .nav-icon svg { width:16px;height:16px;display:block;flex-shrink:0 }
-    .bn-icon svg  { width:18px;height:18px;display:block;margin:0 auto }
+    .nav-icon svg  { width:18px;height:18px;display:block }
+    .bn-icon svg   { width:18px;height:18px;display:block;margin:0 auto }
 
-    /* ── Плавное появление секций дашборда ── */
     @keyframes fadeSlideUp {
       from { opacity:0; transform:translateY(10px); }
-      to   { opacity:1; transform:translateY(0);    }
+      to   { opacity:1; transform:translateY(0); }
     }
     #dash-body > div { animation:fadeSlideUp .22s ease both; }
     #dash-body > div:nth-child(2) { animation-delay:.06s; }
     #dash-body > div:nth-child(3) { animation-delay:.12s; }
     #dash-body > div:nth-child(4) { animation-delay:.18s; }
 
-    /* ── Плавный переход табов ── */
     .dash-tab { transition:background .18s,color .18s,border-color .18s !important; }
 
-    /* ── Hover на строках клиентов ── */
     .client-row { transition:box-shadow .15s,transform .12s; }
     .client-row:hover { box-shadow:0 2px 12px rgba(0,0,0,.07); transform:translateY(-1px); }
 
-    /* ── Плавное открытие модалки ── */
     @keyframes modalIn {
       from { opacity:0; transform:scale(.97) translateY(8px); }
-      to   { opacity:1; transform:scale(1)   translateY(0);   }
+      to   { opacity:1; transform:scale(1) translateY(0); }
     }
     #modal-overlay:not(.hidden) #modal-box { animation:modalIn .2s ease both; }
 
-    /* ── Плавное появление тостов ── */
     @keyframes toastIn {
       from { opacity:0; transform:translateY(10px) scale(.97); }
-      to   { opacity:1; transform:translateY(0)    scale(1);   }
+      to   { opacity:1; transform:translateY(0) scale(1); }
     }
     .toast { animation:toastIn .18s ease both; }
 
-    /* ── Переход страниц ── */
     @keyframes pageIn {
       from { opacity:0; transform:translateY(6px); }
-      to   { opacity:1; transform:translateY(0);   }
+      to   { opacity:1; transform:translateY(0); }
     }
     #main-content > * { animation:pageIn .2s ease both; }
   </style>
@@ -60,24 +53,21 @@
   <div id="app">
     <nav id="sidebar">
 
-      <!-- Логотип -->
+      <!-- Лого — только иконка -->
       <div class="sidebar-logo">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
-             stroke="#6366f1" stroke-width="1.8"
-             stroke-linecap="round" stroke-linejoin="round">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
           <rect x="3" y="3" width="7" height="7" rx="1.5"/>
           <rect x="14" y="3" width="7" height="7" rx="1.5"/>
           <rect x="3" y="14" width="7" height="7" rx="1.5"/>
           <rect x="14" y="14" width="7" height="7" rx="1.5"/>
         </svg>
-        <span class="logo-text">Portfolio<br><strong>BCHS</strong></span>
       </div>
 
       <ul class="nav-links">
 
-        <!-- Дашборд -->
         <li>
-          <a href="#" class="nav-item active" data-page="dashboard">
+          <a href="#" class="nav-item active" data-page="dashboard" data-tooltip="Дашборд">
             <span class="nav-icon">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
                    stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
@@ -87,13 +77,11 @@
                 <rect x="3" y="16" width="7" height="5" rx="1.5"/>
               </svg>
             </span>
-            Дашборд
           </a>
         </li>
 
-        <!-- Портфель -->
         <li>
-          <a href="#" class="nav-item" data-page="portfolio">
+          <a href="#" class="nav-item" data-page="portfolio" data-tooltip="Портфель">
             <span class="nav-icon">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
                    stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
@@ -103,26 +91,22 @@
                 <circle cx="7" cy="18" r="1.5" fill="currentColor" stroke="none"/>
               </svg>
             </span>
-            Портфель
           </a>
         </li>
 
-        <!-- Внести данные -->
         <li>
-          <a href="#" class="nav-item" data-page="entry">
+          <a href="#" class="nav-item" data-page="entry" data-tooltip="Внести данные">
             <span class="nav-icon">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
                    stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M12 5v14M5 12h14"/>
               </svg>
             </span>
-            Внести данные
           </a>
         </li>
 
-        <!-- Клиенты -->
         <li>
-          <a href="#" class="nav-item" data-page="clients">
+          <a href="#" class="nav-item" data-page="clients" data-tooltip="Клиенты">
             <span class="nav-icon">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
                    stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
@@ -132,13 +116,11 @@
                 <path d="M16 3.13a4 4 0 010 7.75"/>
               </svg>
             </span>
-            Клиенты
           </a>
         </li>
 
-        <!-- Календари -->
         <li>
-          <a href="#" class="nav-item" data-page="calendars">
+          <a href="#" class="nav-item" data-page="calendars" data-tooltip="Календари">
             <span class="nav-icon">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
                    stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
@@ -146,26 +128,22 @@
                 <path d="M16 2v4M8 2v4M3 10h18"/>
               </svg>
             </span>
-            Календари
           </a>
         </li>
 
-        <!-- Касания -->
         <li>
-          <a href="#" class="nav-item" data-page="touchpoints">
+          <a href="#" class="nav-item" data-page="touchpoints" data-tooltip="Касания">
             <span class="nav-icon">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
                    stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>
               </svg>
             </span>
-            Касания
           </a>
         </li>
 
-        <!-- Трекер (скрыт) -->
         <li id="nav-tracker-li" style="display:none">
-          <a href="#" class="nav-item" data-page="tracker">
+          <a href="#" class="nav-item" data-page="tracker" data-tooltip="Мой трекер">
             <span class="nav-icon">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
                    stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
@@ -173,66 +151,53 @@
                 <polyline points="12 6 12 12 16 14"/>
               </svg>
             </span>
-            Мой трекер
           </a>
         </li>
 
       </ul>
 
-      <!-- Клавиши -->
-      <div style="padding:6px 14px;margin-top:4px;">
-        <div class="kbd-hint" style="margin-bottom:3px"><kbd>N</kbd> Внести данные</div>
-        <div class="kbd-hint" style="margin-bottom:3px"><kbd>Esc</kbd> Дашборд</div>
-        <div class="kbd-hint"><kbd>R</kbd> Обновить</div>
-      </div>
-
       <!-- Бэкап -->
-      <div style="padding:6px 14px;margin-top:4px;">
+      <div style="padding:6px 8px;margin-top:4px;">
         <button id="backup-btn"
-          style="width:100%;padding:7px 12px;border-radius:8px;
-                 border:1px solid var(--border);background:transparent;
-                 color:var(--text-muted);font-size:12px;cursor:pointer;
-                 text-align:left;display:flex;align-items:center;gap:8px;
-                 transition:background 0.15s"
+          data-tooltip="Бэкап / Восстановить"
+          style="width:40px;height:40px;border-radius:10px;border:1px solid var(--border);
+                 background:transparent;color:var(--text-muted);cursor:pointer;
+                 display:flex;align-items:center;justify-content:center;margin:0 auto;
+                 transition:background 0.15s;position:relative;"
           onmouseover="this.style.background='var(--surface-hover)'"
           onmouseout="this.style.background='transparent'">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none"
                stroke="currentColor" stroke-width="1.8"
                stroke-linecap="round" stroke-linejoin="round">
             <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
             <polyline points="7 10 12 15 17 10"/>
             <line x1="12" y1="15" x2="12" y2="3"/>
           </svg>
-          Бэкап / Восстановить
         </button>
       </div>
 
       <!-- Роль -->
       <div class="sidebar-role-section">
-        <div id="role-banner" class="role-banner role-admin">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
+        <div id="role-banner" class="role-banner role-admin" data-tooltip="Админ · Все клиенты">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none"
                stroke="currentColor" stroke-width="1.8"
                stroke-linecap="round" stroke-linejoin="round">
             <rect x="3" y="11" width="18" height="11" rx="2"/>
             <path d="M7 11V7a5 5 0 0110 0v4"/>
           </svg>
-          <span class="role-name">Админ</span>
-          <span class="role-tag">Все клиенты</span>
         </div>
-        <button id="role-toggle-btn" class="role-toggle-btn">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none"
+        <button id="role-toggle-btn" class="role-toggle-btn" data-tooltip="Сменить вид">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none"
                stroke="currentColor" stroke-width="2"
-               stroke-linecap="round" stroke-linejoin="round"
-               style="display:inline;vertical-align:middle;margin-right:4px">
+               stroke-linecap="round" stroke-linejoin="round">
             <path d="M8 3L4 7l4 4"/><path d="M4 7h16"/>
             <path d="M16 21l4-4-4-4"/><path d="M20 17H4"/>
           </svg>
-          Сменить вид
         </button>
       </div>
 
       <div class="sidebar-footer">
-        <span class="version">v7.0</span>
+        <span class="version">v7</span>
       </div>
     </nav>
 

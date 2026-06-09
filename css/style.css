@@ -5587,3 +5587,44 @@ body {
   opacity: 0.5;
   cursor: not-allowed;
 }
+
+/* ── Hz icon block FINAL ── */
+.pf-hz-icon-block {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  margin-right: 16px;
+  flex-shrink: 0;
+}
+.pf-hz-symbol {
+  font-size: 22px;
+  color: #374151;
+  line-height: 1;
+}
+.pf-hz-label {
+  font-size: 9px;
+  color: #d1d5db;
+  font-weight: 400;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.pf-hz-dot { display: none !important; }
+.pf-hz-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+/* ── Hz symbol — фиксированный размер ── */
+.pf-hz-symbol {
+  font-size: 18px !important;
+  line-height: 18px !important;
+  width: 18px !important;
+  height: 18px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  font-family: "Apple Color Emoji", "Segoe UI Symbol", sans-serif !important;
+}
+

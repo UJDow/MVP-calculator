@@ -425,12 +425,8 @@ export const PortfolioPage = {
         const editBtn = document.querySelector(`[data-editkey="${key}"]`);
         const cancelBtn = document.querySelector(`[data-cancelkey="${key}"]`);
 
-        // По умолчанию — свёрнуто если нет данных, развёрнуто если есть
-        const hasData = !!(
-          document.getElementById(`pf-${key}-title`)?.value ||
-          document.getElementById(`pf-${key}-goal`)?.value
-        );
-        if (!hasData && body) {
+        // По умолчанию — все свёрнуты
+        if (body) {
           body.style.display = 'none';
           if (chevron) chevron.style.transform = 'rotate(-90deg)';
         }
@@ -633,12 +629,12 @@ document.getElementById('pf-ai-mode-sw')
         <!-- Заголовок — всегда виден -->
         <div class="pf-hz-head" data-toggle="${key}">
           <div class="pf-hz-left">
-            <div class="pf-hz-dot" style="background:${dotColor}"></div>
-            <div>
-              <div class="pf-hz-title">
-                ${label}
-                <span class="pf-hz-period">${period}</span>
-              </div>
+            <div class="pf-hz-icon-block">
+              <span class="pf-hz-symbol">${{ short: '◔', mid: '◑', long: '◕' }[key]}</span>
+              <span class="pf-hz-label">${label}</span>
+            </div>
+            <div class="pf-hz-meta">
+              <span class="pf-hz-period">${period}</span>
               ${hasData && v('title') ? `<div class="pf-hz-subtitle">${v('title')}</div>` : ''}
             </div>
           </div>

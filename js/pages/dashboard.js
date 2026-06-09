@@ -437,6 +437,333 @@ export const DashboardPage = {
       </div>`;
   },
 
+  _renderToday() {
+  const now = new Date();
+
+  const svg = {
+    phone: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 9.8a19.79 19.79 0 01-3.07-8.68A2 2 0 012 .93h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L6.09 8.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z"/></svg>`,
+    alert: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>`,
+    refresh: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>`,
+    trendDown: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 18 13.5 8.5 8.5 13.5 1 6"/><polyline points="17 18 23 18 23 12"/></svg>`,
+    arrow: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>`,
+    check: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>`,
+    touch: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8h1a4 4 0 010 8h-1"/><path d="M2 8h16v9a4 4 0 01-4 4H6a4 4 0 01-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/></svg>`,
+    card: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>`,
+    call: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 9.8a19.79 19.79 0 01-3.07-8.68A2 2 0 012 .93h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L6.09 8.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z"/></svg>`,
+    meet: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>`,
+    mail: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>`,
+    chat: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>`,
+    chart: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>`,
+  };
+
+  const typeIcon = {
+    call:    `<span style="color:#6366f1">${svg.call}</span>`,
+    meeting: `<span style="color:#8b5cf6">${svg.meet}</span>`,
+    qbr:     `<span style="color:#0ea5e9">${svg.chart}</span>`,
+    email:   `<span style="color:#64748b">${svg.mail}</span>`,
+    checkin: `<span style="color:#10b981">${svg.chat}</span>`,
+  };
+
+  // ── Блок 1: Позвони сегодня ──
+  const callNow = this.computed
+    .filter(r => {
+      const u = this._touchUrgency(r.client.id, r.client.bcg_category, r);
+      return u === 'immediate' || u === 'overdue';
+    })
+    .sort((a, b) => {
+      const sOrder = { alert:0, work:1, auto:2 };
+      if (sOrder[a.section] !== sOrder[b.section])
+        return sOrder[a.section] - sOrder[b.section];
+      return (b.riskPct ?? 0) - (a.riskPct ?? 0);
+    })
+    .slice(0, 3);
+
+  // ── Блок 2: В риске ──
+  const atRisk = this.computed
+    .filter(r =>
+      r.riskPct > 15 ||
+      (r.trend?.direction === 'down' && r.bchs !== null && r.bchs < 20)
+    )
+    .filter(r => !callNow.find(x => x.client.id === r.client.id))
+    .sort((a, b) => (b.riskPct ?? 0) - (a.riskPct ?? 0))
+    .slice(0, 4);
+
+  // ── Блок 3: Что изменилось ──
+  const cutoff = Date.now() - 48 * 3600000;
+  const recentTouches = (this.touchPoints || [])
+    .filter(tp => tp.completed_at && new Date(tp.completed_at).getTime() > cutoff)
+    .sort((a, b) => new Date(b.completed_at) - new Date(a.completed_at))
+    .slice(0, 5);
+
+  const recentRows = recentTouches.map(tp => {
+    const row = this.computed.find(r => String(r.client.id) === String(tp.client_id));
+    if (!row) return '';
+    const icon = typeIcon[tp.type] ?? `<span style="color:#94a3b8">${svg.touch}</span>`;
+    const mins = Math.round((Date.now() - new Date(tp.completed_at)) / 60000);
+    const timeStr = mins < 60
+      ? `${mins} мин. назад`
+      : mins < 1440
+        ? `${Math.round(mins/60)} ч. назад`
+        : `${Math.round(mins/1440)} дн. назад`;
+
+    const firstLine = (tp.notes || '')
+      .split('\n')
+      .map(l => l.replace(/^[📋✅👣🎯🏁🚧]\s[\w\s]+:\n?/, '').trim())
+      .find(l => l.length > 3) ?? '';
+    const preview = firstLine.slice(0, 72) + (firstLine.length > 72 ? '…' : '');
+
+    return `
+      <div style="display:flex;align-items:flex-start;gap:12px;
+                  padding:11px 14px;border-radius:10px;
+                  background:var(--surface);border:1px solid var(--border);
+                  margin-bottom:7px;cursor:pointer;transition:background .12s"
+           onmouseover="this.style.background='#f8fafc'"
+           onmouseout="this.style.background='var(--surface)'"
+           data-action="go-detail" data-id="${row.client.id}">
+        <div style="width:32px;height:32px;border-radius:8px;background:#f1f5f9;
+                    display:flex;align-items:center;justify-content:center;flex-shrink:0">
+          ${icon}
+        </div>
+        <div style="flex:1;min-width:0">
+          <div style="display:flex;justify-content:space-between;
+                      align-items:center;gap:8px">
+            <span style="font-size:13px;font-weight:600;
+                         color:var(--text-primary)">${row.client.name}</span>
+            <span style="font-size:11px;color:var(--text-muted);
+                         white-space:nowrap;flex-shrink:0">${timeStr}</span>
+          </div>
+          ${preview ? `
+            <div style="font-size:12px;color:var(--text-muted);margin-top:3px;
+                        overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
+              ${preview}
+            </div>` : ''}
+        </div>
+        <div style="color:#cbd5e1;flex-shrink:0;margin-top:2px">${svg.arrow}</div>
+      </div>`;
+  }).join('');
+
+  // ── Карточка приоритета ──
+  const quickCard = (row, rank) => {
+    const c = row.client;
+    const urgency = this._touchUrgency(c.id, c.bcg_category, row);
+    const isPrimary = urgency === 'immediate';
+
+    const accentColor  = isPrimary ? '#f87171' : '#fbbf24';
+    const bgColor      = isPrimary ? '#fff1f2' : '#fffbeb';
+    const borderColor  = isPrimary ? '#fecaca' : '#fde68a';
+    const badgeColor   = isPrimary ? '#fca5a5' : '#fcd34d';
+    const badgeText    = isPrimary ? 'срочно'  : 'скоро';
+
+    const nextAct = this._nextAction(row) ?? 'Записать касание';
+    const loyaltyStr = row.loyalty !== null ? `${row.loyalty}%` : '—';
+    const loyaltyColor = row.loyalty === null ? '#94a3b8'
+      : row.loyalty >= 60 ? '#4ade80'
+      : row.loyalty >= 40 ? '#fbbf24' : '#f87171';
+
+    return `
+      <div style="background:${bgColor};border:1px solid ${borderColor};
+                  border-radius:14px;padding:16px 18px;margin-bottom:10px;
+                  position:relative">
+        <div style="display:flex;align-items:flex-start;
+                    justify-content:space-between;gap:12px;margin-bottom:10px">
+          <div>
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+              <span style="font-size:11px;font-weight:600;
+                           color:${accentColor};background:${badgeColor}40;
+                           border-radius:6px;padding:2px 8px;letter-spacing:.03em">
+                #${rank} · ${badgeText}
+              </span>
+            </div>
+            <div style="font-size:15px;font-weight:700;
+                        color:#0f172a;line-height:1.3">${c.name}</div>
+            <div style="font-size:12px;color:#64748b;margin-top:3px">${nextAct}</div>
+          </div>
+          <div style="text-align:right;flex-shrink:0">
+            <div style="font-size:16px;font-weight:700;color:${loyaltyColor}">
+              ${loyaltyStr}
+            </div>
+            <div style="font-size:10px;color:#94a3b8;margin-top:1px">лояльность</div>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-sm"
+                  data-action="touch"
+                  data-id="${c.id}" data-name="${c.name}"
+                  style="display:flex;align-items:center;gap:6px;
+                         background:${accentColor};border:none;color:#fff;
+                         border-radius:8px;padding:7px 14px;font-size:12px;
+                         font-weight:600;cursor:pointer;transition:opacity .15s"
+                  onmouseover="this.style.opacity='.85'"
+                  onmouseout="this.style.opacity='1'">
+            ${svg.touch} Касание
+          </button>
+          <button class="btn btn-sm"
+                  data-action="go-detail" data-id="${c.id}"
+                  style="display:flex;align-items:center;gap:6px;
+                         background:#fff;border:1px solid ${borderColor};
+                         color:#475569;border-radius:8px;padding:7px 14px;
+                         font-size:12px;font-weight:500;cursor:pointer;
+                         transition:background .12s"
+                  onmouseover="this.style.background='#f8fafc'"
+                  onmouseout="this.style.background='#fff'">
+            ${svg.card} Карточка
+          </button>
+        </div>
+      </div>`;
+  };
+
+  // ── Карточка риска ──
+  const riskCard = (row) => {
+    const c = row.client;
+    const isHigh = row.riskPct > 30;
+    const accentColor = isHigh ? '#f87171' : '#fbbf24';
+    const bgColor     = isHigh ? '#fff1f2' : '#fffbeb';
+    const borderColor = isHigh ? '#fecaca' : '#fde68a';
+
+    return `
+      <div style="display:flex;align-items:center;gap:12px;
+                  padding:12px 14px;border-radius:10px;
+                  background:${bgColor};border:1px solid ${borderColor};
+                  margin-bottom:8px">
+        <div style="width:34px;height:34px;border-radius:9px;
+                    background:${accentColor}25;flex-shrink:0;
+                    display:flex;align-items:center;justify-content:center;
+                    color:${accentColor}">
+          ${svg.alert}
+        </div>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:13px;font-weight:600;color:#0f172a">${c.name}</div>
+          <div style="font-size:11px;color:#64748b;margin-top:2px">
+            ${row.riskPct}% риск выручки
+            ${row.trend?.direction === 'down'
+              ? `<span style="color:#f87171;margin-left:6px;
+                              display:inline-flex;align-items:center;gap:3px;
+                              vertical-align:middle">
+                   ${svg.trendDown} тренд падает
+                 </span>`
+              : ''}
+          </div>
+        </div>
+        <button class="btn btn-sm"
+                data-action="touch"
+                data-id="${c.id}" data-name="${c.name}"
+                style="display:flex;align-items:center;gap:6px;
+                       background:#fff;border:1px solid ${borderColor};
+                       color:#475569;border-radius:8px;padding:7px 12px;
+                       font-size:12px;font-weight:500;cursor:pointer;
+                       white-space:nowrap;flex-shrink:0;transition:background .12s"
+                onmouseover="this.style.background='#f8fafc'"
+                onmouseout="this.style.background='#fff'">
+          ${svg.touch} Касание
+        </button>
+      </div>`;
+  };
+
+  const greetHour = now.getHours();
+  const greet = greetHour < 12 ? 'Доброе утро'
+    : greetHour < 17 ? 'Добрый день'
+    : 'Добрый вечер';
+  const dateStr = now.toLocaleDateString('ru-RU', {
+    weekday: 'long', day: 'numeric', month: 'long'
+  });
+
+  document.getElementById('dash-body').innerHTML = `
+
+    <div style="margin-bottom:24px">
+      <div style="font-size:20px;font-weight:700;
+                  color:var(--text-primary);letter-spacing:-.02em">${greet}</div>
+      <div style="font-size:13px;color:var(--text-muted);
+                  margin-top:3px;text-transform:capitalize">${dateStr}</div>
+    </div>
+
+    <div style="margin-bottom:28px">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px">
+        <div style="width:28px;height:28px;border-radius:8px;background:#ede9fe;
+                    display:flex;align-items:center;justify-content:center;
+                    color:#7c3aed">
+          ${svg.phone}
+        </div>
+        <span style="font-size:13px;font-weight:700;
+                     color:var(--text-primary);letter-spacing:-.01em">
+          Позвони сегодня
+        </span>
+        <span style="font-size:11px;color:#94a3b8;
+                     background:#f1f5f9;border-radius:10px;
+                     padding:1px 8px">${callNow.length}</span>
+      </div>
+      ${callNow.length
+        ? callNow.map((r, i) => quickCard(r, i + 1)).join('')
+        : `<div style="padding:20px;text-align:center;color:#94a3b8;
+                        font-size:13px;background:#f8fafc;border-radius:10px;
+                        border:1px dashed #e2e8f0;
+                        display:flex;align-items:center;justify-content:center;gap:8px">
+             <span style="color:#86efac">${svg.check}</span>
+             Срочных нет — всё под контролем
+           </div>`}
+    </div>
+
+    ${atRisk.length ? `
+      <div style="margin-bottom:28px">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px">
+          <div style="width:28px;height:28px;border-radius:8px;background:#fef3c7;
+                      display:flex;align-items:center;justify-content:center;
+                      color:#d97706">
+            ${svg.alert}
+          </div>
+          <span style="font-size:13px;font-weight:700;
+                       color:var(--text-primary);letter-spacing:-.01em">
+            В риске
+          </span>
+          <span style="font-size:11px;color:#94a3b8;
+                       background:#f1f5f9;border-radius:10px;
+                       padding:1px 8px">${atRisk.length}</span>
+        </div>
+        ${atRisk.map(r => riskCard(r)).join('')}
+      </div>` : ''}
+
+    ${recentTouches.length ? `
+      <div style="margin-bottom:28px">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px">
+          <div style="width:28px;height:28px;border-radius:8px;background:#e0f2fe;
+                      display:flex;align-items:center;justify-content:center;
+                      color:#0284c7">
+            ${svg.refresh}
+          </div>
+          <span style="font-size:13px;font-weight:700;
+                       color:var(--text-primary);letter-spacing:-.01em">
+            Что изменилось
+          </span>
+          <span style="font-size:11px;color:#94a3b8;
+                       background:#f1f5f9;border-radius:10px;
+                       padding:1px 8px">${recentTouches.length}</span>
+        </div>
+        ${recentRows}
+      </div>` : ''}
+
+    ${!callNow.length && !atRisk.length && !recentTouches.length ? `
+      <div style="text-align:center;padding:56px 20px">
+        <div style="width:56px;height:56px;border-radius:16px;background:#f0fdf4;
+                    display:flex;align-items:center;justify-content:center;
+                    margin:0 auto 16px;color:#4ade80">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none"
+               stroke="currentColor" stroke-width="1.6"
+               stroke-linecap="round" stroke-linejoin="round">
+            <path d="M22 11.08V12a10 10 0 11-5.93-9.14"/>
+            <polyline points="22 4 12 14.01 9 11.01"/>
+          </svg>
+        </div>
+        <div style="font-size:16px;font-weight:700;
+                    color:var(--text-primary);margin-bottom:6px">
+          Всё под контролем
+        </div>
+        <div style="font-size:13px;color:#94a3b8;line-height:1.6">
+          Нет срочных задач · Портфель в хорошем состоянии
+        </div>
+      </div>` : ''}`;
+
+  this._bindRowClicks();
+},
+
   _daysAgo(date) {
     const days = Math.round((Date.now() - date.getTime()) / 86400000);
     if (days === 0) return 'сегодня';

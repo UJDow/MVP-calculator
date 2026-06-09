@@ -5306,3 +5306,41 @@ body {
 /* Старый expandPanel — скрыт */
 .pf-kpi-expand-panel { display: none !important; }
 #kpi-fs-overlay { display: none !important; }
+
+/* KPI active card — занимает ~75% ширины */
+.pf-kpi-card.pf-kpi-active {
+  flex: 10 !important;
+  border-color: #6366f1 !important;
+  box-shadow: 0 0 0 3px #e0e7ff !important;
+  cursor: default !important;
+}
+.pf-kpi-card.pf-kpi-dimmed {
+  flex: 1 !important;
+  min-width: 80px !important;
+  opacity: 0.32 !important;
+  pointer-events: none !important;
+}
+
+/* KPI — fix text wrapping on dimmed cards */
+.pf-kpi-card.pf-kpi-dimmed .pf-kpi-card-label,
+.pf-kpi-card.pf-kpi-dimmed .pf-kpi-card-value,
+.pf-kpi-card.pf-kpi-dimmed .pf-kpi-card-hint {
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+}
+
+/* Неактивные но не dimmed — тоже nowrap */
+.pf-kpi-card:not(.pf-kpi-active) .pf-kpi-card-label,
+.pf-kpi-card:not(.pf-kpi-active) .pf-kpi-card-value,
+.pf-kpi-card:not(.pf-kpi-active) .pf-kpi-card-hint {
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+}
+
+/* KPI dimmed — pointer-events включены чтобы можно было кликнуть */
+.pf-kpi-card.pf-kpi-dimmed {
+  pointer-events: auto !important;
+  cursor: pointer !important;
+}

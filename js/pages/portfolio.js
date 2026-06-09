@@ -397,18 +397,20 @@ export const PortfolioPage = {
             if (!kpiGrid.contains(e.target)) collapse();
           });
 
-          kpiGrid.querySelectorAll('.pf-kpi-card').forEach(card => {
-            card.addEventListener('click', e => {
-              if (e.target.closest('.pf-kpi-card-close')) { collapse(); return; }
-              if (card.classList.contains('pf-kpi-active')) { collapse(); return; }
+          // Один обработчик на весь грид — ловим любую карточку
+          kpiGrid.addEventListener('click', e => {
+            e.stopPropagation();
+            const card = e.target.closest('.pf-kpi-card');
+            if (!card) return;
+            if (e.target.closest('.pf-kpi-card-close')) { collapse(); return; }
+            if (card.classList.contains('pf-kpi-active')) { collapse(); return; }
 
-              kpiGrid.querySelectorAll('.pf-kpi-card').forEach(c => {
-                c.classList.remove('pf-kpi-active');
-                c.classList.add('pf-kpi-dimmed');
-              });
-              card.classList.remove('pf-kpi-dimmed');
-              card.classList.add('pf-kpi-active');
+            kpiGrid.querySelectorAll('.pf-kpi-card').forEach(c => {
+              c.classList.remove('pf-kpi-active');
+              c.classList.add('pf-kpi-dimmed');
             });
+            card.classList.remove('pf-kpi-dimmed');
+            card.classList.add('pf-kpi-active');
           });
         }
       }

@@ -608,7 +608,16 @@ export const PortfolioPage = {
       const variants = parsed.variants ?? [];
       if (!variants.length) throw new Error('AI не вернул варианты');
 
-      this._showVariantPicker(key, variants, horizonLabels[key]);
+      this._showVariantPicker(variants, (chosen) => {
+  const titleEl   = document.getElementById(`pf-${key}-title`);
+  const goalEl    = document.getElementById(`pf-${key}-goal`);
+  const actionsEl = document.getElementById(`pf-${key}-actions`);
+  const metricEl  = document.getElementById(`pf-${key}-metric`);
+  if (titleEl)   titleEl.value   = chosen.title   || chosen.name   || '';
+  if (goalEl)    goalEl.value    = chosen.goal     || '';
+  if (actionsEl) actionsEl.value = chosen.actions  || '';
+  if (metricEl)  metricEl.value  = chosen.metric   || chosen.success_metric || '';
+});
 
     } catch (e) {
       window.App.toast('Ошибка AI: ' + e.message, 'error');
@@ -697,7 +706,6 @@ export const PortfolioPage = {
 
   /* ── Variant picker ── */
   _showVariantPicker(variants, onSelect) {
-  // Удаляем старый picker если есть
   document.getElementById('pf-variant-picker')?.remove();
 
   const items = variants.map((v, i) => `
@@ -720,8 +728,13 @@ export const PortfolioPage = {
     <div class="variant-picker-panel">
       <div class="variant-picker-header">
         <span>AI варианты</span>
-        <button class="variant-picker-close" onclick="document.getElementById('pf-variant-picker').remove()">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        <button class="variant-picker-close"
+          onclick="document.getElementById('pf-variant-picker').remove()">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+               stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"/>
+            <line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
         </button>
       </div>
       <div class="variant-picker-list">${items}</div>
@@ -732,8 +745,9 @@ export const PortfolioPage = {
   `;
   document.body.appendChild(el);
 
-  // Анимация появления
-  requestAnimationFrame(() => el.querySelector('.variant-picker-panel').classList.add('visible'));
+  requestAnimationFrame(() =>
+    el.querySelector('.variant-picker-panel').classList.add('visible')
+  );
 
   document.getElementById('variant-apply-btn').onclick = () => {
     const checked = el.querySelector('input[name="variant-pick"]:checked');
@@ -742,6 +756,7 @@ export const PortfolioPage = {
   };
   el.querySelector('.variant-picker-backdrop').onclick = () => el.remove();
 },
+
 
 
   /* ══════════════════════════════════════════

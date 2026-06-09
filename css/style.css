@@ -4710,16 +4710,19 @@ body {
   resize: vertical;
 }
 
-/* AI Variant Picker */
+/* ── AI Variant Picker ── */
 .variant-picker-backdrop {
-  position: fixed; inset: 0; background: rgba(0,0,0,0.25);
-  z-index: 1000; backdrop-filter: blur(2px);
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.2);
+  z-index: 1000;
+  backdrop-filter: blur(2px);
 }
 .variant-picker-panel {
   position: fixed; right: 0; top: 0; bottom: 0;
-  width: 380px; background: #fff;
-  box-shadow: -4px 0 32px rgba(0,0,0,0.12);
-  z-index: 1001; display: flex; flex-direction: column;
+  width: 400px; background: #fff;
+  box-shadow: -4px 0 32px rgba(0,0,0,0.1);
+  z-index: 1001;
+  display: flex; flex-direction: column;
   transform: translateX(100%);
   transition: transform 0.28s cubic-bezier(.4,0,.2,1);
   border-radius: 16px 0 0 16px;
@@ -4727,9 +4730,11 @@ body {
 .variant-picker-panel.visible { transform: translateX(0); }
 
 .variant-picker-header {
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 20px 20px 16px; font-size: 15px; font-weight: 600;
-  color: #1a1a2e; border-bottom: 1px solid #f0f0f5;
+  display: flex; align-items: center;
+  justify-content: space-between;
+  padding: 20px 20px 16px;
+  font-size: 15px; font-weight: 600; color: #1a1a2e;
+  border-bottom: 1px solid #f0f0f5;
 }
 .variant-picker-close {
   background: none; border: none; cursor: pointer;
@@ -4740,25 +4745,29 @@ body {
 .variant-picker-close:hover { background: #f3f4f6; color: #374151; }
 
 .variant-picker-list {
-  flex: 1; overflow-y: auto; padding: 12px 16px;
+  flex: 1; overflow-y: auto;
+  padding: 12px 16px;
   display: flex; flex-direction: column; gap: 8px;
 }
 
 .variant-toggle-row {
-  display: flex; align-items: flex-start; justify-content: space-between;
-  gap: 12px; padding: 14px 16px;
-  background: #fafafa; border: 1.5px solid #f0f0f5;
+  display: flex; align-items: flex-start;
+  justify-content: space-between; gap: 12px;
+  padding: 14px 16px;
+  background: #fafafa;
+  border: 1.5px solid #f0f0f5;
   border-radius: 12px; cursor: pointer;
   transition: border-color 0.18s, background 0.18s;
 }
 .variant-toggle-row:has(input:checked) {
   border-color: #7c3aed; background: #faf5ff;
 }
-.variant-toggle-row:hover { border-color: #d8b4fe; background: #fdf8ff; }
+.variant-toggle-row:hover { border-color: #d8b4fe; }
 
 .variant-toggle-content { flex: 1; }
 .variant-toggle-title {
-  font-size: 13px; font-weight: 600; color: #1a1a2e; margin-bottom: 4px;
+  font-size: 13px; font-weight: 600;
+  color: #1a1a2e; margin-bottom: 4px;
 }
 .variant-toggle-text {
   font-size: 12px; color: #6b7280; line-height: 1.5;
@@ -4766,13 +4775,13 @@ body {
   -webkit-box-orient: vertical; overflow: hidden;
 }
 
-/* Toggle switch visual */
 .toggle-switch { position: relative; flex-shrink: 0; margin-top: 2px; }
 .toggle-switch input { position: absolute; opacity: 0; width: 0; height: 0; }
 .toggle-track {
   display: block; width: 36px; height: 20px;
   background: #e5e7eb; border-radius: 100px;
-  position: relative; transition: background 0.2s;
+  position: relative;
+  transition: background 0.2s;
   cursor: pointer;
 }
 .toggle-track::after {
@@ -4787,7 +4796,8 @@ body {
 .toggle-switch input:checked ~ .toggle-track::after { transform: translateX(16px); }
 
 .variant-picker-footer {
-  padding: 16px 20px; border-top: 1px solid #f0f0f5;
+  padding: 16px 20px;
+  border-top: 1px solid #f0f0f5;
 }
 .variant-apply-btn {
   width: 100%; padding: 11px;
@@ -4797,4 +4807,5 @@ body {
   cursor: pointer; transition: background 0.15s;
 }
 .variant-apply-btn:hover { background: #6d28d9; }
+
 

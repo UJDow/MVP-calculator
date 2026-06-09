@@ -371,9 +371,15 @@ export const PortfolioPage = {
         ?.addEventListener('click', () => this._savePortfolioStrats());
 
       ['short', 'mid', 'long'].forEach(key => {
-        document.getElementById(`pf-ai-btn-${key}`)
-          ?.addEventListener('click', () => this._aiHorizon(key, summary, computed));
-      });
+  document.getElementById(`pf-ai-sw-${key}`)
+    ?.addEventListener('change', (e) => {
+      if (e.target.checked) {
+        this._aiHorizon(key, summary, computed);
+        // После выбора варианта — тогл возвращается в off
+        setTimeout(() => { e.target.checked = false; }, 400);
+      }
+    });
+});
 
     } catch (e) {
       console.error('[PortfolioPage._renderPortfolioTab]', e);
@@ -493,9 +499,13 @@ export const PortfolioPage = {
             ${label}
             <span class="pf-horizon-period">${period}</span>
           </div>
-          <button id="pf-ai-btn-${key}" class="pf-btn pf-btn-ghost">
-            ${ic.ai} AI варианты
-          </button>
+          <div class="pf-ai-toggle-wrap">
+  <span class="pf-ai-toggle-label">AI</span>
+  <label class="pf-ai-toggle" for="pf-ai-sw-${key}">
+    <input type="checkbox" id="pf-ai-sw-${key}" data-key="${key}">
+    <span class="pf-ai-track"></span>
+  </label>
+</div>
         </div>
         <div class="pf-horizon-body">
           <div class="pf-field pf-full">

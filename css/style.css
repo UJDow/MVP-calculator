@@ -4733,7 +4733,7 @@ body {
   display: flex; align-items: center;
   justify-content: space-between;
   padding: 20px 20px 16px;
-  font-size: 15px; font-weight: 600; color: #1a1a2e;
+  font-size: 15px; font-weight: 600; color: #3b3554;
   border-bottom: 1px solid #f0f0f5;
 }
 .variant-picker-close {
@@ -4760,14 +4760,14 @@ body {
   transition: border-color 0.18s, background 0.18s;
 }
 .variant-toggle-row:has(input:checked) {
-  border-color: #7c3aed; background: #faf5ff;
+  border-color: #a78bfa; background: #faf5ff;
 }
 .variant-toggle-row:hover { border-color: #d8b4fe; }
 
 .variant-toggle-content { flex: 1; }
 .variant-toggle-title {
   font-size: 13px; font-weight: 600;
-  color: #1a1a2e; margin-bottom: 4px;
+  color: #3b3554; margin-bottom: 4px;
 }
 .variant-toggle-text {
   font-size: 12px; color: #6b7280; line-height: 1.5;
@@ -4792,7 +4792,7 @@ body {
   box-shadow: 0 1px 3px rgba(0,0,0,0.15);
   transition: transform 0.2s cubic-bezier(.4,0,.2,1);
 }
-.toggle-switch input:checked ~ .toggle-track { background: #7c3aed; }
+.toggle-switch input:checked ~ .toggle-track { background: #a78bfa; }
 .toggle-switch input:checked ~ .toggle-track::after { transform: translateX(16px); }
 
 .variant-picker-footer {
@@ -4806,6 +4806,69 @@ body {
   font-size: 14px; font-weight: 600;
   cursor: pointer; transition: background 0.15s;
 }
-.variant-apply-btn:hover { background: #6d28d9; }
+.variant-apply-btn:hover { background: #8b5cf6; }
 
+/* ── Portfolio AI Toggle ── */
+.pf-ai-toggle-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pf-ai-toggle-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #a78bfa;
+  letter-spacing: 0.3px;
+}
+
+.pf-ai-toggle {
+  position: relative;
+  display: inline-block;
+  width: 40px;
+  height: 22px;
+  cursor: pointer;
+}
+
+.pf-ai-toggle input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.pf-ai-track {
+  display: block;
+  width: 40px;
+  height: 22px;
+  background: #ede9fe;
+  border-radius: 100px;
+  border: 1.5px solid #ddd6fe;
+  position: relative;
+  transition: background 0.2s, border-color 0.2s;
+}
+
+.pf-ai-track::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 14px;
+  height: 14px;
+  background: #c4b5fd;
+  border-radius: 50%;
+  box-shadow: 0 1px 3px rgba(124,58,237,0.15);
+  transition: transform 0.2s cubic-bezier(.4,0,.2,1),
+              background 0.2s;
+}
+
+.pf-ai-toggle input:checked ~ .pf-ai-track {
+  background: #ede9fe;
+  border-color: #a78bfa;
+}
+
+.pf-ai-toggle input:checked ~ .pf-ai-track::after {
+  transform: translateX(18px);
+  background: #7c3aed;
+}
 

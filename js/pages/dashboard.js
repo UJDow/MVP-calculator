@@ -420,25 +420,20 @@ export const DashboardPage = {
         </div>
 
         <div class="detail-actions">
-          <button class="btn btn-primary btn-sm"
-                  data-action="go-detail" data-id="${c.id}">
-            📊 Карточка
-          </button>
-          <button class="btn btn-secondary btn-sm"
-                  data-action="go-entry" data-id="${c.id}">
-            ✎ Данные
-          </button>
-          <button class="btn btn-secondary btn-sm"
-                  data-action="open-status"
-                  data-id="${c.id}" data-name="${c.name}">
-            📝 Статус
-          </button>
-          <button class="btn btn-secondary btn-sm"
-                  data-action="touch"
-                  data-id="${c.id}" data-name="${c.name}">
-            📍 Касание
-          </button>
-        </div>
+  <button class="btn btn-primary btn-sm"
+          data-action="go-detail" data-id="${c.id}">
+    📊 Карточка
+  </button>
+  <button class="btn btn-secondary btn-sm"
+          data-action="go-entry" data-id="${c.id}">
+    ✎ Данные
+  </button>
+  <button class="btn btn-secondary btn-sm"
+          data-action="touch"
+          data-id="${c.id}" data-name="${c.name}">
+    📍 Касание
+  </button>
+</div>
       </div>`;
   },
 
@@ -473,13 +468,6 @@ export const DashboardPage = {
       btn.addEventListener('click', e => {
         e.stopPropagation();
         window.App.navigate('entry', btn.dataset.id);
-      });
-    });
-
-    document.querySelectorAll('[data-action="open-status"]').forEach(btn => {
-      btn.addEventListener('click', e => {
-        e.stopPropagation();
-        this.openStatusModal(btn.dataset.id, btn.dataset.name);
       });
     });
 
@@ -637,13 +625,19 @@ export const DashboardPage = {
       }
       .tw-field { display:flex;flex-direction:column }
       .tw-textarea {
-        width:100%;box-sizing:border-box;resize:vertical;
-        font-size:13px;line-height:1.6;
-        border:1.5px solid #e2e8f0;border-radius:8px;
-        padding:10px 12px;background:#fff;
-        transition:border-color .15s;font-family:inherit
-      }
-      .tw-textarea:focus { border-color:#6366f1;outline:none;box-shadow:0 0 0 3px #e0e7ff }
+  width:100%;box-sizing:border-box;
+  resize:none;overflow:hidden;
+  font-size:13px;line-height:1.6;
+  border:1.5px solid #e2e8f0;border-radius:10px;
+  padding:12px 14px;background:#f8fafc;
+  transition:border-color .15s, background .15s;
+  font-family:inherit;min-height:80px;
+  field-sizing:content;
+}
+.tw-textarea:focus {
+  border-color:#6366f1;outline:none;
+  background:#fff;box-shadow:0 0 0 3px #e0e7ff
+}
     `;
     document.head.appendChild(s);
   }
@@ -720,19 +714,19 @@ AI сам разберёт структуру, выделит задачи, ша
 
         <div class="tw-field">
           <label class="tw-label">📋 Контекст</label>
-          <textarea id="touch-context" class="tw-textarea" rows="4"
+          <textarea id="touch-context" class="tw-textarea"
             placeholder="Что обсудили, общая ситуация по клиенту...">${_saved('touch-context')}</textarea>
         </div>
 
         <div class="tw-field">
           <label class="tw-label">✅ Задачи</label>
-          <textarea id="touch-tasks" class="tw-textarea" rows="4"
+          <textarea id="touch-tasks" class="tw-textarea"
             placeholder="Что нужно сделать по итогам встречи...">${_saved('touch-tasks')}</textarea>
         </div>
 
         <div class="tw-field">
           <label class="tw-label">👣 Дальнейшие шаги</label>
-          <textarea id="touch-next" class="tw-textarea" rows="4"
+          <textarea id="touch-next" class="tw-textarea"
             placeholder="Следующие действия и договорённости...">${_saved('touch-next')}</textarea>
         </div>
 
@@ -743,19 +737,19 @@ AI сам разберёт структуру, выделит задачи, ша
 
         <div class="tw-field">
           <label class="tw-label">🎯 Стратегия</label>
-          <textarea id="touch-strategy" class="tw-textarea" rows="4"
+          <textarea id="touch-strategy" class="tw-textarea"
             placeholder="Стратегические заметки по этому клиенту...">${_saved('touch-strategy')}</textarea>
         </div>
 
         <div class="tw-field">
           <label class="tw-label">🏁 Ожидаемый результат</label>
-          <textarea id="touch-outcome" class="tw-textarea" rows="4"
+          <textarea id="touch-outcome" class="tw-textarea"
             placeholder="Чего ожидаем достичь в ближайшее время...">${_saved('touch-outcome')}</textarea>
         </div>
 
         <div class="tw-field">
           <label class="tw-label">🚧 Блокеры</label>
-          <textarea id="touch-blockers" class="tw-textarea" rows="4"
+          <textarea id="touch-blockers" class="tw-textarea"
             placeholder="Что может помешать или замедлить работу...">${_saved('touch-blockers')}</textarea>
         </div>
 
@@ -787,11 +781,6 @@ AI сам разберёт структуру, выделит задачи, ша
 
       <div style="display:flex;align-items:center;margin:20px 0">
         ${progressHTML()}
-      </div>
-
-      <div style="margin-bottom:20px">
-        <div style="font-size:15px;font-weight:600;color:#0f172a">${steps[currentStep].title}</div>
-        <div style="font-size:12px;color:#94a3b8;margin-top:2px">${steps[currentStep].hint}</div>
       </div>
 
       <div style="border-top:1px solid #f1f5f9;padding-top:20px" id="touch-step-body">
@@ -831,7 +820,6 @@ AI сам разберёт структуру, выделит задачи, ша
     document.getElementById('tw-next')
       ?.addEventListener('click', () => {
         _save();
-        // На шаге 0 — можно идти дальше только если есть контент
         if (currentStep === 0) {
           const hasTranscript = (saved['touch-ai-input'] ?? '').trim().length > 0;
           const hasContent    = parsedAI !== null;
@@ -839,7 +827,6 @@ AI сам разберёт структуру, выделит задачи, ша
             window.App.toast?.('Вставь транскрипт или заметки', 'error');
             return;
           }
-          // Если не разобрали — предупреждаем но не блокируем
           if (!hasContent) {
             window.App.toast?.('Рекомендуем нажать "Разобрать" — AI заполнит поля автоматически', '');
           }
@@ -864,17 +851,16 @@ AI сам разберёт структуру, выделит задачи, ша
 
       try {
         const data = await API.callAI({
-  type:        'touch',
-  client_name: clientName,
-  transcript:  text,
-  max_tokens:  1400,
-});
+          type:        'touch',
+          client_name: clientName,
+          transcript:  text,
+          max_tokens:  1400,
+        });
 
         const content = data?.choices?.[0]?.message?.content ?? '';
         const match   = content.match(/\{[\s\S]*\}/);
         parsedAI      = JSON.parse(match ? match[0] : content);
 
-        // Сохраняем в кэш сразу
         if (parsedAI.context)  saved['touch-context']  = parsedAI.context;
         if (parsedAI.tasks)    saved['touch-tasks']     = parsedAI.tasks;
         if (parsedAI.next)     saved['touch-next']      = parsedAI.next;
@@ -903,76 +889,16 @@ AI сам разберёт структуру, выделит задачи, ша
         btn.disabled = false; btn.textContent = '🤖 Разобрать';
       }
     });
+
+    // ── авторесайз — всегда после рендера ──
+    document.querySelectorAll('.tw-textarea').forEach(el => {
+      const resize = () => {
+        el.style.height = 'auto';
+        el.style.height = el.scrollHeight + 'px';
+      };
+      resize();
+      el.addEventListener('input', resize);
+    });
   };
-
-  // ── финальное сохранение ──
-  const _doSave = async () => {
-    const g    = id => (saved[id] ?? '').trim();
-    const type  = g('touch-type') || 'checkin';
-    const month = parseInt(saved['touch-month'] ?? now.getMonth()+1);
-    const year  = parseInt(saved['touch-year']  ?? now.getFullYear());
-
-    const parts = [
-      g('touch-context')  && `📋 Контекст:\n${g('touch-context')}`,
-      g('touch-tasks')    && `✅ Задачи:\n${g('touch-tasks')}`,
-      g('touch-next')     && `👣 Дальнейшие шаги:\n${g('touch-next')}`,
-      g('touch-strategy') && `🎯 Стратегия:\n${g('touch-strategy')}`,
-      g('touch-outcome')  && `🏁 Ожидаемый результат:\n${g('touch-outcome')}`,
-      g('touch-blockers') && `🚧 Блокеры:\n${g('touch-blockers')}`,
-    ].filter(Boolean);
-
-    if (!parts.length) {
-      window.App.toast?.('Заполни хотя бы контекст на шаге 2', 'error');
-      currentStep = 1; rerender(); return;
-    }
-
-    const notes   = parts.join('\n\n');
-    const saveBtn = document.getElementById('tw-save');
-    if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = '⏳ Сохраняем...'; }
-
-    try {
-      await API.saveTouchPoint({
-        client_id: clientId, type,
-        completed_at: new Date().toISOString(), notes,
-      });
-
-      if (parsedAI?.signals) {
-        const signalData = {};
-        for (const key of Object.keys(SIGNALS)) {
-          signalData[key] = !!(parsedAI.signals[key]);
-        }
-        signalData.status_note = notes;
-        const pcData = {};
-        for (const key of Object.keys(PC_CRITERIA)) {
-          const val = parsedAI?.pc?.[key];
-          pcData[key] = (val >= 1 && val <= 5) ? val : null;
-        }
-        await Promise.all([
-          API.saveBCHSEntry(clientId, month, year, signalData),
-          API.savePCEntry(clientId,   month, year, pcData),
-        ]);
-        API.clearCache();
-      }
-
-      this.touchPoints.push({
-        client_id: clientId, type,
-        completed_at: new Date().toISOString(), notes,
-      });
-
-      window.App.closeModal?.();
-      window.App.toast(
-        parsedAI?.signals ? '✅ Касание сохранено, сигналы записаны' : '✅ Касание сохранено',
-        'success'
-      );
-      await this.load();
-
-    } catch (e) {
-      window.App.toast?.('❌ Ошибка: ' + e.message, 'error');
-      if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = '✓ Сохранить касание'; }
-    }
-  };
-
-  window.App.openModal(buildHTML(), { hideClose: false });
-  bindStep();
 },
 };

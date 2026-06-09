@@ -890,7 +890,7 @@ AI сам разберёт структуру, выделит задачи, ша
       }
     });
 
-    // ── авторесайз — всегда после рендера ──
+        // ── авторесайз — всегда после рендера ──
     document.querySelectorAll('.tw-textarea').forEach(el => {
       const resize = () => {
         el.style.height = 'auto';
@@ -899,6 +899,77 @@ AI сам разберёт структуру, выделит задачи, ша
       resize();
       el.addEventListener('input', resize);
     });
+  };  // конец bindStep
+
+  // ── финальное сохранение ──
+  const _doSave = async () => {
+    const g    = id => (saved[id] ?? '').trim();
+    const type  = g('touch-type') || 'checkin';
+    const month = parseInt(saved['touch-month'] ?? now.getMonth()+1);
+    const year  = parseInt(saved['touch-year']  ?? now.getFullYear());
+
+    const parts = [
+      g('touch-context')  && `📋 Контекст:\n${g('touch-context')}`,
+      g('touch-tasks')    && `✅ Задачи:\n${g('touch-tasks')}`,
+      g('touch-next')     && `👣 Дальнейшие шаги:\n${g('touch-next')}`,
+      g('touch-strategy') && `🎯 Стратегия:\n${g('touch-strategy')}`,
+      g('touch-outcome')  && `🏁 Ожидаемый результат:\n${g('touch-outcome')}`,
+      g('touch-blockers') && `🚧 Блокеры:\n${g('touch-blockers')}`,
+    ].filter(Boolean);
+
+    if (!parts.length) {
+      window.App.toast?.('Заполни хотя бы контекст на шаге 2', 'error');
+      currentStep = 1; rerender(); return;
+    }
+
+    const notes   = parts.join('\n\n');
+    const saveBtn = document.getElementById('tw-save');
+    if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = '⏳ Сохраняем...'; }
+
+    try {
+      await API.saveTouchPoint({
+        client_id: clientId, type,
+        completed_at: new Date().toISOString(), notes,
+      });
+
+      if (parsedAI?.signals) {
+        const signalData = {};
+        for (const key of Object.keys(SIGNALS)) {
+          signalData[key] = !!(parsedAI.signals[key]);
+        }
+        signalData.status_note = notes;
+        const pcData = {};
+        for (const key of Object.keys(PC_CRITERIA)) {
+          const val = parsedAI?.pc?.[key];
+          pcData[key] = (val >= 1 && val <= 5) ? val : null;
+        }
+        await Promise.all([
+          API.saveBCHSEntry(clientId, month, year, signalData),
+          API.savePCEntry(clientId,   month, year, pcData),
+        ]);
+        API.clearCache();
+      }
+
+      this.touchPoints.push({
+        client_id: clientId, type,
+        completed_at: new Date().toISOString(), notes,
+      });
+
+      window.App.closeModal?.();
+      window.App.toast(
+        parsedAI?.signals ? '✅ Касание сохранено, сигналы записаны' : '✅ Касание сохранено',
+        'success'
+      );
+      await this.load();
+
+    } catch (e) {
+      window.App.toast?.('❌ Ошибка: ' + e.message, 'error');
+      if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = '✓ Сохранить касание'; }
+    }
   };
+
+  window.App.openModal(buildHTML(), { hideClose: false });
+  bindStep();
 },
 };
+

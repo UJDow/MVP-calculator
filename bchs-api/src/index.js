@@ -187,21 +187,42 @@ if (type === 'touch') {
         `  "strategy":    "стратегические наблюдения, или null",\n` +
         `  "outcome":     "ожидаемый результат, или null",\n` +
         `  "blockers":    "блокеры и риски, или null",\n` +
-        `  "signals": {\n` +
-        `    "expansion_signal":   false,\n` +
-        `    "risk_signal":        false,\n` +
-        `    "satisfaction_high":  false,\n` +
-        `    "satisfaction_low":   false,\n` +
-        `    "exec_engaged":       false,\n` +
-        `    "feature_request":    false,\n` +
-        `    "escalation":         false,\n` +
-        `    "renewal_discussed":  false\n` +
+                `  "signals": {\n` +
+        `    "team_scope_request":      false,\n` +
+        `    "new_services_interest":   false,\n` +
+        `    "strategic_sessions":      false,\n` +
+        `    "fast_responses":          false,\n` +
+        `    "internal_events":         false,\n` +
+        `    "shared_business_plans":   false,\n` +
+        `    "contract_renewal":        false,\n` +
+        `    "upsell":                  false,\n` +
+        `    "cross_sell":              false,\n` +
+        `    "positive_feedback":       false,\n` +
+        `    "slow_responses":          false,\n` +
+        `    "missed_meetings":         false,\n` +
+        `    "no_planning":             false,\n` +
+        `    "detailed_report_request": false,\n` +
+        `    "scope_reduction":         false,\n` +
+        `    "competitor_mentions":     false,\n` +
+        `    "new_decision_maker":      false,\n` +
+        `    "exit_questions":          false,\n` +
+        `    "reduced_frequency":       false,\n` +
+        `    "no_growth_response":      false,\n` +
+        `    "complaint":               false,\n` +
+        `    "payment_delay_10_30":     false,\n` +
+        `    "specialist_replacement":  false,\n` +
+        `    "escalation":              false,\n` +
+        `    "payment_delay_30plus":    false,\n` +
+        `    "churn":                   false\n` +
         `  },\n` +
-        `  "pc": {\n` +
-        `    "relationship_strength": null,\n` +
-        `    "product_adoption":      null,\n` +
-        `    "strategic_alignment":   null,\n` +
-        `    "growth_potential":      null\n` +
+                `  "pc": {\n` +
+        `    "people_count":       null,\n` +
+        `    "project_complexity": null,\n` +
+        `    "reporting":          null,\n` +
+        `    "risk_probability":   null,\n` +
+        `    "risk_consequences":  null,\n` +
+        `    "face_role":          null,\n` +
+        `    "emotional_load":     null\n` +
         `  },\n` +
         `  "explanation": "1-2 предложения почему выставлены эти сигналы"\n` +
         `}`,

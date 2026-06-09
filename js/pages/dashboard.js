@@ -770,6 +770,72 @@ AI сам разберёт структуру, выделит задачи, ша
   };
   const _saved = id => saved[id] ?? '';
 
+    // ── рендер чекбоксов сигналов ──
+  const _buildSignalCheckboxes = (parsed) => {
+    const activeSigs = Object.entries(parsed.signals || {})
+      .filter(([, v]) => v);
+    const activePc = Object.entries(parsed.pc || {})
+      .filter(([, v]) => v >= 1 && v <= 5);
+
+    if (!activeSigs.length && !activePc.length) return '';
+
+    const sigRows = activeSigs.map(([key]) => {
+      const def = SIGNALS[key];
+      if (!def) return '';
+      const weight = def.weight ?? 0;
+      const color  = weight > 0 ? '#10b981' : '#ef4444';
+      const sign   = weight > 0 ? '+' : '';
+      return `
+        <label style="display:flex;align-items:center;gap:10px;padding:7px 10px;
+                       border-radius:8px;cursor:pointer;transition:background .12s;
+                       border:1px solid transparent"
+               onmouseover="this.style.background='#f8fafc'"
+               onmouseout="this.style.background='transparent'">
+          <input type="checkbox" class="ai-sig-cb" data-key="${key}"
+                 checked style="width:15px;height:15px;accent-color:#6366f1;cursor:pointer">
+          <span style="flex:1;font-size:13px;color:var(--text-primary)">${def.label ?? key}</span>
+          <span style="font-size:12px;font-weight:700;color:${color};min-width:32px;text-align:right">
+            ${sign}${weight}
+          </span>
+        </label>`;
+    }).join('');
+
+    const pcRows = activePc.map(([key, val]) => {
+      const def = PC_CRITERIA[key];
+      if (!def) return '';
+      return `
+        <label style="display:flex;align-items:center;gap:10px;padding:7px 10px;
+                       border-radius:8px;cursor:pointer;transition:background .12s;
+                       border:1px solid transparent"
+               onmouseover="this.style.background='#f8fafc'"
+               onmouseout="this.style.background='transparent'">
+          <input type="checkbox" class="ai-pc-cb" data-key="${key}"
+                 checked style="width:15px;height:15px;accent-color:#6366f1;cursor:pointer">
+          <span style="flex:1;font-size:13px;color:var(--text-primary)">${def.label ?? key}</span>
+          <span style="font-size:12px;font-weight:700;color:#6366f1;min-width:32px;text-align:right">
+            ${val}/5
+          </span>
+        </label>`;
+    }).join('');
+
+    return `
+      <div style="border:1px solid #e2e8f0;border-radius:10px;overflow:hidden">
+        ${sigRows ? `
+          <div style="padding:8px 10px 4px;background:#f8fafc;border-bottom:1px solid #e2e8f0">
+            <span style="font-size:10px;font-weight:700;text-transform:uppercase;
+                          letter-spacing:.06em;color:#94a3b8">bCHS сигналы</span>
+          </div>
+          <div style="padding:4px 0">${sigRows}</div>` : ''}
+        ${activePc.length ? `
+          <div style="padding:8px 10px 4px;background:#f8fafc;
+                       border-top:1px solid #e2e8f0;border-bottom:1px solid #e2e8f0">
+            <span style="font-size:10px;font-weight:700;text-transform:uppercase;
+                          letter-spacing:.06em;color:#94a3b8">PC Score</span>
+          </div>
+          <div style="padding:4px 0">${pcRows}</div>` : ''}
+      </div>`;
+  };
+
   // ── шаблон модалки ──
   const buildHTML = () => `
     <div style="padding:24px 28px;width:100%;max-width:520px;box-sizing:border-box">
@@ -868,17 +934,20 @@ AI сам разберёт структуру, выделит задачи, ша
         if (parsedAI.outcome)  saved['touch-outcome']   = parsedAI.outcome;
         if (parsedAI.blockers) saved['touch-blockers']  = parsedAI.blockers;
 
-        const signalCount = Object.values(parsedAI.signals || {}).filter(Boolean).length;
+                const signalCount = Object.values(parsedAI.signals || {}).filter(Boolean).length;
         aiRes.classList.remove('hidden');
         aiRes.innerHTML = `
-          <strong>✅ Структура заполнена · ${signalCount} сигналов</strong>
-          ${parsedAI.explanation
-            ? `<div style="margin-top:5px;color:var(--text-muted);font-style:italic">
-                 💡 ${parsedAI.explanation}
-               </div>`
-            : ''}
-          <div style="margin-top:6px;font-size:11px;color:var(--text-muted)">
-            На следующем шаге проверь и дополни
+          <div style="margin-bottom:10px">
+            <strong>✅ Структура заполнена · ${signalCount} сигналов</strong>
+            ${parsedAI.explanation
+              ? `<div style="margin-top:4px;color:var(--text-muted);font-style:italic;font-size:12px">
+                   💡 ${parsedAI.explanation}
+                 </div>`
+              : ''}
+          </div>
+          ${_buildSignalCheckboxes(parsedAI)}
+          <div style="margin-top:8px;font-size:11px;color:var(--text-muted)">
+            Сними галочку если AI ошибся — остальные сохранятся
           </div>`;
         aiSt.textContent = '✅ готово';
 
@@ -932,16 +1001,23 @@ AI сам разберёт структуру, выделит задачи, ша
         completed_at: new Date().toISOString(), notes,
       });
 
-      if (parsedAI?.signals) {
+            if (parsedAI?.signals) {
+        // Берём только отмеченные чекбоксы — пользователь мог снять лишние
+        const checkedSigs = new Set(
+          [...document.querySelectorAll('.ai-sig-cb:checked')].map(el => el.dataset.key)
+        );
+        const checkedPc = new Set(
+          [...document.querySelectorAll('.ai-pc-cb:checked')].map(el => el.dataset.key)
+        );
         const signalData = {};
         for (const key of Object.keys(SIGNALS)) {
-          signalData[key] = !!(parsedAI.signals[key]);
+          signalData[key] = !!(parsedAI.signals[key]) && checkedSigs.has(key);
         }
         signalData.status_note = notes;
-        const pcData = {};
+                const pcData = {};
         for (const key of Object.keys(PC_CRITERIA)) {
           const val = parsedAI?.pc?.[key];
-          pcData[key] = (val >= 1 && val <= 5) ? val : null;
+          pcData[key] = (val >= 1 && val <= 5) && checkedPc.has(key) ? val : null;
         }
         await Promise.all([
           API.saveBCHSEntry(clientId, month, year, signalData),

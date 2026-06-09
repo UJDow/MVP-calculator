@@ -680,11 +680,12 @@ _renderTouchesTab(touchPoints) {
 
 _bindTouchesEvents(touchPoints) {
   // Кнопка новое касание
-  document.getElementById('btn-new-touch')?.addEventListener('click', () => {
-    window.DashboardPage
-      ? window.DashboardPage._openTouchModal?.(this.client.id, this.client.name)
-      : window.App.toast('Откройте дашборд для создания касания', '');
+    document.getElementById('btn-new-touch')?.addEventListener('click', () => {
+    import('./dashboard.js').then(m => {
+      m.DashboardPage._openTouchModal(this.client.id, this.client.name);
+    });
   });
+
 
   // Сворачивание/разворачивание месяцев
   document.querySelectorAll('[data-toggle]').forEach(header => {
@@ -700,12 +701,62 @@ _bindTouchesEvents(touchPoints) {
   });
 
   // Удаление касания
+    // Удаление касания
   document.querySelectorAll('.tp-del-detail').forEach(btn => {
     btn.addEventListener('click', async e => {
       e.stopPropagation();
       await API.deleteTouchPoint(btn.dataset.id);
       window.App.toast('Удалено', 'success');
       this._loadTouches();
+    });
+  });
+
+  // Раскрытие карточки касания по клику
+  document.querySelectorAll('.tp-detail-card').forEach(card => {
+    card.addEventListener('click', e => {
+      if (e.target.closest('.tp-del-detail')) return;
+      const id = card.dataset.id;
+      const existing = card.querySelector('.tp-detail-expanded');
+      if (existing) { existing.remove(); return; }
+
+      const tp = touchPoints.find(t => String(t.id) === String(id));
+      if (!tp?.notes) return;
+
+      const notes = tp.notes;
+      const blocks = [
+        { re: /📋 Контекст:\n([\s\S]*?)(?:\n\n|$)/,          icon: '📋', label: 'Контекст' },
+        { re: /✅ Задачи:\n([\s\S]*?)(?:\n\n|$)/,             icon: '✅', label: 'Задачи' },
+        { re: /👣 Дальнейшие шаги:\n([\s\S]*?)(?:\n\n|$)/,   icon: '👣', label: 'Дальнейшие шаги' },
+        { re: /🎯 Стратегия:\n([\s\S]*?)(?:\n\n|$)/,          icon: '🎯', label: 'Стратегия' },
+        { re: /🏁 Ожидаемый результат:\n([\s\S]*?)(?:\n\n|$)/,icon: '🏁', label: 'Результат' },
+        { re: /🚧 Блокеры:\n([\s\S]*?)(?:\n\n|$)/,            icon: '🚧', label: 'Блокеры' },
+      ];
+
+      const isStructured = blocks.some(b => b.re.test(notes));
+
+      const expanded = document.createElement('div');
+      expanded.className = 'tp-detail-expanded';
+      expanded.style.cssText = 'margin-top:10px;padding-top:10px;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:8px';
+
+      if (isStructured) {
+        expanded.innerHTML = blocks.map(b => {
+          const m = notes.match(b.re);
+          if (!m) return '';
+          return `<div>
+            <div style="font-size:10px;font-weight:700;text-transform:uppercase;
+                        letter-spacing:.5px;color:var(--text-muted);margin-bottom:3px">
+              ${b.icon} ${b.label}
+            </div>
+            <div style="font-size:13px;color:var(--text-primary);line-height:1.5;
+                        white-space:pre-wrap">${m[1].trim()}</div>
+          </div>`;
+        }).join('');
+      } else {
+        expanded.innerHTML = `<div style="font-size:13px;color:var(--text-primary);
+                                          line-height:1.5;white-space:pre-wrap">${notes}</div>`;
+      }
+
+      card.appendChild(expanded);
     });
   });
 },

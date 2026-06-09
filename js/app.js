@@ -197,8 +197,9 @@ export const App = {
 },
 
 closeModal() {
-  document.getElementById('modal-content').innerHTML = '';
   document.getElementById('modal-overlay').classList.add('hidden');
+  const mc = document.getElementById('modal-content');
+  if (mc) mc.innerHTML = '';
 },
 
   /* ── Toast notifications ── */

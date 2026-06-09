@@ -251,10 +251,9 @@ export const TouchPointsPage = {
         <td style="font-size:12px;font-weight:600">${name}</td>
         <td style="font-size:12px">${t.icon} ${t.label}</td>
         <td style="font-size:12px;color:var(--text-muted)">${date}</td>
-        <td style="font-size:12px;color:var(--text-secondary);max-width:200px;
-                   overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
-          ${tp.notes || '—'}
-        </td>
+        <td style="font-size:12px;color:var(--text-secondary);max-width:220px">
+  ${this._formatNotePreview(tp.notes)}
+</td>
         <td>
           <button class="btn btn-secondary btn-sm tp-del-btn"
                   data-id="${tp.id}" style="font-size:11px;padding:2px 7px">
@@ -430,5 +429,24 @@ export const TouchPointsPage = {
     if (days < 7)  return `${days} дн. назад`;
     if (days < 30) return `${Math.round(days / 7)} нед. назад`;
     return `${Math.round(days / 30)} мес. назад`;
+  },
+
+  _formatNotePreview(notes) {
+    if (!notes) return '<span style="color:var(--text-muted)">—</span>';
+
+    const contextMatch = notes.match(/📋 Контекст:\n([\s\S]*?)(?:\n\n|$)/);
+    const tasksMatch   = notes.match(/✅ Задачи:\n([\s\S]*?)(?:\n\n|$)/);
+    const nextMatch    = notes.match(/👣 Дальнейшие шаги:\n([\s\S]*?)(?:\n\n|$)/);
+
+    if (contextMatch || tasksMatch || nextMatch) {
+      const parts = [];
+      if (contextMatch) parts.push(`<span style="color:var(--text-muted);font-size:10px">📋</span> ${contextMatch[1].trim().slice(0,60)}${contextMatch[1].trim().length > 60 ? '…' : ''}`);
+      if (tasksMatch)   parts.push(`<span style="color:var(--text-muted);font-size:10px">✅</span> ${tasksMatch[1].trim().slice(0,60)}${tasksMatch[1].trim().length > 60 ? '…' : ''}`);
+      if (nextMatch)    parts.push(`<span style="color:var(--text-muted);font-size:10px">👣</span> ${nextMatch[1].trim().slice(0,60)}${nextMatch[1].trim().length > 60 ? '…' : ''}`);
+      return parts.map(p => `<div style="line-height:1.5">${p}</div>`).join('');
+    }
+
+    const short = notes.slice(0, 80);
+    return `<span>${short}${notes.length > 80 ? '…' : ''}</span>`;
   },
 };

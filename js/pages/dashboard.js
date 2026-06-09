@@ -543,7 +543,7 @@ export const DashboardPage = {
     btn.disabled = true; btn.textContent = '⏳ Анализирую...';
     status.textContent = 'Отправляю запрос...';
     try {
-      const data    = await API.callAI(null, { type:'status', text });
+      const data = await API.callAI({ type: 'status', text });
       const content = data?.choices?.[0]?.message?.content ?? '';
       const match   = content.match(/\{[\s\S]*\}/);
       const parsed  = JSON.parse(match ? match[0] : content);
@@ -863,26 +863,13 @@ AI сам разберёт структуру, выделит задачи, ша
       aiSt.textContent = 'Отправляю запрос...';
 
       try {
-        const prompt = `Ты помогаешь CSM-менеджеру структурировать апдейт по клиенту.
+        const data = await API.callAI({
+  type:        'touch',
+  client_name: clientName,
+  transcript:  text,
+  max_tokens:  1400,
+});
 
-Текст встречи/звонка: """${text}"""
-
-Верни строго JSON без markdown:
-{
-  "context":   "общий контекст и что обсудили",
-  "tasks":     "конкретные задачи по итогам",
-  "next":      "дальнейшие шаги и договорённости",
-  "strategy":  "стратегические заметки или null",
-  "outcome":   "ожидаемый результат или null",
-  "blockers":  "потенциальные блокеры или null",
-  "signals":   {},
-  "pc":        {},
-  "explanation": "вывод одним предложением"
-}`;
-
-        const data    = await API.callAI([{ role:'user', content: prompt }], {
-          model: 'deepseek-chat', temperature: 0.3, max_tokens: 1400,
-        });
         const content = data?.choices?.[0]?.message?.content ?? '';
         const match   = content.match(/\{[\s\S]*\}/);
         parsedAI      = JSON.parse(match ? match[0] : content);

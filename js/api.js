@@ -19,7 +19,7 @@ export const API = {
     return r.json().catch(() => null);
   },
 
-  /* ── Универсальные CRUD-хелперы (используются в mc_page, delivery) ── */
+  /* ── Универсальные CRUD-хелперы ─────────────────────────────── */
   async _get(path) {
     const r = await fetch(`${BASE_URL}/${path}`);
     return this._safeJson(r);
@@ -53,10 +53,10 @@ export const API = {
   },
 
   /* ── Кеши ───────────────────────────────────────────────────── */
-  _bchsCache:     null,
-  _pcCache:       null,
-  _statusCache:   null,
-  _clientsCache:  null,   // используется в delivery.js / portfolio.js
+  _bchsCache:    null,
+  _pcCache:      null,
+  _statusCache:  null,
+  _clientsCache: null,
 
   clearCache() {
     this._bchsCache    = null;
@@ -130,7 +130,6 @@ export const API = {
     return this._bchsCache;
   },
 
-  /* Алиас для обратной совместимости */
   async getAllBCHSEntries() { return this.getAllBCHS(); },
 
   async getBCHSFor(clientId) {
@@ -138,7 +137,6 @@ export const API = {
     return all.filter(e => String(e.client_id) === String(clientId));
   },
 
-  /* Алиас */
   async getBCHSEntries(clientId) { return this.getBCHSFor(clientId); },
 
   async getBCHSEntry(clientId, month, year) {
@@ -173,7 +171,6 @@ export const API = {
     return this._pcCache;
   },
 
-  /* Алиас */
   async getAllPCEntries() { return this.getAllPC(); },
 
   async getPCFor(clientId) {
@@ -181,7 +178,6 @@ export const API = {
     return all.filter(e => String(e.client_id) === String(clientId));
   },
 
-  /* Алиас */
   async getPCEntries(clientId) { return this.getPCFor(clientId); },
 
   async getPCEntry(clientId, month, year) {
@@ -242,47 +238,81 @@ export const API = {
     await this._delete(`tables/status_entries/${id}`);
   },
 
-  /* ── AI proxy ───────────────────────────────────────────────── */
-async callAI(messages, options = {}) {
-  const { model, temperature, max_tokens, ...rest } = options;
+  /* ══════════════════════════════════════════
+     AI PROXY
+     Все промпты живут на бэке (bchs-api/src/index.js).
+     Фронт передаёт только type + данные.
+  ══════════════════════════════════════════ */
+  async callAI(body = {}) {
+    const payload = {
+      model:       body.model       ?? 'deepseek-chat',
+      temperature: body.temperature ?? 0.3,
+      max_tokens:  body.max_tokens  ?? 1000,
+      ...body,
+    };
 
-  const body = {
-    model:       model       ?? 'deepseek-chat',
-    temperature: temperature ?? 0.3,
-    max_tokens:  max_tokens  ?? 1000,
-    ...rest,                    // сюда попадают type, text, horizon, summary, client, metrics
-  };
+    const r = await fetch(`${BASE_URL}/ai/chat`, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify(payload),
+    });
 
-  // добавляем messages только если они есть (для raw-режима)
-  if (messages) body.messages = messages;
+    if (!r.ok) throw new Error(`AI proxy error: ${r.status}`);
+    return r.json();
+  },
 
-  const r = await fetch(`${BASE_URL}/ai/chat`, {
-    method:  'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body:    JSON.stringify(body),
-  });
-  if (!r.ok) throw new Error(`AI proxy error: ${r.status}`);
-  return r.json();
-},
-
-
-
+  /* ══════════════════════════════════════════
+     PORTFOLIO STRATEGIES
+  ══════════════════════════════════════════ */
   async getPortfolioStrategies() {
-  const r = await this._get('tables/portfolio_strategies?limit=100');
-  return Array.isArray(r) ? r : (Array.isArray(r?.data) ? r.data : []);
-},
+    const r = await this._get('tables/portfolio_strategies?limit=100');
+    return Array.isArray(r) ? r : (Array.isArray(r?.data) ? r.data : []);
+  },
 
-async getAccountStrategies() {
-  const r = await this._get('tables/account_strategies?limit=500');
-  return Array.isArray(r) ? r : (Array.isArray(r?.data) ? r.data : []);
-},
+  async upsertPortfolioStrategy(horizon, data) {
+    const all      = await this.getPortfolioStrategies();
+    const existing = all.find(s => s.horizon === horizon);
+    const payload  = { ...data, horizon, updated_at: new Date().toISOString() };
+    if (existing) {
+      return this._put(`tables/portfolio_strategies/${existing.id}`, payload);
+    }
+    return this._post('tables/portfolio_strategies', payload);
+  },
 
+  /* ══════════════════════════════════════════
+     ACCOUNT STRATEGIES
+  ══════════════════════════════════════════ */
   async getAccountStrategies() {
     const r = await this._get('tables/account_strategies?limit=500');
     return Array.isArray(r) ? r : (Array.isArray(r?.data) ? r.data : []);
   },
 
-  /* ── Touch Points ──────────────────────────────────────────── */
+  async saveAccountStrategy(clientId, data) {
+    const all      = await this.getAccountStrategies();
+    const existing = all.find(
+      s => String(s.client_id) === String(clientId) && s.status !== 'Done'
+    );
+    const payload = {
+      ...data,
+      client_id:  clientId,
+      updated_at: new Date().toISOString(),
+    };
+    if (existing) {
+      return this._put(`tables/account_strategies/${existing.id}`, payload);
+    }
+    return this._post('tables/account_strategies', payload);
+  },
+
+  async getAccountStrategyFor(clientId) {
+    const all = await this.getAccountStrategies();
+    return all
+      .filter(s => String(s.client_id) === String(clientId) && s.status !== 'Done')
+      .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))[0] ?? null;
+  },
+
+  /* ══════════════════════════════════════════
+     TOUCH POINTS
+  ══════════════════════════════════════════ */
   async getTouchPoints() {
     const r = await this._get('tables/touch_points?limit=2000');
     return Array.isArray(r) ? r : (Array.isArray(r?.data) ? r.data : []);
@@ -306,38 +336,4 @@ async getAccountStrategies() {
   async deleteTouchPoint(id) {
     return this._delete(`tables/touch_points/${id}`);
   },
-
-  async upsertPortfolioStrategy(horizon, data) {
-    const all = await this.getPortfolioStrategies();
-    const existing = all.find(s => s.horizon === horizon);
-    const payload  = { ...data, horizon, updated_at: new Date().toISOString() };
-    if (existing) {
-      return this._put(`tables/portfolio_strategies/${existing.id}`, payload);
-    }
-    return this._post('tables/portfolio_strategies', payload);
-  },
-
-  async saveAccountStrategy(clientId, data) {
-    const all = await this.getAccountStrategies();
-    const existing = all.find(
-      s => String(s.client_id) === String(clientId) && s.status !== 'Done'
-    );
-    const payload = {
-      ...data,
-      client_id:  clientId,
-      updated_at: new Date().toISOString(),
-    };
-    if (existing) {
-      return this._put(`tables/account_strategies/${existing.id}`, payload);
-    }
-    return this._post('tables/account_strategies', payload);
-  },
-
-  async getAccountStrategyFor(clientId) {
-    const all = await this.getAccountStrategies();
-    return all
-      .filter(s => String(s.client_id) === String(clientId) && s.status !== 'Done')
-      .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))[0] ?? null;
-  },
 };
-

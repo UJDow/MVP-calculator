@@ -320,7 +320,7 @@ export const EntryPage = {
   if (result) result.classList.add('hidden');
 
   try {
-    const data    = await API.callAI(null, { type: 'status', text });
+    const data = await API.callAI({ type: 'status', text });
     const content = data?.choices?.[0]?.message?.content ?? '';
     if (!content) throw new Error('Пустой ответ от AI');
 

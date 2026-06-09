@@ -8,7 +8,6 @@ import { API }  from '../api.js';
 import { Calc } from '../calc.js';
 import { BCG_CATEGORIES } from '../constants.js';
 
-/* BCG_LABELS используются только внутри этого файла */
 const BCG_LABELS = {
   KEY:          '⭐ KEY',
   STABLE:       '🐄 STABLE',
@@ -83,7 +82,6 @@ export const PortfolioPage = {
       }));
       const summary = this._buildSummary(computed);
 
-      /* Сохранённые стратегии по горизонтам */
       this._portfolioData = { short: null, mid: null, long: null };
       savedStrats.forEach(s => {
         if (s.horizon === 'short') this._portfolioData.short = s;
@@ -110,9 +108,9 @@ export const PortfolioPage = {
         ?.addEventListener('click', () => this._savePortfolioStrats());
 
       ['short', 'mid', 'long'].forEach(key => {
-  document.getElementById(`pf-ai-btn-${key}`)
-    ?.addEventListener('click', () => this._aiHorizon(key, summary, computed));
-});
+        document.getElementById(`pf-ai-btn-${key}`)
+          ?.addEventListener('click', () => this._aiHorizon(key, summary, computed));
+      });
 
     } catch (e) {
       console.error('[PortfolioPage._renderPortfolioTab]', e);
@@ -224,60 +222,54 @@ export const PortfolioPage = {
   },
 
   _horizonFormHTML(key, label, period, saved) {
-  const v = f => saved ? (saved[f] || '') : '';
-  return `
-    <div style="background:var(--surface);border:1px solid var(--border);
-                border-radius:var(--radius);padding:20px;display:flex;
-                flex-direction:column;gap:12px">
-      <div style="display:flex;align-items:center;
-                  justify-content:space-between">
-        <div style="font-size:13px;font-weight:700">${label}
-          <span style="font-size:11px;color:var(--text-muted);
-                       font-weight:400;margin-left:4px">${period}</span>
+    const v = f => saved ? (saved[f] || '') : '';
+    return `
+      <div style="background:var(--surface);border:1px solid var(--border);
+                  border-radius:var(--radius);padding:20px;display:flex;
+                  flex-direction:column;gap:12px">
+        <div style="display:flex;align-items:center;justify-content:space-between">
+          <div style="font-size:13px;font-weight:700">${label}
+            <span style="font-size:11px;color:var(--text-muted);
+                         font-weight:400;margin-left:4px">${period}</span>
+          </div>
+          <button id="pf-ai-btn-${key}" class="btn btn-secondary btn-sm"
+                  style="padding:4px 10px;font-size:12px;white-space:nowrap"
+                  title="🤖 AI предложит 3 варианта стратегии">
+            🤖 AI варианты
+          </button>
         </div>
-        <button id="pf-ai-btn-${key}" class="btn btn-secondary btn-sm"
-                style="padding:4px 10px;font-size:12px;white-space:nowrap"
-                title="🤖 AI предложит 3 варианта стратегии">
-          🤖 AI варианты
-        </button>
-      </div>
-
-      <div class="form-group" style="margin:0">
-        <label class="form-label">Название</label>
-        <input class="form-input" id="pf-${key}-title"
-               value="${v('title')}"
-               placeholder="Например: Операционная чистота" />
-      </div>
-
-      <div class="form-group" style="margin:0">
-        <label class="form-label">Цель</label>
-        <textarea class="form-textarea" id="pf-${key}-goal"
-                  style="min-height:100px;resize:vertical"
-                  placeholder="Что хотим достичь...">${v('goal')}</textarea>
-      </div>
-
-      <div class="form-group" style="margin:0">
-        <label class="form-label">Действия</label>
-        <textarea class="form-textarea" id="pf-${key}-actions"
-                  style="min-height:120px;resize:vertical"
-                  placeholder="Конкретные шаги...">${v('actions')}</textarea>
-      </div>
-
-      <div class="form-group" style="margin:0">
-  <label class="form-label">Метрика успеха</label>
-  <textarea class="form-textarea" id="pf-${key}-metric"
-            style="min-height:80px;resize:vertical"
-            placeholder="Как измерим результат">${v('success_metric')}</textarea>
-</div>
-<div class="form-group" style="margin:0;max-width:220px">
-  <label class="form-label">Дедлайн</label>
-  <input class="form-input" type="date"
-         id="pf-${key}-deadline"
-         value="${v('deadline')}" />
-</div>
-    </div>`;
-},
-
+        <div class="form-group" style="margin:0">
+          <label class="form-label">Название</label>
+          <input class="form-input" id="pf-${key}-title"
+                 value="${v('title')}"
+                 placeholder="Например: Операционная чистота" />
+        </div>
+        <div class="form-group" style="margin:0">
+          <label class="form-label">Цель</label>
+          <textarea class="form-textarea" id="pf-${key}-goal"
+                    style="min-height:100px;resize:vertical"
+                    placeholder="Что хотим достичь...">${v('goal')}</textarea>
+        </div>
+        <div class="form-group" style="margin:0">
+          <label class="form-label">Действия</label>
+          <textarea class="form-textarea" id="pf-${key}-actions"
+                    style="min-height:120px;resize:vertical"
+                    placeholder="Конкретные шаги...">${v('actions')}</textarea>
+        </div>
+        <div class="form-group" style="margin:0">
+          <label class="form-label">Метрика успеха</label>
+          <textarea class="form-textarea" id="pf-${key}-metric"
+                    style="min-height:80px;resize:vertical"
+                    placeholder="Как измерим результат">${v('success_metric')}</textarea>
+        </div>
+        <div class="form-group" style="margin:0;max-width:220px">
+          <label class="form-label">Дедлайн</label>
+          <input class="form-input" type="date"
+                 id="pf-${key}-deadline"
+                 value="${v('deadline')}" />
+        </div>
+      </div>`;
+  },
 
   _readHorizon(key) {
     const g = id => document.getElementById(id)?.value.trim() ?? '';
@@ -308,252 +300,231 @@ export const PortfolioPage = {
   },
 
   async _aiHorizon(key, summary, computed) {
-  const btn = document.getElementById(`pf-ai-btn-${key}`);
-  if (btn) { btn.disabled = true; btn.textContent = '⏳'; }
+    const btn = document.getElementById(`pf-ai-btn-${key}`);
+    if (btn) { btn.disabled = true; btn.textContent = '⏳'; }
 
-  const horizonLabels = {
-    short: 'краткосрочная (1 месяц)',
-    mid:   'среднесрочная (1–2 квартала)',
-    long:  'долгосрочная (4 квартала)',
-  };
+    const horizonLabels = {
+      short: 'краткосрочная (1 месяц)',
+      mid:   'среднесрочная (1–2 квартала)',
+      long:  'долгосрочная (4 квартала)',
+    };
 
-  /* Сначала спрашиваем направление */
-  const direction = await this._askDirection([
-    { id: 'retention',    label: '🛡️ Удержание',  hint: 'снизить риски, удержать клиентов' },
-    { id: 'growth',       label: '🚀 Рост',        hint: 'апсейл, расширение, новые услуги' },
-    { id: 'optimization', label: '⚡ Оптимизация', hint: 'эффективность команды и процессов' },
-    { id: 'custom',       label: '✍️ Своё',        hint: 'введи направление вручную' },
-  ]);
+    const direction = await this._askDirection();
+    if (direction === null) {
+      if (btn) { btn.disabled = false; btn.textContent = '🤖 AI варианты'; }
+      return;
+    }
 
-  if (direction === null) {
-    if (btn) { btn.disabled = false; btn.textContent = '🤖'; }
-    return;
-  }
+    if (btn) btn.textContent = '⏳ Генерирую...';
 
-  if (btn) btn.textContent = '⏳ Генерирую...';
+    try {
+      const clientsSnapshot = (computed || [])
+        .filter(r => r.bchs !== null)
+        .sort((a, b) => (b.revenueAtRisk || 0) - (a.revenueAtRisk || 0))
+        .slice(0, 10)
+        .map(r => ({
+          name:  r.client.name,
+          bcg:   r.client.bcg_category,
+          bchs:  r.bchs,
+          trend: r.trend?.label ?? '—',
+          mr:    r.client.monthly_revenue || 0,
+          churn: null,
+          risk:  r.revenueAtRisk || 0,
+        }));
 
-  try {
-    /* Клиентский снапшот — топ-10 по риску */
-    const clientsSnapshot = (computed || [])
-      .filter(r => r.bchs !== null)
-      .sort((a, b) => (b.revenueAtRisk || 0) - (a.revenueAtRisk || 0))
-      .slice(0, 10)
-      .map(r => ({
-        name:  r.client.name,
-        bcg:   r.client.bcg_category,
-        bchs:  r.bchs,
-        trend: r.trend?.label ?? '—',
-        mr:    r.client.monthly_revenue || 0,
-        churn: null,
-        risk:  r.revenueAtRisk || 0,
-      }));
+      /* ✅ ИСПРАВЛЕНО: убран первый аргумент null */
+      const data = await API.callAI({
+        type:       'horizon',
+        horizon:    key,
+        direction,
+        max_tokens: 1800,
+        summary: {
+          total:        summary.total,
+          avgLoyalty:   summary.avgLoyalty,
+          totalRisk:    summary.totalRisk,
+          bcgCount:     summary.bcgCount,
+          top3Risk:     summary.top3Risk.map(r =>
+            `${r.name} ($${r.risk.toLocaleString('ru-RU')}, ${r.pct}%)`
+          ).join('; ') || 'нет',
+          avgPotential: summary.avgPotential,
+        },
+        clients_snapshot:    clientsSnapshot,
+        existing_strategies: {
+          short: this._portfolioData.short,
+          mid:   this._portfolioData.mid,
+          long:  this._portfolioData.long,
+        },
+      });
 
-    const data = await API.callAI(null, {
-      type:      'horizon',
-      horizon:   key,
-      direction,
-      max_tokens: 1800,
-      summary: {
-        total:        summary.total,
-        avgLoyalty:   summary.avgLoyalty,
-        totalRisk:    summary.totalRisk,
-        bcgCount:     summary.bcgCount,
-        top3Risk:     summary.top3Risk.map(r =>
-          `${r.name} ($${r.risk.toLocaleString('ru-RU')}, ${r.pct}%)`
-        ).join('; ') || 'нет',
-        avgPotential: summary.avgPotential,
-      },
-      clients_snapshot:    clientsSnapshot,
-      existing_strategies: {
-        short: this._portfolioData.short,
-        mid:   this._portfolioData.mid,
-        long:  this._portfolioData.long,
-      },
+      const content = data?.choices?.[0]?.message?.content ?? '';
+      if (!content) throw new Error('Пустой ответ от AI');
+
+      const match    = content.match(/\{[\s\S]*\}/);
+      const parsed   = JSON.parse(match ? match[0] : content);
+      const variants = parsed.variants ?? [];
+
+      if (!variants.length) throw new Error('AI не вернул варианты');
+
+      this._showVariantPicker(key, variants, horizonLabels[key]);
+
+    } catch (e) {
+      console.error('[AI Horizon]', e);
+      window.App.toast('Ошибка AI: ' + e.message, 'error');
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = '🤖 AI варианты'; }
+    }
+  },
+
+  _askDirection() {
+    return new Promise(resolve => {
+      const opts = [
+        { id: 'retention',    icon: '🛡️', label: 'Удержание',    hint: 'Снизить риски оттока, укрепить отношения с клиентами' },
+        { id: 'growth',       icon: '🚀', label: 'Рост',          hint: 'Апсейл, расширение услуг, новые возможности' },
+        { id: 'optimization', icon: '⚡', label: 'Оптимизация',   hint: 'Эффективность команды, процессов и покрытия' },
+        { id: 'custom',       icon: '✏️', label: 'Своё',          hint: 'Опиши направление самостоятельно' },
+      ];
+
+      const cardsHTML = opts.map(o => `
+        <div class="dir-option" data-id="${o.id}" style="
+          border:2px solid #e5e7eb;border-radius:12px;padding:16px;cursor:pointer;
+          transition:all .18s;background:#fff;">
+          <div style="font-size:22px;margin-bottom:6px">${o.icon}</div>
+          <div style="font-weight:600;font-size:15px;margin-bottom:4px">${o.label}</div>
+          <div style="font-size:13px;color:#6b7280;line-height:1.4">${o.hint}</div>
+        </div>`).join('');
+
+      const html = `
+        <div style="padding:24px;max-width:480px;width:100%">
+          <h3 style="margin:0 0 20px;font-size:18px;font-weight:700">🎯 Выбери направление стратегии</h3>
+          <div id="dir-cards" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:8px">
+            ${cardsHTML}
+          </div>
+          <div id="dir-text-wrap" style="display:none">
+            <div id="dir-selected-label" style="font-size:14px;font-weight:600;color:#2563eb;margin-bottom:10px"></div>
+            <textarea id="dir-custom-input" class="form-textarea" style="
+              width:100%;min-height:120px;resize:vertical;font-size:14px;
+              border:2px solid #2563eb;border-radius:10px;padding:12px;
+              box-sizing:border-box;"
+              placeholder="Уточни или измени направление..."></textarea>
+            <div style="display:flex;gap:10px;margin-top:14px">
+              <button id="dir-confirm" class="btn btn-primary" style="flex:1">Генерировать →</button>
+              <button id="dir-back"    class="btn btn-secondary">← Назад</button>
+              <button id="dir-cancel"  class="btn btn-secondary">Отмена</button>
+            </div>
+          </div>
+        </div>`;
+
+      window.App.openModal(html, { hideClose: false });
+
+      const hints = {
+        retention:    'Снизить риски оттока, укрепить отношения с клиентами',
+        growth:       'Апсейл, расширение услуг, новые возможности',
+        optimization: 'Эффективность команды, процессов и покрытия',
+        custom:       '',
+      };
+      const labels = {
+        retention:    '🛡️ Удержание',
+        growth:       '🚀 Рост',
+        optimization: '⚡ Оптимизация',
+        custom:       '✏️ Своё направление',
+      };
+
+      document.querySelectorAll('.dir-option').forEach(card => {
+        card.addEventListener('mouseenter', () => {
+          card.style.borderColor = '#2563eb';
+          card.style.background  = '#eff6ff';
+        });
+        card.addEventListener('mouseleave', () => {
+          card.style.borderColor = '#e5e7eb';
+          card.style.background  = '#fff';
+        });
+        card.addEventListener('click', () => {
+          const id = card.dataset.id;
+          document.getElementById('dir-cards').style.display = 'none';
+          const wrap  = document.getElementById('dir-text-wrap');
+          const lbl   = document.getElementById('dir-selected-label');
+          const input = document.getElementById('dir-custom-input');
+          lbl.textContent = labels[id];
+          input.value     = id === 'custom' ? '' : hints[id];
+          wrap.style.display = 'block';
+          input.focus();
+
+          document.getElementById('dir-back').onclick = () => {
+            wrap.style.display = 'none';
+            document.getElementById('dir-cards').style.display = 'grid';
+          };
+          document.getElementById('dir-confirm').onclick = () => {
+            const val = input.value.trim();
+            window.App.closeModal?.();
+            resolve(val || hints[id] || id);
+          };
+          document.getElementById('dir-cancel').onclick = () => {
+            window.App.closeModal?.();
+            resolve(null);
+          };
+        });
+      });
+
+      document.querySelector('.modal-close, [data-modal-close]')
+        ?.addEventListener('click', () => resolve(null));
     });
+  },
 
-    const content = data?.choices?.[0]?.message?.content ?? '';
-    if (!content) throw new Error('Пустой ответ от AI');
-
-    const match   = content.match(/\{[\s\S]*\}/);
-    const parsed  = JSON.parse(match ? match[0] : content);
-    const variants = parsed.variants ?? [];
-
-    if (!variants.length) throw new Error('AI не вернул варианты');
-
-    this._showVariantPicker(key, variants, horizonLabels[key]);
-
-  } catch (e) {
-    console.error('[AI Horizon]', e);
-    window.App.toast('Ошибка AI: ' + e.message, 'error');
-  } finally {
-    if (btn) { btn.disabled = false; btn.textContent = '🤖'; }
-  }
-},
-
-_askDirection() {
-  return new Promise(resolve => {
-    const opts = [
-      { id: 'retention',    icon: '🛡️', label: 'Удержание',    hint: 'Снизить риски оттока, укрепить отношения с клиентами' },
-      { id: 'growth',       icon: '🚀', label: 'Рост',          hint: 'Апсейл, расширение услуг, новые возможности' },
-      { id: 'optimization', icon: '⚡', label: 'Оптимизация',   hint: 'Эффективность команды, процессов и покрытия' },
-      { id: 'custom',       icon: '✏️', label: 'Своё',          hint: 'Опиши направление самостоятельно' },
-    ];
-
-    const cardsHTML = opts.map(o => `
-      <div class="dir-option" data-id="${o.id}" style="
-        border:2px solid #e5e7eb;border-radius:12px;padding:16px;cursor:pointer;
-        transition:all .18s;background:#fff;
-      ">
-        <div style="font-size:22px;margin-bottom:6px">${o.icon}</div>
-        <div style="font-weight:600;font-size:15px;margin-bottom:4px">${o.label}</div>
-        <div style="font-size:13px;color:#6b7280;line-height:1.4">${o.hint}</div>
+  _showVariantPicker(key, variants, horizonLabel) {
+    const cards = variants.map((v, i) => `
+      <div class="variant-card" data-idx="${i}"
+           style="padding:14px;border:1px solid var(--border);border-radius:var(--radius);
+                  cursor:pointer;margin-bottom:10px;transition:all 0.15s">
+        <div style="font-weight:700;margin-bottom:6px;color:#6366f1">
+          ${v.label ?? `Вариант ${i + 1}`}
+        </div>
+        <div style="font-size:12px;color:var(--text-secondary);margin-bottom:4px">
+          <strong>Цель:</strong> ${v.goal ?? '—'}
+        </div>
+        <div style="font-size:11px;color:var(--text-muted)">
+          📅 ${v.deadline ?? '—'} · 🎯 ${v.success_metric ?? '—'}
+        </div>
       </div>`).join('');
 
-    const html = `
-      <div style="padding:24px;max-width:480px;width:100%">
-        <h3 style="margin:0 0 20px;font-size:18px;font-weight:700">🎯 Выбери направление стратегии</h3>
-
-        <div id="dir-cards" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:8px">
-          ${cardsHTML}
+    window.App.openModal(`
+      <div style="max-width:520px">
+        <div style="font-size:15px;font-weight:700;margin-bottom:4px">
+          🤖 3 варианта стратегии
         </div>
-
-        <div id="dir-text-wrap" style="display:none">
-          <div id="dir-selected-label" style="
-            font-size:14px;font-weight:600;color:#2563eb;margin-bottom:10px;
-          "></div>
-          <textarea id="dir-custom-input" class="form-textarea" style="
-            width:100%;min-height:120px;resize:vertical;font-size:14px;
-            border:2px solid #2563eb;border-radius:10px;padding:12px;
-            box-sizing:border-box;
-          " placeholder="Уточни или измени направление..."></textarea>
-          <div style="display:flex;gap:10px;margin-top:14px">
-            <button id="dir-confirm" class="btn btn-primary" style="flex:1">Генерировать →</button>
-            <button id="dir-back" class="btn btn-secondary">← Назад</button>
-            <button id="dir-cancel" class="btn btn-secondary">Отмена</button>
-          </div>
+        <div style="font-size:12px;color:var(--text-muted);margin-bottom:16px">
+          ${horizonLabel} · Выбери понравившийся — он заполнится в форму
         </div>
-      </div>`;
+        <div id="variant-list">${cards}</div>
+        <button class="btn btn-secondary btn-sm" id="variant-cancel"
+                style="margin-top:4px">Отмена</button>
+      </div>`);
 
-    window.App.openModal(html, { hideClose: false });
-
-    const hints = {
-      retention:    'Снизить риски оттока, укрепить отношения с клиентами',
-      growth:       'Апсейл, расширение услуг, новые возможности',
-      optimization: 'Эффективность команды, процессов и покрытия',
-      custom:       '',
-    };
-    const labels = {
-      retention: '🛡️ Удержание', growth: '🚀 Рост',
-      optimization: '⚡ Оптимизация', custom: '✏️ Своё направление',
-    };
-
-    document.querySelectorAll('.dir-option').forEach(card => {
+    document.querySelectorAll('.variant-card').forEach(card => {
       card.addEventListener('mouseenter', () => {
-        card.style.borderColor = '#2563eb';
-        card.style.background  = '#eff6ff';
+        card.style.background  = 'rgba(99,102,241,0.06)';
+        card.style.borderColor = '#6366f1';
       });
       card.addEventListener('mouseleave', () => {
-        card.style.borderColor = '#e5e7eb';
-        card.style.background  = '#fff';
+        card.style.background  = '';
+        card.style.borderColor = 'var(--border)';
       });
       card.addEventListener('click', () => {
-        const id = card.dataset.id;
-        // скрываем карточки
-        document.getElementById('dir-cards').style.display = 'none';
-        // показываем поле
-        const wrap  = document.getElementById('dir-text-wrap');
-        const lbl   = document.getElementById('dir-selected-label');
-        const input = document.getElementById('dir-custom-input');
-        lbl.textContent = labels[id];
-        input.value     = id === 'custom' ? '' : hints[id];
-        wrap.style.display = 'block';
-        input.focus();
-        // кнопка «Назад»
-        document.getElementById('dir-back').onclick = () => {
-          wrap.style.display  = 'none';
-          document.getElementById('dir-cards').style.display = 'grid';
-        };
-        // кнопка «Генерировать»
-        document.getElementById('dir-confirm').onclick = () => {
-          const val = input.value.trim();
-          window.App.closeModal?.();
-          resolve(val || hints[id] || id);
-        };
-        // кнопка «Отмена»
-        document.getElementById('dir-cancel').onclick = () => {
-          window.App.closeModal?.();
-          resolve(null);
-        };
+        const v = variants[parseInt(card.dataset.idx)];
+        const s = (id, val) => { const el = document.getElementById(id); if (el) el.value = val || ''; };
+        s(`pf-${key}-title`,    v.title    ?? v.label ?? '');
+        s(`pf-${key}-goal`,     v.goal     ?? '');
+        s(`pf-${key}-actions`,  v.actions  ?? '');
+        s(`pf-${key}-metric`,   v.success_metric ?? '');
+        s(`pf-${key}-deadline`, v.deadline ?? '');
+        window.App.closeModal();
+        window.App.toast('✅ Вариант применён — проверьте и нажмите «Сохранить всё»', 'success');
       });
     });
 
-    // крестик закрыть
-    document.querySelector('.modal-close, [data-modal-close]')
-      ?.addEventListener('click', () => resolve(null));
-  });
-},
-
-
-
-_showVariantPicker(key, variants, horizonLabel) {
-  const cards = variants.map((v, i) => `
-    <div class="variant-card" data-idx="${i}"
-         style="padding:14px;border:1px solid var(--border);border-radius:var(--radius);
-                cursor:pointer;margin-bottom:10px;transition:all 0.15s">
-      <div style="font-weight:700;margin-bottom:6px;color:#6366f1">
-        ${v.label ?? `Вариант ${i + 1}`}
-      </div>
-      <div style="font-size:12px;color:var(--text-secondary);margin-bottom:4px">
-        <strong>Цель:</strong> ${v.goal ?? '—'}
-      </div>
-      <div style="font-size:11px;color:var(--text-muted)">
-        📅 ${v.deadline ?? '—'} · 🎯 ${v.success_metric ?? '—'}
-      </div>
-    </div>`).join('');
-
-  window.App.openModal(`
-    <div style="max-width:520px">
-      <div style="font-size:15px;font-weight:700;margin-bottom:4px">
-        🤖 3 варианта стратегии
-      </div>
-      <div style="font-size:12px;color:var(--text-muted);margin-bottom:16px">
-        ${horizonLabel} · Выбери понравившийся — он заполнится в форму
-      </div>
-      <div id="variant-list">${cards}</div>
-      <button class="btn btn-secondary btn-sm" id="variant-cancel"
-              style="margin-top:4px">Отмена</button>
-    </div>`);
-
-  document.querySelectorAll('.variant-card').forEach(card => {
-    card.addEventListener('mouseenter', () => {
-      card.style.background  = 'rgba(99,102,241,0.06)';
-      card.style.borderColor = '#6366f1';
-    });
-    card.addEventListener('mouseleave', () => {
-      card.style.background  = '';
-      card.style.borderColor = 'var(--border)';
-    });
-    card.addEventListener('click', () => {
-      const v = variants[parseInt(card.dataset.idx)];
-      const s = (id, val) => { const el = document.getElementById(id); if (el) el.value = val || ''; };
-      s(`pf-${key}-title`,    v.title    ?? v.label ?? '');
-      s(`pf-${key}-goal`,     v.goal     ?? '');
-      s(`pf-${key}-actions`,  v.actions  ?? '');
-      s(`pf-${key}-metric`,   v.success_metric ?? '');
-      s(`pf-${key}-deadline`, v.deadline ?? '');
+    document.getElementById('variant-cancel')?.addEventListener('click', () => {
       window.App.closeModal();
-      window.App.toast(`✅ Вариант применён — проверьте и нажмите «Сохранить всё»`, 'success');
     });
-  });
-
-  document.getElementById('variant-cancel')?.addEventListener('click', () => {
-    window.App.closeModal();
-  });
-},
-
-
-
-
+  },
 
   /* ══════════════════════════════════════════
      ТАБ 2 — СТРАТЕГИЯ ПО АККАУНТАМ
@@ -576,12 +547,10 @@ _showVariantPicker(key, variants, horizonLabel) {
         ...Calc.computeClient(c, allBCHS, allPC),
       }));
 
-      /* Monte Carlo — берём из window.MCEngine если доступен */
-      const MCEngine = window.MCEngine ?? null;
+      const MCEngine  = window.MCEngine ?? null;
       const mcResults = {};
 
       if (MCEngine) {
-        /* MC-конфиги грузим напрямую через API base URL */
         let mcConfigs = [];
         try {
           const r = await API._get?.('tables/mc_configs?limit=500');
@@ -601,14 +570,14 @@ _showVariantPicker(key, variants, horizonLabel) {
             );
             const res = MCEngine.run(row.bchs, mcCfg);
             this._mcCache[cid] = res;
-            mcResults[cid] = res;
+            mcResults[cid]     = res;
           } catch { mcResults[cid] = null; }
         }
       }
 
       const rows = computed.map(row => {
-        const c   = row.client;
-        const mc  = mcResults[String(c.id)] ?? null;
+        const c  = row.client;
+        const mc = mcResults[String(c.id)] ?? null;
 
         const mc3m     = mc ? mc.horizons['3m'].bchs.median.toFixed(1) : '—';
         const churn    = mc ? mc.horizons['3m'].churn_rate : null;
@@ -691,8 +660,8 @@ _showVariantPicker(key, variants, horizonLabel) {
     const mc12m  = mc ? mc.horizons['12m'].bchs.median.toFixed(1) : '—';
     const churn3 = mc ? mc.horizons['3m'].churn_rate.toFixed(1) + '%' : '—';
     const churnColor = mc
-      ? (mc.horizons['3m'].churn_rate < 7 ? '#10B981'
-         : mc.horizons['3m'].churn_rate < 15 ? '#F59E0B' : '#EF4444')
+      ? (mc.horizons['3m'].churn_rate < 7  ? '#10B981'
+       : mc.horizons['3m'].churn_rate < 15 ? '#F59E0B' : '#EF4444')
       : '#6B7280';
 
     const trendLabel = row.trend?.label ?? '—';
@@ -749,24 +718,21 @@ _showVariantPicker(key, variants, horizonLabel) {
                     placeholder="Конкретные шаги...">${v('actions')}</textarea>
         </div>
         <div class="form-group" style="margin-bottom:10px">
-  <label class="form-label">Метрика успеха</label>
-  <textarea class="form-textarea" id="as-metric"
-            style="min-height:80px;resize:vertical"
-            placeholder="Как измерим результат">${v('success_metric')}</textarea>
-</div>
-<div class="form-group" style="margin-bottom:10px;max-width:220px">
-  <label class="form-label">Дедлайн</label>
-  <input class="form-input" type="date"
-         id="as-deadline"
-         value="${v('deadline')}" />
-</div>
-
-          <div class="form-group" style="margin:0">
-            <label class="form-label">Статус</label>
-            <select class="form-select" id="as-status">${statuses}</select>
-          </div>
+          <label class="form-label">Метрика успеха</label>
+          <textarea class="form-textarea" id="as-metric"
+                    style="min-height:80px;resize:vertical"
+                    placeholder="Как измерим результат">${v('success_metric')}</textarea>
         </div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <div class="form-group" style="margin-bottom:10px;max-width:220px">
+          <label class="form-label">Дедлайн</label>
+          <input class="form-input" type="date"
+                 id="as-deadline" value="${v('deadline')}" />
+        </div>
+        <div class="form-group" style="margin:0">
+          <label class="form-label">Статус</label>
+          <select class="form-select" id="as-status">${statuses}</select>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:16px">
           <button class="btn btn-secondary btn-sm" id="as-ai-btn">🤖 AI предложить</button>
           <button class="btn btn-primary btn-sm"   id="as-save-btn">💾 Сохранить</button>
           <button class="btn btn-secondary btn-sm"
@@ -811,58 +777,117 @@ _showVariantPicker(key, variants, horizonLabel) {
 
     /* ── AI handler ── */
     document.getElementById('as-ai-btn')?.addEventListener('click', async () => {
-  const aiBtn = document.getElementById('as-ai-btn');
-  if (aiBtn) { aiBtn.disabled = true; aiBtn.textContent = '⏳...'; }
+      const aiBtn = document.getElementById('as-ai-btn');
+      if (aiBtn) { aiBtn.disabled = true; aiBtn.textContent = '⏳...'; }
 
-  try {
-    const data = await API.callAI(null, {
-      type:    'account',
-      client: {
-        name:               c.name,
-        bcg:                bcg,
-        priority:           c.key_account_priority || '—',
-        monthly_revenue:    c.monthly_revenue || 0,
-        engagement:         c.client_engagement || '—',
-        phase:              c.phase || '—',
-        revenue_at_risk:    row.revenueAtRisk || 0,
-      },
-      metrics: {
-        bchs_current: row.bchs,
-        trend:        trendLabel,
-        mc_3m_median: mc3m,
-        mc_3m_churn:  churn3,
-        mc_12m_median: mc12m,
-        mc_12m_churn:  mc
-          ? mc.horizons['12m'].churn_rate.toFixed(1) + '%'
-          : '—',
-      },
+      try {
+        /* ✅ ИСПРАВЛЕНО: убран первый аргумент null */
+        const data = await API.callAI({
+          type:   'account',
+          client: {
+            name:            c.name,
+            bcg:             bcg,
+            priority:        c.key_account_priority || '—',
+            monthly_revenue: c.monthly_revenue || 0,
+            engagement:      c.client_engagement || '—',
+            phase:           c.phase || '—',
+            revenue_at_risk: row.revenueAtRisk || 0,
+          },
+          metrics: {
+            bchs_current:  row.bchs,
+            trend:         trendLabel,
+            mc_3m_median:  mc3m,
+            mc_3m_churn:   churn3,
+            mc_12m_median: mc12m,
+            mc_12m_churn:  mc
+              ? mc.horizons['12m'].churn_rate.toFixed(1) + '%'
+              : '—',
+          },
+        });
+
+        const content = data?.choices?.[0]?.message?.content ?? '';
+        if (!content) throw new Error('Пустой ответ от AI');
+
+        const match  = content.match(/\{[\s\S]*\}/);
+        const parsed = JSON.parse(match ? match[0] : content);
+
+        const variants = parsed.variants ?? [];
+
+        if (variants.length) {
+          /* Показываем пикер вариантов как в горизонтах */
+          this._showAccountVariantPicker(variants, row);
+        } else {
+          /* Fallback: заполняем поля напрямую если нет variants */
+          const s = (id, val) => { const el = document.getElementById(id); if (el) el.value = val || ''; };
+          s('as-goal',     parsed.goal);
+          s('as-actions',  parsed.actions);
+          s('as-metric',   parsed.success_metric);
+          s('as-deadline', parsed.deadline);
+          window.App.toast('🤖 AI предложение заполнено — проверьте и сохраните', 'success');
+        }
+
+      } catch (e) {
+        console.error('[AI Account]', e);
+        window.App.toast('Ошибка AI: ' + e.message, 'error');
+      } finally {
+        if (aiBtn) { aiBtn.disabled = false; aiBtn.textContent = '🤖 AI предложить'; }
+      }
+    });
+  },
+
+  _showAccountVariantPicker(variants, row) {
+    const cards = variants.map((v, i) => `
+      <div class="variant-card" data-idx="${i}"
+           style="padding:14px;border:1px solid var(--border);border-radius:var(--radius);
+                  cursor:pointer;margin-bottom:10px;transition:all 0.15s">
+        <div style="font-weight:700;margin-bottom:6px;color:#6366f1">
+          ${v.label ?? `Вариант ${i + 1}`}
+        </div>
+        <div style="font-size:12px;color:var(--text-secondary);margin-bottom:4px">
+          <strong>Цель:</strong> ${v.goal ?? '—'}
+        </div>
+        <div style="font-size:11px;color:var(--text-muted)">
+          📅 ${v.deadline ?? '—'} · 🎯 ${v.success_metric ?? '—'}
+        </div>
+      </div>`).join('');
+
+    window.App.openModal(`
+      <div style="max-width:520px">
+        <div style="font-size:15px;font-weight:700;margin-bottom:4px">
+          🤖 3 варианта стратегии
+        </div>
+        <div style="font-size:12px;color:var(--text-muted);margin-bottom:16px">
+          ${row.client.name} · Выбери понравившийся — он заполнится в форму
+        </div>
+        <div id="variant-list">${cards}</div>
+        <button class="btn btn-secondary btn-sm" id="variant-cancel"
+                style="margin-top:4px">Отмена</button>
+      </div>`);
+
+    document.querySelectorAll('.variant-card').forEach(card => {
+      card.addEventListener('mouseenter', () => {
+        card.style.background  = 'rgba(99,102,241,0.06)';
+        card.style.borderColor = '#6366f1';
+      });
+      card.addEventListener('mouseleave', () => {
+        card.style.background  = '';
+        card.style.borderColor = 'var(--border)';
+      });
+      card.addEventListener('click', () => {
+        const v = variants[parseInt(card.dataset.idx)];
+        const s = (id, val) => { const el = document.getElementById(id); if (el) el.value = val || ''; };
+        s('as-goal',     v.goal     ?? '');
+        s('as-actions',  v.actions  ?? '');
+        s('as-metric',   v.success_metric ?? '');
+        s('as-deadline', v.deadline ?? '');
+        window.App.closeModal();
+        window.App.toast('✅ Вариант применён — проверьте и сохраните', 'success');
+      });
     });
 
-    const content = data?.choices?.[0]?.message?.content ?? '';
-    if (!content) throw new Error('Пустой ответ от AI');
-
-    const match  = content.match(/\{[\s\S]*\}/);
-    const parsed = JSON.parse(match ? match[0] : content);
-
-    const setVal = (id, val) => {
-      const el = document.getElementById(id);
-      if (el) el.value = val || '';
-    };
-    setVal('as-goal',     parsed.goal);
-    setVal('as-actions',  parsed.actions);
-    setVal('as-metric',   parsed.success_metric);
-    setVal('as-deadline', parsed.deadline);
-
-    window.App.toast('🤖 AI предложение заполнено — проверьте и сохраните', 'success');
-
-  } catch (e) {
-    console.error('[AI Account]', e);
-    window.App.toast('Ошибка AI: ' + e.message, 'error');
-  } finally {
-    if (aiBtn) { aiBtn.disabled = false; aiBtn.textContent = '🤖 AI предложить'; }
-  }
-});
-
+    document.getElementById('variant-cancel')?.addEventListener('click', () => {
+      window.App.closeModal();
+    });
   },
 
   /* ══════════════════════════════════════════
@@ -896,7 +921,6 @@ _showVariantPicker(key, variants, horizonLabel) {
     const regions = [...new Set(clients.map(c => c.dach_region).filter(Boolean))].sort();
     const ams     = [...new Set(clients.map(c => c.account_manager).filter(Boolean))].sort();
 
-    /* Рассчитываем покрытие по ролям */
     const withCov = clients.map(c => {
       const pcEntries = allPC
         .filter(e => String(e.client_id) === String(c.id))
@@ -932,7 +956,6 @@ _showVariantPicker(key, variants, horizonLabel) {
     const noCov     = withCov.filter(c => c.covStatus === 'none').length;
     const bothRoles = withCov.filter(c => c.covStatus === 'overlap').length;
 
-    /* Фильтрация */
     let filtered = withCov;
     if (f.region) filtered = filtered.filter(c => c.dach_region === f.region);
     if (f.am)     filtered = filtered.filter(c => c.account_manager === f.am);
@@ -948,7 +971,6 @@ _showVariantPicker(key, variants, horizonLabel) {
       `<option value="${a}" ${f.am === a ? 'selected' : ''}>${a}</option>`
     ).join('');
 
-    /* Хелпер: пип роли */
     const rolePip = (active, label) =>
       `<span title="${label}" style="display:inline-flex;align-items:center;
         justify-content:center;width:28px;height:18px;border-radius:4px;
@@ -994,86 +1016,85 @@ _showVariantPicker(key, variants, horizonLabel) {
     }).join('');
 
     el.innerHTML = `
-    <div class="cov-page">
-      <div class="cov-filters">
-        <select class="cov-filter-select" id="cov-f-region">
-          <option value="">🌍 Все регионы</option>${regionOpts}
-        </select>
-        <select class="cov-filter-select" id="cov-f-am">
-          <option value="">👤 Все AM</option>${amOpts}
-        </select>
-        <select class="cov-filter-select" id="cov-f-status">
-          <option value="">🔍 Все статусы покрытия</option>
-          <option value="full"    ${f.status === 'full'    ? 'selected' : ''}>🟢 Полностью покрыт</option>
-          <option value="overlap" ${f.status === 'overlap' ? 'selected' : ''}>🔵 Пересечение (CSM+др.)</option>
-          <option value="partial" ${f.status === 'partial' ? 'selected' : ''}>🟡 Частично</option>
-          <option value="none"    ${f.status === 'none'    ? 'selected' : ''}>🔴 Не покрыт</option>
-        </select>
-        <input class="cov-filter-input" id="cov-f-search"
-               placeholder="🔍 Поиск клиента..." value="${f.search}" />
-        <button class="btn btn-secondary btn-sm" id="cov-reset-btn">✕ Сбросить</button>
-        <button class="btn btn-secondary btn-sm" id="cov-export-btn">📥 Экспорт CSV</button>
-      </div>
-
-      <div class="cov-stats">
-        <div class="cov-stat-card">
-          <div class="cov-stat-val">${total}</div>
-          <div class="cov-stat-lbl">Всего клиентов</div>
+      <div class="cov-page">
+        <div class="cov-filters">
+          <select class="cov-filter-select" id="cov-f-region">
+            <option value="">🌍 Все регионы</option>${regionOpts}
+          </select>
+          <select class="cov-filter-select" id="cov-f-am">
+            <option value="">👤 Все AM</option>${amOpts}
+          </select>
+          <select class="cov-filter-select" id="cov-f-status">
+            <option value="">🔍 Все статусы покрытия</option>
+            <option value="full"    ${f.status === 'full'    ? 'selected' : ''}>🟢 Полностью покрыт</option>
+            <option value="overlap" ${f.status === 'overlap' ? 'selected' : ''}>🔵 Пересечение (CSM+др.)</option>
+            <option value="partial" ${f.status === 'partial' ? 'selected' : ''}>🟡 Частично</option>
+            <option value="none"    ${f.status === 'none'    ? 'selected' : ''}>🔴 Не покрыт</option>
+          </select>
+          <input class="cov-filter-input" id="cov-f-search"
+                 placeholder="🔍 Поиск клиента..." value="${f.search}" />
+          <button class="btn btn-secondary btn-sm" id="cov-reset-btn">✕ Сбросить</button>
+          <button class="btn btn-secondary btn-sm" id="cov-export-btn">📥 Экспорт CSV</button>
         </div>
-        <div class="cov-stat-card cov-stat-card--green">
-          <div class="cov-stat-val">${fullCov}</div>
-          <div class="cov-stat-lbl">Полностью покрыто
-            <span class="cov-stat-pct">
-              ${total ? Math.round(fullCov / total * 100) : 0}%
-            </span>
+
+        <div class="cov-stats">
+          <div class="cov-stat-card">
+            <div class="cov-stat-val">${total}</div>
+            <div class="cov-stat-lbl">Всего клиентов</div>
+          </div>
+          <div class="cov-stat-card cov-stat-card--green">
+            <div class="cov-stat-val">${fullCov}</div>
+            <div class="cov-stat-lbl">Полностью покрыто
+              <span class="cov-stat-pct">
+                ${total ? Math.round(fullCov / total * 100) : 0}%
+              </span>
+            </div>
+          </div>
+          <div class="cov-stat-card cov-stat-card--red">
+            <div class="cov-stat-val">${noCov}</div>
+            <div class="cov-stat-lbl">Без покрытия
+              <span class="cov-stat-pct">
+                ${total ? Math.round(noCov / total * 100) : 0}%
+              </span>
+            </div>
+          </div>
+          <div class="cov-stat-card cov-stat-card--blue">
+            <div class="cov-stat-val">${bothRoles}</div>
+            <div class="cov-stat-lbl">Пересечение
+              <span style="font-size:10px;display:block;opacity:0.8">(CSM + др. роль)</span>
+            </div>
           </div>
         </div>
-        <div class="cov-stat-card cov-stat-card--red">
-          <div class="cov-stat-val">${noCov}</div>
-          <div class="cov-stat-lbl">Без покрытия
-            <span class="cov-stat-pct">
-              ${total ? Math.round(noCov / total * 100) : 0}%
-            </span>
+
+        <div class="cov-table-wrap">
+          <table class="cov-table">
+            <thead><tr>
+              <th>Клиент</th><th>Регион</th><th>Аккаунт-менеджер</th>
+              <th>Координатор</th><th>Revenue</th><th>Роли</th><th>Покрытие</th>
+            </tr></thead>
+            <tbody id="cov-tbody">
+              ${tableRows || `<tr><td colspan="7"
+                style="text-align:center;padding:24px;color:var(--text-muted)">
+                Нет клиентов по фильтру</td></tr>`}
+            </tbody>
+          </table>
+          <div class="cov-table-footer">Показано: ${filtered.length} из ${total}</div>
+        </div>
+
+        <div class="cov-inline-dropdown hidden" id="cov-inline-dropdown">
+          <div class="cov-inline-header">
+            <span class="cov-inline-title">Назначить координатора</span>
+            <button class="cov-inline-close" id="cov-dd-close">✕</button>
+          </div>
+          <input class="cov-inline-input" id="cov-dd-input"
+                 placeholder="Имя координатора..." />
+          <div class="cov-inline-suggestions" id="cov-dd-suggestions"></div>
+          <div style="display:flex;gap:8px;margin-top:10px">
+            <button class="btn btn-primary btn-sm"   id="cov-dd-save">💾 Сохранить</button>
+            <button class="btn btn-secondary btn-sm" id="cov-dd-clear">✕ Снять</button>
           </div>
         </div>
-        <div class="cov-stat-card cov-stat-card--blue">
-          <div class="cov-stat-val">${bothRoles}</div>
-          <div class="cov-stat-lbl">Пересечение
-            <span style="font-size:10px;display:block;opacity:0.8">(CSM + др. роль)</span>
-          </div>
-        </div>
-      </div>
-
-      <div class="cov-table-wrap">
-        <table class="cov-table">
-          <thead><tr>
-            <th>Клиент</th><th>Регион</th><th>Аккаунт-менеджер</th>
-            <th>Координатор</th><th>Revenue</th><th>Роли</th><th>Покрытие</th>
-          </tr></thead>
-          <tbody id="cov-tbody">
-            ${tableRows || `<tr><td colspan="7"
-              style="text-align:center;padding:24px;color:var(--text-muted)">
-              Нет клиентов по фильтру</td></tr>`}
-          </tbody>
-        </table>
-        <div class="cov-table-footer">Показано: ${filtered.length} из ${total}</div>
-      </div>
-
-      <!-- Inline dropdown для координатора -->
-      <div class="cov-inline-dropdown hidden" id="cov-inline-dropdown">
-        <div class="cov-inline-header">
-          <span class="cov-inline-title">Назначить координатора</span>
-          <button class="cov-inline-close" id="cov-dd-close">✕</button>
-        </div>
-        <input class="cov-inline-input" id="cov-dd-input"
-               placeholder="Имя координатора..." />
-        <div class="cov-inline-suggestions" id="cov-dd-suggestions"></div>
-        <div style="display:flex;gap:8px;margin-top:10px">
-          <button class="btn btn-primary btn-sm"   id="cov-dd-save">💾 Сохранить</button>
-          <button class="btn btn-secondary btn-sm" id="cov-dd-clear">✕ Снять</button>
-        </div>
-      </div>
-    </div>`;
+      </div>`;
 
     this._bindCoverageEvents(withCov);
   },
@@ -1101,7 +1122,6 @@ _showVariantPicker(key, variants, horizonLabel) {
       this._exportCoverageCSV(withCov);
     });
 
-    /* ── Inline dropdown для координатора ── */
     let _ddTargetCid = null;
     const dd  = document.getElementById('cov-inline-dropdown');
     const inp = document.getElementById('cov-dd-input');
@@ -1118,9 +1138,9 @@ _showVariantPicker(key, variants, horizonLabel) {
         const c       = this._allClientsForCoverage.find(x => x.id === _ddTargetCid);
         if (inp) inp.value = c?.coordinator || '';
 
-        const rect  = btn.getBoundingClientRect();
-        const mcEl  = document.getElementById('main-content');
-        const mcR   = mcEl.getBoundingClientRect();
+        const rect = btn.getBoundingClientRect();
+        const mcEl = document.getElementById('main-content');
+        const mcR  = mcEl.getBoundingClientRect();
         dd.style.top  = (rect.bottom - mcR.top + mcEl.scrollTop + 6) + 'px';
         dd.style.left = Math.min(rect.left - mcR.left, mcR.width - 280) + 'px';
         dd.classList.remove('hidden');
@@ -1179,18 +1199,8 @@ _showVariantPicker(key, variants, horizonLabel) {
       const c = this._allClientsForCoverage.find(x => x.id === clientId);
       if (!c) return;
 
-      /* Используем API._put если доступен, иначе прямой fetch */
-      if (typeof API._put === 'function') {
-        await API._put(`tables/clients/${clientId}`, { coordinator: name });
-      } else {
-        await fetch(`tables/clients/${clientId}`, {
-          method:  'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body:    JSON.stringify({ coordinator: name }),
-        });
-      }
+      await API._put(`tables/clients/${clientId}`, { coordinator: name });
 
-      /* Инвалидируем кеш клиентов */
       if (API._clientsCache !== undefined) API._clientsCache = null;
 
       c.coordinator = name;
@@ -1199,7 +1209,6 @@ _showVariantPicker(key, variants, horizonLabel) {
         'success'
       );
 
-      /* Hot-update ячейки без полного перерендера */
       const cell = document.querySelector(`.cov-coord-name[data-cid="${clientId}"]`);
       if (cell) cell.innerHTML = name || '<span class="cov-empty">не назначен</span>';
 
@@ -1240,7 +1249,7 @@ _showVariantPicker(key, variants, horizonLabel) {
     const blob = new Blob(['\uFEFF' + lines.join('\n')], { type: 'text/csv;charset=utf-8' });
     const url  = URL.createObjectURL(blob);
     const a    = Object.assign(document.createElement('a'), {
-      href: url,
+      href:     url,
       download: `coverage_${new Date().toISOString().slice(0, 10)}.csv`,
     });
     document.body.appendChild(a);

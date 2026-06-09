@@ -415,31 +415,84 @@ export const PortfolioPage = {
         }
       }
 
+      // Горизонты — toggle collapse и edit режим
+      ['short', 'mid', 'long'].forEach(key => {
+        const head    = document.querySelector(`[data-toggle="${key}"]`);
+        const body    = document.getElementById(`pf-hz-body-${key}`);
+        const chevron = document.getElementById(`pf-hz-chevron-${key}`);
+        const view    = document.getElementById(`pf-hz-view-${key}`);
+        const edit    = document.getElementById(`pf-hz-edit-${key}`);
+        const editBtn = document.querySelector(`[data-editkey="${key}"]`);
+        const cancelBtn = document.querySelector(`[data-cancelkey="${key}"]`);
+
+        // По умолчанию — свёрнуто если нет данных, развёрнуто если есть
+        const hasData = !!(
+          document.getElementById(`pf-${key}-title`)?.value ||
+          document.getElementById(`pf-${key}-goal`)?.value
+        );
+        if (!hasData && body) {
+          body.style.display = 'none';
+          if (chevron) chevron.style.transform = 'rotate(-90deg)';
+        }
+
+        // Toggle по клику на заголовок
+        head?.addEventListener('click', e => {
+          if (e.target.closest('.pf-hz-edit-btn') ||
+              e.target.closest('.pf-hz-save-btn') ||
+              e.target.closest('.pf-hz-cancel-btn') ||
+              e.target.closest('.pf-hz-actions')) return;
+
+          const isOpen = body?.style.display !== 'none';
+          if (body) body.style.display = isOpen ? 'none' : 'block';
+          if (chevron) chevron.style.transform = isOpen ? 'rotate(-90deg)' : 'rotate(0deg)';
+        });
+
+        // Кнопка редактирования
+        editBtn?.addEventListener('click', e => {
+          e.stopPropagation();
+          if (body) body.style.display = 'block';
+          if (chevron) chevron.style.transform = 'rotate(0deg)';
+          if (view) view.style.display = 'none';
+          if (edit) edit.style.display = 'block';
+          document.getElementById(`pf-${key}-title`)?.focus();
+        });
+
+        // Отмена редактирования
+        cancelBtn?.addEventListener('click', e => {
+          e.stopPropagation();
+          if (view) view.style.display = 'block';
+          if (edit) edit.style.display = 'none';
+        });
+      });
+
+      // Перемещаем AI кнопки в pf-hz-actions
+      const moveAiBtn = (key) => {
+        const existing = document.getElementById(`pf-ai-gen-btn-${key}`);
+        if (existing) {
+          const actions = document.getElementById(`pf-hz-actions-${key}`);
+          if (actions) actions.appendChild(existing);
+        }
+      };
+
       // AI режим тогл
 document.getElementById('pf-ai-mode-sw')
   ?.addEventListener('change', (e) => {
     this._setAiMode(e.target.checked, summary, computed);
   });
 
-// Autosave при ручном вводе
-['short', 'mid', 'long'].forEach(key => {
-  ['title', 'goal', 'actions', 'metric', 'deadline'].forEach(field => {
-    const inp = document.getElementById(`pf-${key}-${field}`);
-    if (!inp) return;
-    inp.addEventListener("input", () => {
-      const saveBtn = document.getElementById(`pf-save-btn-${key}`);
-      if (saveBtn) saveBtn.style.display = 'inline-flex';
-    });
-  });
-});
-
-// Ручное сохранение
+// Сохранение по кнопке в каждом горизонте
 ['short', 'mid', 'long'].forEach(key => {
   document.getElementById(`pf-save-btn-${key}`)
-    ?.addEventListener('click', () => {
-      this._savePortfolioStrats();
-      const saveBtn = document.getElementById(`pf-save-btn-${key}`);
-      if (saveBtn) saveBtn.style.display = 'none';
+    ?.addEventListener('click', async () => {
+      await this._savePortfolioStrats();
+      // После сохранения — обновляем view и переключаемся в него
+      const view   = document.getElementById(`pf-hz-view-${key}`);
+      const edit   = document.getElementById(`pf-hz-edit-${key}`);
+      const subEl  = document.querySelector(`#pf-horizon-${key} .pf-hz-subtitle`);
+      const titleVal = document.getElementById(`pf-${key}-title`)?.value || '';
+      if (subEl) subEl.textContent = titleVal.slice(0, 50) + (titleVal.length > 50 ? '…' : '');
+      if (view) view.style.display = 'block';
+      if (edit) edit.style.display = 'none';
     });
 });
 
@@ -569,44 +622,112 @@ document.getElementById('pf-ai-mode-sw')
 
   _horizonFormHTML(key, label, period, dotColor, saved) {
     const v = f => saved ? (saved[f] || '') : '';
+    const hasData = !!(v('title') || v('goal') || v('actions'));
+    const deadlineStr = v('deadline')
+      ? new Date(v('deadline')).toLocaleDateString('ru-RU', { day:'numeric', month:'long', year:'numeric' })
+      : null;
+
     return `
-      <div class="pf-horizon" id="pf-horizon-${key}">
-        <div class="pf-horizon-head">
-          <div class="pf-horizon-title">
-            <div class="pf-horizon-dot" style="background:${dotColor}"></div>
-            ${label}
-            <span class="pf-horizon-period">${period}</span>
+      <div class="pf-hz" id="pf-horizon-${key}">
+
+        <!-- Заголовок — всегда виден -->
+        <div class="pf-hz-head" data-toggle="${key}">
+          <div class="pf-hz-left">
+            <div class="pf-hz-dot" style="background:${dotColor}"></div>
+            <div>
+              <div class="pf-hz-title">
+                ${label}
+                <span class="pf-hz-period">${period}</span>
+              </div>
+              ${hasData && v('title') ? `<div class="pf-hz-subtitle">${v('title')}</div>` : ''}
+            </div>
           </div>
-          <div class="pf-horizon-actions">
-            <button class="pf-horizon-save-btn" id="pf-save-btn-${key}"
-                    style="display:none">Сохранить</button>
+          <div class="pf-hz-right">
+            ${deadlineStr ? `<span class="pf-hz-deadline">${deadlineStr}</span>` : ''}
+            ${hasData
+              ? `<span class="pf-hz-status pf-hz-status--filled">Заполнено</span>`
+              : `<span class="pf-hz-status pf-hz-status--empty">Не заполнено</span>`}
+            <button class="pf-hz-edit-btn" data-editkey="${key}" title="Редактировать">
+              ${ic.edit}
+            </button>
+            <div class="pf-hz-actions" id="pf-hz-actions-${key}"></div>
+            <div class="pf-hz-chevron" id="pf-hz-chevron-${key}">${ic.chevron}</div>
           </div>
         </div>
-        <div class="pf-horizon-body">
-          <div class="pf-field pf-full">
-            <label>Название</label>
-            <input id="pf-${key}-title" value="${v('title')}"
-                   placeholder="Например: Операционная чистота" />
+
+        <!-- Тело — коллапсируется -->
+        <div class="pf-hz-body" id="pf-hz-body-${key}">
+
+          <!-- VIEW режим -->
+          <div class="pf-hz-view" id="pf-hz-view-${key}">
+            ${hasData ? `
+              <div class="pf-hz-view-grid">
+                ${v('goal') ? `
+                  <div class="pf-hz-view-block">
+                    <div class="pf-hz-view-label">Цель</div>
+                    <div class="pf-hz-view-text">${v('goal')}</div>
+                  </div>` : ''}
+                ${v('actions') ? `
+                  <div class="pf-hz-view-block">
+                    <div class="pf-hz-view-label">Действия</div>
+                    <div class="pf-hz-view-text">${v('actions')}</div>
+                  </div>` : ''}
+                ${v('success_metric') ? `
+                  <div class="pf-hz-view-block pf-hz-view-block--half">
+                    <div class="pf-hz-view-label">Метрика успеха</div>
+                    <div class="pf-hz-view-text">${v('success_metric')}</div>
+                  </div>` : ''}
+                ${deadlineStr ? `
+                  <div class="pf-hz-view-block pf-hz-view-block--half">
+                    <div class="pf-hz-view-label">Дедлайн</div>
+                    <div class="pf-hz-view-text pf-hz-view-deadline">${deadlineStr}</div>
+                  </div>` : ''}
+              </div>
+            ` : `
+              <div class="pf-hz-empty">
+                Стратегия не заполнена — нажмите ${ic.edit} чтобы добавить
+              </div>
+            `}
           </div>
-          <div class="pf-field pf-full">
-            <label>Цель</label>
-            <textarea id="pf-${key}-goal"
-                      placeholder="Что хотим достичь...">${v('goal')}</textarea>
+
+          <!-- EDIT режим (скрыт по умолчанию) -->
+          <div class="pf-hz-edit" id="pf-hz-edit-${key}" style="display:none">
+            <div class="pf-hz-edit-grid">
+              <div class="pf-field pf-hz-full">
+                <label>Название</label>
+                <input id="pf-${key}-title" value="${v('title')}"
+                       placeholder="Например: Операционная чистота" />
+              </div>
+              <div class="pf-field pf-hz-full">
+                <label>Цель</label>
+                <textarea id="pf-${key}-goal"
+                          placeholder="Что хотим достичь...">${v('goal')}</textarea>
+              </div>
+              <div class="pf-field pf-hz-full">
+                <label>Действия</label>
+                <textarea id="pf-${key}-actions" style="min-height:90px"
+                          placeholder="Конкретные шаги...">${v('actions')}</textarea>
+              </div>
+              <div class="pf-field">
+                <label>Метрика успеха</label>
+                <textarea id="pf-${key}-metric"
+                          placeholder="Как измерим результат">${v('success_metric')}</textarea>
+              </div>
+              <div class="pf-field">
+                <label>Дедлайн</label>
+                <input type="date" id="pf-${key}-deadline" value="${v('deadline')}" />
+              </div>
+            </div>
+            <div class="pf-hz-edit-footer">
+              <button class="pf-btn pf-btn-ghost pf-hz-cancel-btn" data-cancelkey="${key}">
+                Отмена
+              </button>
+              <button class="pf-btn pf-btn-primary pf-hz-save-btn" id="pf-save-btn-${key}">
+                ${ic.save} Сохранить
+              </button>
+            </div>
           </div>
-          <div class="pf-field pf-full">
-            <label>Действия</label>
-            <textarea id="pf-${key}-actions" style="min-height:90px"
-                      placeholder="Конкретные шаги...">${v('actions')}</textarea>
-          </div>
-          <div class="pf-field">
-            <label>Метрика успеха</label>
-            <textarea id="pf-${key}-metric"
-                      placeholder="Как измерим результат">${v('success_metric')}</textarea>
-          </div>
-          <div class="pf-field">
-            <label>Дедлайн</label>
-            <input type="date" id="pf-${key}-deadline" value="${v('deadline')}" />
-          </div>
+
         </div>
       </div>`;
   },
@@ -646,7 +767,7 @@ document.getElementById('pf-ai-mode-sw')
   ['short', 'mid', 'long'].forEach(key => {
     const existing = document.getElementById(`pf-ai-gen-btn-${key}`);
     if (enabled && !existing) {
-      const actions = document.querySelector(`#pf-horizon-${key} .pf-horizon-actions`);
+      const actions = document.getElementById(`pf-hz-actions-${key}`);
       if (!actions) return;
       const btn = document.createElement('button');
       btn.id = `pf-ai-gen-btn-${key}`;

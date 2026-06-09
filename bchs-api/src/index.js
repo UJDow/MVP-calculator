@@ -162,7 +162,52 @@ if (type === 'account') {
   ];
 }
 
+if (type === 'touch') {
+  const transcript = body.transcript ?? '';
+  const clientName = body.client_name ?? 'клиент';
 
+  return [
+    {
+      role: 'system',
+      content:
+        'Ты CSM-аналитик. Разбираешь транскрипт встречи или звонка с клиентом. ' +
+        'Извлекай только то, что явно упомянуто. ' +
+        'Отвечай ТОЛЬКО валидным JSON без markdown и без пояснений.',
+    },
+    {
+      role: 'user',
+      content:
+        `Клиент: ${clientName}\n\n` +
+        `Транскрипт встречи:\n${transcript}\n\n` +
+        `Разбери транскрипт и верни СТРОГО валидный JSON:\n` +
+        `{\n` +
+        `  "context":     "краткий контекст встречи (1-2 предложения)",\n` +
+        `  "tasks":       "список задач bullet-points, или null",\n` +
+        `  "next":        "следующие шаги bullet-points, или null",\n` +
+        `  "strategy":    "стратегические наблюдения, или null",\n` +
+        `  "outcome":     "ожидаемый результат, или null",\n` +
+        `  "blockers":    "блокеры и риски, или null",\n` +
+        `  "signals": {\n` +
+        `    "expansion_signal":   false,\n` +
+        `    "risk_signal":        false,\n` +
+        `    "satisfaction_high":  false,\n` +
+        `    "satisfaction_low":   false,\n` +
+        `    "exec_engaged":       false,\n` +
+        `    "feature_request":    false,\n` +
+        `    "escalation":         false,\n` +
+        `    "renewal_discussed":  false\n` +
+        `  },\n` +
+        `  "pc": {\n` +
+        `    "relationship_strength": null,\n` +
+        `    "product_adoption":      null,\n` +
+        `    "strategic_alignment":   null,\n` +
+        `    "growth_potential":      null\n` +
+        `  },\n` +
+        `  "explanation": "1-2 предложения почему выставлены эти сигналы"\n` +
+        `}`,
+    },
+  ];
+}
   /* raw — фронт сам передаёт messages */
   return body.messages ?? [];
 }

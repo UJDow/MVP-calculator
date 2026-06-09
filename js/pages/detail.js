@@ -57,12 +57,13 @@ export const DetailPage = {
 
   /* ─── TABS CONFIG ─────────────────────────────────────────── */
   _buildTabs() {
-    const tabs = [
-      { id: 'overview',  label: '📋 Обзор',    always: true },
-      { id: 'history',   label: '📈 История',  always: true },
-      { id: 'notes',     label: '📝 Заметки',  always: true },
-      { id: 'delivery',  label: '👥 Delivery', module: 'detail_delivery' },
-    ];
+  const tabs = [
+    { id: 'overview',  label: '📋 Обзор',    always: true },
+    { id: 'history',   label: '📈 История',  always: true },
+    { id: 'touches',   label: '📍 Касания',  always: true },
+    { id: 'notes',     label: '📝 Заметки',  always: true },
+    { id: 'delivery',  label: '👥 Delivery', module: 'detail_delivery' },
+  ];
 
     return tabs.filter(t => {
       if (t.always) return true;
@@ -210,10 +211,15 @@ export const DetailPage = {
         contentEl.innerHTML = this._renderHistorySection();
         break;
 
-      case 'notes':
-        contentEl.innerHTML = this._renderNotesSection();
-        this._bindNotesEvents();
-        break;
+      case 'touches':
+  contentEl.innerHTML = '<div style="padding:32px;text-align:center;color:var(--text-muted)">⏳ Загрузка...</div>';
+  this._loadTouches();
+  break;
+
+case 'notes':
+  contentEl.innerHTML = this._renderNotesSection();
+  this._bindNotesEvents();
+  break;
 
       case 'delivery':
         contentEl.innerHTML = `
@@ -530,6 +536,179 @@ export const DetailPage = {
       },
     });
   },
+
+  /* ─── TOUCHES TAB ─────────────────────────────────────────── */
+async _loadTouches() {
+  try {
+    const touchPoints = await API.getTouchPoints();
+    const clientTPs = touchPoints
+      .filter(tp => String(tp.client_id) === String(this.client.id) && tp.completed_at)
+      .sort((a, b) => new Date(b.completed_at) - new Date(a.completed_at));
+
+    const contentEl = document.getElementById('detail-tab-content');
+    if (!contentEl) return;
+    contentEl.innerHTML = this._renderTouchesTab(clientTPs);
+    this._bindTouchesEvents(clientTPs);
+  } catch (e) {
+    const contentEl = document.getElementById('detail-tab-content');
+    if (contentEl) contentEl.innerHTML = `<div style="padding:32px;text-align:center;color:var(--md-red)">❌ ${e.message}</div>`;
+  }
+},
+
+_renderTouchesTab(touchPoints) {
+  const TYPE_LABELS = {
+    checkin:  { icon: '💬', label: 'Check-in'  },
+    call:     { icon: '📞', label: 'Звонок'    },
+    meeting:  { icon: '🤝', label: 'Встреча'   },
+    qbr:      { icon: '📊', label: 'QBR'       },
+    email:    { icon: '📧', label: 'Email'      },
+  };
+
+  // Группировка по месяцам
+  const groups = {};
+  for (const tp of touchPoints) {
+    const d = new Date(tp.completed_at);
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2,'0')}`;
+    if (!groups[key]) groups[key] = { year: d.getFullYear(), month: d.getMonth(), items: [] };
+    groups[key].items.push(tp);
+  }
+
+  const now = new Date();
+  const currentKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2,'0')}`;
+
+  const monthNames = ['Январь','Февраль','Март','Апрель','Май','Июнь',
+                      'Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
+
+  const groupsHTML = Object.entries(groups)
+    .sort((a, b) => b[0].localeCompare(a[0]))
+    .map(([key, g], idx) => {
+      const isCurrentMonth = key === currentKey;
+      const isPrevMonth    = idx === 1;
+      const isCollapsed    = !isCurrentMonth && !isPrevMonth;
+      const count          = g.items.length;
+      const label          = `${monthNames[g.month]} ${g.year}`;
+
+      const itemsHTML = g.items.map(tp => {
+        const t       = TYPE_LABELS[tp.type] ?? { icon: '•', label: tp.type };
+        const date    = new Date(tp.completed_at);
+        const dateStr = date.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' });
+        const daysAgo = Math.round((Date.now() - date.getTime()) / 86400000);
+        const agoStr  = daysAgo === 0 ? 'сегодня' : daysAgo === 1 ? 'вчера' : `${daysAgo} дн. назад`;
+
+        const notes = tp.notes || '';
+        const contextMatch = notes.match(/📋 Контекст:\n([\s\S]*?)(?:\n\n|$)/);
+        const tasksMatch   = notes.match(/✅ Задачи:\n([\s\S]*?)(?:\n\n|$)/);
+        const nextMatch    = notes.match(/👣 Дальнейшие шаги:\n([\s\S]*?)(?:\n\n|$)/);
+
+        const isStructured = contextMatch || tasksMatch || nextMatch;
+
+        const notesPreview = isStructured ? `
+          <div style="margin-top:6px;display:flex;flex-direction:column;gap:3px">
+            ${contextMatch ? `<div style="font-size:12px;color:var(--text-secondary)"><span style="opacity:.6">📋</span> ${contextMatch[1].trim().slice(0,80)}${contextMatch[1].trim().length > 80 ? '…' : ''}</div>` : ''}
+            ${tasksMatch   ? `<div style="font-size:12px;color:var(--text-secondary)"><span style="opacity:.6">✅</span> ${tasksMatch[1].trim().slice(0,80)}${tasksMatch[1].trim().length > 80 ? '…' : ''}</div>` : ''}
+            ${nextMatch    ? `<div style="font-size:12px;color:var(--text-secondary)"><span style="opacity:.6">👣</span> ${nextMatch[1].trim().slice(0,80)}${nextMatch[1].trim().length > 80 ? '…' : ''}</div>` : ''}
+          </div>` : notes ? `
+          <div style="font-size:12px;color:var(--text-secondary);margin-top:5px">
+            ${notes.slice(0,120)}${notes.length > 120 ? '…' : ''}
+          </div>` : '';
+
+        return `
+          <div class="tp-detail-card" data-id="${tp.id}"
+               style="background:var(--surface);border:1px solid var(--border);
+                      border-radius:10px;padding:12px 14px;margin-bottom:8px;
+                      cursor:pointer;transition:box-shadow .15s"
+               onmouseover="this.style.boxShadow='var(--shadow-md)'"
+               onmouseout="this.style.boxShadow='none'">
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+              <div style="display:flex;align-items:center;gap:8px">
+                <span style="font-size:16px">${t.icon}</span>
+                <span style="font-size:13px;font-weight:600;color:var(--text-primary)">${t.label}</span>
+                <span style="font-size:11px;color:var(--text-muted)">· ${dateStr} · ${agoStr}</span>
+              </div>
+              <button class="tp-del-detail btn btn-secondary btn-xs"
+                      data-id="${tp.id}"
+                      style="opacity:0;transition:opacity .15s"
+                      onmouseover="this.style.opacity='1'"
+                      onmouseout="this.style.opacity='0'">✕</button>
+            </div>
+            ${notesPreview}
+          </div>`;
+      }).join('');
+
+      return `
+        <div class="tp-month-group" data-key="${key}" style="margin-bottom:4px">
+          <div class="tp-month-header"
+               style="display:flex;align-items:center;justify-content:space-between;
+                      padding:8px 4px;cursor:pointer;user-select:none"
+               data-toggle="${key}">
+            <div style="display:flex;align-items:center;gap:8px">
+              <span style="font-size:12px;font-weight:700;color:var(--text-primary);
+                           text-transform:uppercase;letter-spacing:.5px">${label}</span>
+              <span style="font-size:11px;background:var(--surface);border:1px solid var(--border);
+                           border-radius:20px;padding:1px 8px;color:var(--text-muted)">
+                ${count} ${count === 1 ? 'касание' : count < 5 ? 'касания' : 'касаний'}
+              </span>
+              ${isCurrentMonth ? '<span style="font-size:10px;background:#e0f2fe;color:#0284c7;border-radius:20px;padding:1px 8px;font-weight:600">текущий</span>' : ''}
+            </div>
+            <span style="font-size:12px;color:var(--text-muted)">${isCollapsed ? '▶' : '▼'}</span>
+          </div>
+          <div class="tp-month-body" data-body="${key}"
+               style="${isCollapsed ? 'display:none' : ''}">
+            ${isCollapsed && count > 0 ? `
+              <div style="padding:6px 4px 10px">
+                ${itemsHTML}
+              </div>` : `
+              <div style="padding:0 4px 10px">
+                ${itemsHTML}
+              </div>`}
+          </div>
+        </div>`;
+    }).join('');
+
+  return `
+    <div class="form-section">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+        <div class="form-section-title" style="margin:0">📍 История касаний</div>
+        <button class="btn btn-primary btn-sm" id="btn-new-touch">+ Касание</button>
+      </div>
+      ${touchPoints.length === 0 ? `
+        <div style="text-align:center;padding:40px;color:var(--text-muted)">
+          Касаний пока нет — нажми "+ Касание" чтобы добавить первое
+        </div>` : groupsHTML}
+    </div>`;
+},
+
+_bindTouchesEvents(touchPoints) {
+  // Кнопка новое касание
+  document.getElementById('btn-new-touch')?.addEventListener('click', () => {
+    window.DashboardPage
+      ? window.DashboardPage._openTouchModal?.(this.client.id, this.client.name)
+      : window.App.toast('Откройте дашборд для создания касания', '');
+  });
+
+  // Сворачивание/разворачивание месяцев
+  document.querySelectorAll('[data-toggle]').forEach(header => {
+    header.addEventListener('click', () => {
+      const key  = header.dataset.toggle;
+      const body = document.querySelector(`[data-body="${key}"]`);
+      const arrow = header.querySelector('span:last-child');
+      if (!body) return;
+      const isHidden = body.style.display === 'none';
+      body.style.display = isHidden ? '' : 'none';
+      if (arrow) arrow.textContent = isHidden ? '▼' : '▶';
+    });
+  });
+
+  // Удаление касания
+  document.querySelectorAll('.tp-del-detail').forEach(btn => {
+    btn.addEventListener('click', async e => {
+      e.stopPropagation();
+      await API.deleteTouchPoint(btn.dataset.id);
+      window.App.toast('Удалено', 'success');
+      this._loadTouches();
+    });
+  });
+},
 
   /* ─── PAGE EVENTS ─────────────────────────────────────────── */
   _bindDetailEvents() {

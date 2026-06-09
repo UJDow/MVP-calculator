@@ -59,7 +59,7 @@ export const TouchPointsPage = {
       const due      = recommendations.filter(r => r.urgency === 'due');
       const upcoming = recommendations.filter(r => r.urgency === 'upcoming');
 
-      el.innerHTML = `
+            el.innerHTML = `
         <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px">
           ${this._statCard('🔴 Просрочено',  overdue.length,  '#EF4444')}
           ${this._statCard('🟡 Сегодня',     due.length,      '#F59E0B')}
@@ -102,8 +102,6 @@ export const TouchPointsPage = {
               ✅ Все клиенты покрыты касаниями — хорошая работа!
             </div>` : ''}
         </div>
-
-        ${this._historySection(touchPoints, clients)}
       `;
 
       this._bindEvents(computed, touchPoints);

@@ -606,276 +606,325 @@ export const DashboardPage = {
   _openTouchModal(clientId, clientName) {
   const now = new Date();
   const monthOpts = MONTHS_RU.map((m, i) =>
-    `<option value="${i+1}" ${i+1 === now.getMonth()+1 ? 'selected' : ''}>${m}</option>`
+    `<option value="${i+1}" ${i+1 === now.getMonth()+1 ? 'selected':''}>${m}</option>`
   ).join('');
   const yearOpts = [now.getFullYear()-1, now.getFullYear(), now.getFullYear()+1]
-    .map(y => `<option value="${y}" ${y === now.getFullYear() ? 'selected' : ''}>${y}</option>`)
+    .map(y => `<option value="${y}" ${y===now.getFullYear()?'selected':''}>${y}</option>`)
     .join('');
-
   const typeOpts = [
-    ['call',    '📞 Звонок'],
-    ['meeting', '🤝 Встреча'],
-    ['qbr',     '📊 QBR'],
-    ['email',   '📧 Email'],
-    ['checkin', '💬 Check-in'],
+    ['call','📞 Звонок'],['meeting','🤝 Встреча'],
+    ['qbr','📊 QBR'],['email','📧 Email'],['checkin','💬 Check-in'],
   ].map(([k,v]) => `<option value="${k}">${v}</option>`).join('');
 
-  window.App.openModal(`
-    <div style="padding:4px 0 16px;max-width:520px;width:100%">
+  // ── состояние wizard ──
+  let currentStep = 0;
+  let parsedAI    = null;
 
-      <!-- Заголовок -->
-      <div style="margin-bottom:18px">
-        <div style="font-size:17px;font-weight:700;color:#0f172a">📍 Касание</div>
-        <div style="font-size:13px;color:var(--text-muted);margin-top:2px">${clientName}</div>
+  const steps = [
+    { emoji:'📋', title:'Транскрипт',  hint:'Вставь запись звонка или заметки — AI заполнит всё сам' },
+    { emoji:'📝', title:'Основное',    hint:'Проверь и дополни главное'                               },
+    { emoji:'🎯', title:'Детали',      hint:'Стратегия, результат, блокеры — если нужно'              },
+  ];
+
+  // ── инжектим стили один раз ──
+  if (!document.getElementById('touch-wiz-styles')) {
+    const s = document.createElement('style');
+    s.id = 'touch-wiz-styles';
+    s.textContent = `
+      .tw-label {
+        font-size:11px;font-weight:700;color:#94a3b8;
+        text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;display:block
+      }
+      .tw-field { display:flex;flex-direction:column }
+      .tw-textarea {
+        width:100%;box-sizing:border-box;resize:vertical;
+        font-size:13px;line-height:1.6;
+        border:1.5px solid #e2e8f0;border-radius:8px;
+        padding:10px 12px;background:#fff;
+        transition:border-color .15s;font-family:inherit
+      }
+      .tw-textarea:focus { border-color:#6366f1;outline:none;box-shadow:0 0 0 3px #e0e7ff }
+    `;
+    document.head.appendChild(s);
+  }
+
+  // ── прогресс-бар ──
+  const progressHTML = () => steps.map((s, i) => `
+    <div style="display:flex;flex-direction:column;align-items:center;gap:4px;flex:1">
+      <div style="
+        width:36px;height:36px;border-radius:50%;
+        display:flex;align-items:center;justify-content:center;
+        font-size:15px;transition:all .2s;
+        ${i < currentStep
+          ? 'background:#22c55e;color:#fff;box-shadow:0 2px 8px #86efac'
+          : i === currentStep
+            ? 'background:#6366f1;color:#fff;box-shadow:0 2px 10px #c7d2fe'
+            : 'background:#f1f5f9;color:#94a3b8'}
+      ">${i < currentStep ? '✓' : s.emoji}</div>
+      <div style="font-size:10px;font-weight:${i===currentStep?'700':'500'};
+        color:${i===currentStep?'#6366f1':i<currentStep?'#22c55e':'#94a3b8'}">
+        ${s.title}
       </div>
+    </div>
+    ${i < steps.length-1 ? `
+      <div style="flex:1;height:2px;margin-top:18px;max-width:48px;border-radius:2px;
+        background:${i < currentStep ? '#86efac' : '#e2e8f0'}"></div>
+    ` : ''}
+  `).join('');
 
-      <!-- Тип + период -->
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:18px">
-        <div>
-          <div style="font-size:11px;font-weight:700;color:#94a3b8;
-                      text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px">
-            Тип
-          </div>
+  // ── тело каждого шага ──
+  const stepBody = () => {
+    if (currentStep === 0) return `
+
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:20px">
+        <div class="tw-field">
+          <label class="tw-label">Тип</label>
           <select class="form-select" id="touch-type">${typeOpts}</select>
         </div>
-        <div>
-          <div style="font-size:11px;font-weight:700;color:#94a3b8;
-                      text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px">
-            Месяц
-          </div>
+        <div class="tw-field">
+          <label class="tw-label">Месяц</label>
           <select class="form-select" id="touch-month">${monthOpts}</select>
         </div>
-        <div>
-          <div style="font-size:11px;font-weight:700;color:#94a3b8;
-                      text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px">
-            Год
-          </div>
+        <div class="tw-field">
+          <label class="tw-label">Год</label>
           <select class="form-select" id="touch-year">${yearOpts}</select>
         </div>
       </div>
 
-      <!-- AI транскрипт -->
-      <div style="background:#faf5ff;border:1px solid #e9d5ff;border-radius:10px;
-                  padding:14px;margin-bottom:16px">
-        <div style="font-size:12px;font-weight:700;color:#7c3aed;
-                    letter-spacing:.05em;margin-bottom:8px">
-          🤖 ВСТАВЬ ТРАНСКРИПТ ИЛИ ЗАМЕТКИ
-        </div>
-        <textarea id="touch-ai-input" class="form-textarea" rows="4"
-          placeholder="Вставь транскрипт Bluedot или опиши своими словами что происходило — AI сам разберёт сигналы и заполнит структуру ниже..."
-          style="width:100%;resize:vertical;min-height:90px;font-size:13px;
-                 border-color:#d8b4fe;box-sizing:border-box"></textarea>
-        <div style="display:flex;gap:8px;align-items:center;margin-top:10px">
-          <button class="btn btn-primary btn-sm" id="touch-ai-btn"
-                  style="background:#7c3aed;border-color:#7c3aed">
-            🤖 Разобрать
-          </button>
-          <span id="touch-ai-status" style="font-size:12px;color:var(--text-muted)"></span>
-        </div>
-        <div id="touch-ai-result" class="hidden"
-             style="margin-top:10px;padding:10px 12px;background:rgba(16,185,129,0.08);
-                    border:1px solid rgba(16,185,129,0.2);border-radius:8px;
-                    font-size:12px;color:var(--text-secondary);line-height:1.6"></div>
+      <div class="tw-field">
+        <label class="tw-label">Транскрипт или заметки</label>
+        <textarea id="touch-ai-input" class="tw-textarea"
+          rows="10"
+          placeholder="Вставь транскрипт Bluedot, заметки после звонка или просто опиши своими словами что произошло...
+
+AI сам разберёт структуру, выделит задачи, шаги и сигналы по клиенту."></textarea>
       </div>
 
-      <!-- Структурированный апдейт -->
-      <div style="display:flex;flex-direction:column;gap:12px;margin-bottom:18px">
-
-        <div>
-          <div style="font-size:11px;font-weight:700;color:#94a3b8;
-                      text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px">
-            📋 Контекст
-          </div>
-          <textarea id="touch-context" class="form-textarea" rows="2"
-            placeholder="Что обсудили, общая ситуация..."
-            style="width:100%;resize:vertical;min-height:60px;
-                   font-size:13px;box-sizing:border-box"></textarea>
-        </div>
-
-        <div>
-          <div style="font-size:11px;font-weight:700;color:#94a3b8;
-                      text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px">
-            ✅ Задачи
-          </div>
-          <textarea id="touch-tasks" class="form-textarea" rows="2"
-            placeholder="Что нужно сделать по итогам..."
-            style="width:100%;resize:vertical;min-height:60px;
-                   font-size:13px;box-sizing:border-box"></textarea>
-        </div>
-
-        <div>
-          <div style="font-size:11px;font-weight:700;color:#94a3b8;
-                      text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px">
-            👣 Дальнейшие шаги
-          </div>
-          <textarea id="touch-next" class="form-textarea" rows="2"
-            placeholder="Следующие действия и договорённости..."
-            style="width:100%;resize:vertical;min-height:60px;
-                   font-size:13px;box-sizing:border-box"></textarea>
-        </div>
-
-        <!-- Необязательные — скрыты по умолчанию -->
-        <div id="touch-optional" style="display:none;flex-direction:column;gap:12px">
-          <div>
-            <div style="font-size:11px;font-weight:700;color:#94a3b8;
-                        text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px">
-              🎯 Стратегия
-            </div>
-            <textarea id="touch-strategy" class="form-textarea" rows="2"
-              placeholder="Стратегические заметки если нужно..."
-              style="width:100%;resize:vertical;min-height:60px;
-                     font-size:13px;box-sizing:border-box"></textarea>
-          </div>
-          <div>
-            <div style="font-size:11px;font-weight:700;color:#94a3b8;
-                        text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px">
-              🏁 Ожидаемый результат
-            </div>
-            <textarea id="touch-outcome" class="form-textarea" rows="2"
-              placeholder="Чего ожидаем достичь..."
-              style="width:100%;resize:vertical;min-height:60px;
-                     font-size:13px;box-sizing:border-box"></textarea>
-          </div>
-          <div>
-            <div style="font-size:11px;font-weight:700;color:#94a3b8;
-                        text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px">
-              🚧 Блокеры
-            </div>
-            <textarea id="touch-blockers" class="form-textarea" rows="2"
-              placeholder="Что может помешать..."
-              style="width:100%;resize:vertical;min-height:60px;
-                     font-size:13px;box-sizing:border-box"></textarea>
-          </div>
-        </div>
-
-        <!-- Кнопка показать/скрыть необязательные -->
-        <button id="touch-toggle-optional"
-                style="background:none;border:none;color:#6366f1;font-size:12px;
-                       font-weight:600;cursor:pointer;text-align:left;padding:0">
-          + Стратегия / Результат / Блокеры
+      <div style="display:flex;gap:10px;align-items:center;margin-top:14px">
+        <button id="touch-ai-btn" class="btn btn-primary"
+                style="background:#6366f1;border-color:#6366f1;min-width:130px">
+          🤖 Разобрать
         </button>
-
+        <span id="touch-ai-status" style="font-size:12px;color:var(--text-muted)"></span>
       </div>
 
-      <!-- Кнопки -->
-      <div style="display:flex;gap:8px;justify-content:flex-end;
-                  border-top:1px solid #f1f5f9;padding-top:14px">
-        <button class="btn btn-secondary btn-sm"
-                onclick="window.App.closeModal()">Отмена</button>
-        <button class="btn btn-primary btn-sm" id="touch-confirm"
-                style="min-width:130px">✓ Сохранить касание</button>
-      </div>
+      <div id="touch-ai-result" class="hidden"
+           style="margin-top:14px;padding:12px 14px;
+                  background:rgba(16,185,129,0.08);
+                  border:1px solid rgba(16,185,129,0.2);
+                  border-radius:8px;font-size:13px;
+                  color:var(--text-secondary);line-height:1.6"></div>`;
 
-    </div>`);
+    if (currentStep === 1) return `
+      <div style="display:flex;flex-direction:column;gap:18px">
 
-  // ── показать/скрыть необязательные поля ──
-  let optionalVisible = false;
-  document.getElementById('touch-toggle-optional')
-    ?.addEventListener('click', () => {
-      optionalVisible = !optionalVisible;
-      const wrap = document.getElementById('touch-optional');
-      const btn  = document.getElementById('touch-toggle-optional');
-      if (wrap) wrap.style.display = optionalVisible ? 'flex' : 'none';
-      if (btn)  btn.textContent    = optionalVisible
-        ? '− Скрыть необязательные поля'
-        : '+ Стратегия / Результат / Блокеры';
+        <div class="tw-field">
+          <label class="tw-label">📋 Контекст</label>
+          <textarea id="touch-context" class="tw-textarea" rows="4"
+            placeholder="Что обсудили, общая ситуация по клиенту...">${_saved('touch-context')}</textarea>
+        </div>
+
+        <div class="tw-field">
+          <label class="tw-label">✅ Задачи</label>
+          <textarea id="touch-tasks" class="tw-textarea" rows="4"
+            placeholder="Что нужно сделать по итогам встречи...">${_saved('touch-tasks')}</textarea>
+        </div>
+
+        <div class="tw-field">
+          <label class="tw-label">👣 Дальнейшие шаги</label>
+          <textarea id="touch-next" class="tw-textarea" rows="4"
+            placeholder="Следующие действия и договорённости...">${_saved('touch-next')}</textarea>
+        </div>
+
+      </div>`;
+
+    if (currentStep === 2) return `
+      <div style="display:flex;flex-direction:column;gap:18px">
+
+        <div class="tw-field">
+          <label class="tw-label">🎯 Стратегия</label>
+          <textarea id="touch-strategy" class="tw-textarea" rows="4"
+            placeholder="Стратегические заметки по этому клиенту...">${_saved('touch-strategy')}</textarea>
+        </div>
+
+        <div class="tw-field">
+          <label class="tw-label">🏁 Ожидаемый результат</label>
+          <textarea id="touch-outcome" class="tw-textarea" rows="4"
+            placeholder="Чего ожидаем достичь в ближайшее время...">${_saved('touch-outcome')}</textarea>
+        </div>
+
+        <div class="tw-field">
+          <label class="tw-label">🚧 Блокеры</label>
+          <textarea id="touch-blockers" class="tw-textarea" rows="4"
+            placeholder="Что может помешать или замедлить работу...">${_saved('touch-blockers')}</textarea>
+        </div>
+
+      </div>`;
+
+    return '';
+  };
+
+  // ── кэш значений между шагами ──
+  const saved = {};
+  const _save = () => {
+    ['touch-context','touch-tasks','touch-next',
+     'touch-strategy','touch-outcome','touch-blockers',
+     'touch-type','touch-month','touch-year','touch-ai-input'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) saved[id] = el.value;
     });
+  };
+  const _saved = id => saved[id] ?? '';
 
-  // ── AI разбор транскрипта ──
-  document.getElementById('touch-ai-btn')?.addEventListener('click', async () => {
-    const text = (document.getElementById('touch-ai-input')?.value ?? '').trim();
-    if (!text) { window.App.toast('Вставь транскрипт или заметки', 'error'); return; }
+  // ── шаблон модалки ──
+  const buildHTML = () => `
+    <div style="padding:24px 28px;width:100%;max-width:520px;box-sizing:border-box">
 
-    const btn    = document.getElementById('touch-ai-btn');
-    const aiSt   = document.getElementById('touch-ai-status');
-    const aiRes  = document.getElementById('touch-ai-result');
-    btn.disabled = true; btn.textContent = '⏳ Анализирую...';
-    aiSt.textContent = 'Отправляю запрос...';
+      <div style="margin-bottom:6px">
+        <div style="font-size:17px;font-weight:700;color:#0f172a">📍 Касание</div>
+        <div style="font-size:13px;color:var(--text-muted);margin-top:2px">${clientName}</div>
+      </div>
 
-    try {
-      // Просим AI разобрать и заполнить структуру + сигналы
-      const prompt = `Ты помогаешь CSM-менеджеру структурировать апдейт по клиенту.
+      <div style="display:flex;align-items:center;margin:20px 0">
+        ${progressHTML()}
+      </div>
 
-Текст: """${text}"""
+      <div style="margin-bottom:20px">
+        <div style="font-size:15px;font-weight:600;color:#0f172a">${steps[currentStep].title}</div>
+        <div style="font-size:12px;color:#94a3b8;margin-top:2px">${steps[currentStep].hint}</div>
+      </div>
 
-Верни JSON:
+      <div style="border-top:1px solid #f1f5f9;padding-top:20px" id="touch-step-body">
+        ${stepBody()}
+      </div>
+
+      <div style="display:flex;gap:10px;margin-top:24px;align-items:center;
+                  border-top:1px solid #f1f5f9;padding-top:16px">
+        ${currentStep > 0
+          ? `<button id="tw-back" class="btn btn-secondary" style="min-width:90px">← Назад</button>`
+          : ''}
+        <div style="flex:1"></div>
+        <button id="tw-cancel" class="btn btn-secondary">Отмена</button>
+        ${currentStep < steps.length-1
+          ? `<button id="tw-next" class="btn btn-primary" style="min-width:110px">Далее →</button>`
+          : `<button id="tw-save" class="btn btn-primary" style="min-width:150px">✓ Сохранить касание</button>`
+        }
+      </div>
+
+    </div>`;
+
+  // ── перерисовка ──
+  const rerender = () => {
+    const wrap = document.querySelector('#modal-overlay > div, .modal-inner, .modal-content');
+    if (wrap) wrap.innerHTML = buildHTML();
+    bindStep();
+  };
+
+  // ── биндинг шага ──
+  const bindStep = () => {
+    document.getElementById('tw-cancel')
+      ?.addEventListener('click', () => window.App.closeModal?.());
+
+    document.getElementById('tw-back')
+      ?.addEventListener('click', () => { _save(); currentStep--; rerender(); });
+
+    document.getElementById('tw-next')
+      ?.addEventListener('click', () => {
+        _save();
+        // На шаге 0 — можно идти дальше только если есть контент
+        if (currentStep === 0) {
+          const hasTranscript = (saved['touch-ai-input'] ?? '').trim().length > 0;
+          const hasContent    = parsedAI !== null;
+          if (!hasTranscript) {
+            window.App.toast?.('Вставь транскрипт или заметки', 'error');
+            return;
+          }
+          // Если не разобрали — предупреждаем но не блокируем
+          if (!hasContent) {
+            window.App.toast?.('Рекомендуем нажать "Разобрать" — AI заполнит поля автоматически', '');
+          }
+        }
+        currentStep++;
+        rerender();
+      });
+
+    document.getElementById('tw-save')
+      ?.addEventListener('click', () => { _save(); _doSave(); });
+
+    // AI кнопка на шаге 0
+    document.getElementById('touch-ai-btn')?.addEventListener('click', async () => {
+      const text = (document.getElementById('touch-ai-input')?.value ?? '').trim();
+      if (!text) { window.App.toast?.('Вставь транскрипт', 'error'); return; }
+
+      const btn   = document.getElementById('touch-ai-btn');
+      const aiSt  = document.getElementById('touch-ai-status');
+      const aiRes = document.getElementById('touch-ai-result');
+      btn.disabled = true; btn.textContent = '⏳ Анализирую...';
+      aiSt.textContent = 'Отправляю запрос...';
+
+      try {
+        const prompt = `Ты помогаешь CSM-менеджеру структурировать апдейт по клиенту.
+
+Текст встречи/звонка: """${text}"""
+
+Верни строго JSON без markdown:
 {
-  "context":  "общий контекст и что обсудили",
-  "tasks":    "конкретные задачи по итогам",
-  "next":     "дальнейшие шаги и договорённости",
-  "strategy": "стратегические заметки (если есть, иначе null)",
-  "outcome":  "ожидаемый результат (если есть, иначе null)",
-  "blockers": "потенциальные блокеры (если есть, иначе null)",
-  "signals":  { /* bCHS сигналы */ },
-  "pc":       { /* PC критерии 1-5 */ },
-  "explanation": "краткий вывод одним предложением"
+  "context":   "общий контекст и что обсудили",
+  "tasks":     "конкретные задачи по итогам",
+  "next":      "дальнейшие шаги и договорённости",
+  "strategy":  "стратегические заметки или null",
+  "outcome":   "ожидаемый результат или null",
+  "blockers":  "потенциальные блокеры или null",
+  "signals":   {},
+  "pc":        {},
+  "explanation": "вывод одним предложением"
 }`;
 
-      const data    = await API.callAI([{ role:'user', content: prompt }], {
-        model: 'deepseek-chat',
-        temperature: 0.3,
-        max_tokens: 1200,
-      });
-      const content = data?.choices?.[0]?.message?.content ?? '';
-      const match   = content.match(/\{[\s\S]*\}/);
-      const parsed  = JSON.parse(match ? match[0] : content);
+        const data    = await API.callAI([{ role:'user', content: prompt }], {
+          model: 'deepseek-chat', temperature: 0.3, max_tokens: 1400,
+        });
+        const content = data?.choices?.[0]?.message?.content ?? '';
+        const match   = content.match(/\{[\s\S]*\}/);
+        parsedAI      = JSON.parse(match ? match[0] : content);
 
-      // Заполняем поля структуры
-      const fill = (id, val) => {
-        const el = document.getElementById(id);
-        if (el && val) el.value = val;
-      };
-      fill('touch-context',  parsed.context);
-      fill('touch-tasks',    parsed.tasks);
-      fill('touch-next',     parsed.next);
-      fill('touch-strategy', parsed.strategy);
-      fill('touch-outcome',  parsed.outcome);
-      fill('touch-blockers', parsed.blockers);
+        // Сохраняем в кэш сразу
+        if (parsedAI.context)  saved['touch-context']  = parsedAI.context;
+        if (parsedAI.tasks)    saved['touch-tasks']     = parsedAI.tasks;
+        if (parsedAI.next)     saved['touch-next']      = parsedAI.next;
+        if (parsedAI.strategy) saved['touch-strategy']  = parsedAI.strategy;
+        if (parsedAI.outcome)  saved['touch-outcome']   = parsedAI.outcome;
+        if (parsedAI.blockers) saved['touch-blockers']  = parsedAI.blockers;
 
-      // Показываем необязательные если AI заполнил
-      if (parsed.strategy || parsed.outcome || parsed.blockers) {
-        optionalVisible = true;
-        const wrap = document.getElementById('touch-optional');
-        const toggleBtn = document.getElementById('touch-toggle-optional');
-        if (wrap) wrap.style.display = 'flex';
-        if (toggleBtn) toggleBtn.textContent = '− Скрыть необязательные поля';
+        const signalCount = Object.values(parsedAI.signals || {}).filter(Boolean).length;
+        aiRes.classList.remove('hidden');
+        aiRes.innerHTML = `
+          <strong>✅ Структура заполнена · ${signalCount} сигналов</strong>
+          ${parsedAI.explanation
+            ? `<div style="margin-top:5px;color:var(--text-muted);font-style:italic">
+                 💡 ${parsedAI.explanation}
+               </div>`
+            : ''}
+          <div style="margin-top:6px;font-size:11px;color:var(--text-muted)">
+            На следующем шаге проверь и дополни
+          </div>`;
+        aiSt.textContent = '✅ готово';
+
+      } catch (e) {
+        aiSt.textContent = '❌ Ошибка';
+        window.App.toast?.('Ошибка AI: ' + e.message, 'error');
+      } finally {
+        btn.disabled = false; btn.textContent = '🤖 Разобрать';
       }
+    });
+  };
 
-      // Сохраняем parsed для сигналов
-      document.getElementById('touch-confirm').dataset.parsed = JSON.stringify(parsed);
+  // ── финальное сохранение ──
+  const _doSave = async () => {
+    const g    = id => (saved[id] ?? '').trim();
+    const type  = g('touch-type') || 'checkin';
+    const month = parseInt(saved['touch-month'] ?? now.getMonth()+1);
+    const year  = parseInt(saved['touch-year']  ?? now.getFullYear());
 
-      const signalCount = Object.values(parsed.signals || {}).filter(Boolean).length;
-      aiRes.classList.remove('hidden');
-      aiRes.innerHTML = `
-        <strong>✅ Структура заполнена · ${signalCount} сигналов</strong>
-        ${parsed.explanation
-          ? `<div style="margin-top:4px;color:var(--text-muted);
-                         font-style:italic">💡 ${parsed.explanation}</div>`
-          : ''}
-        <div style="margin-top:4px;font-size:11px;color:var(--text-muted)">
-          Проверь и скорректируй поля ниже перед сохранением
-        </div>`;
-      aiSt.textContent = `✅ готово`;
-
-    } catch (e) {
-      aiSt.textContent = '❌ Ошибка';
-      window.App.toast('Ошибка AI: ' + e.message, 'error');
-    } finally {
-      btn.disabled = false; btn.textContent = '🤖 Разобрать';
-    }
-  });
-
-  // ── Сохранение ──
-  document.getElementById('touch-confirm')?.addEventListener('click', async () => {
-    const g = id => (document.getElementById(id)?.value ?? '').trim();
-
-    const type      = g('touch-type') || 'checkin';
-    const month     = parseInt(document.getElementById('touch-month')?.value);
-    const year      = parseInt(document.getElementById('touch-year')?.value);
-    const rawParsed = document.getElementById('touch-confirm').dataset.parsed;
-    const parsed    = rawParsed ? JSON.parse(rawParsed) : null;
-
-    // Собираем заметку из всех полей
     const parts = [
       g('touch-context')  && `📋 Контекст:\n${g('touch-context')}`,
       g('touch-tasks')    && `✅ Задачи:\n${g('touch-tasks')}`,
@@ -886,37 +935,31 @@ export const DashboardPage = {
     ].filter(Boolean);
 
     if (!parts.length) {
-      window.App.toast('Заполни хотя бы контекст', 'error');
-      return;
+      window.App.toast?.('Заполни хотя бы контекст на шаге 2', 'error');
+      currentStep = 1; rerender(); return;
     }
 
-    const notes = parts.join('\n\n');
-
-    const saveBtn = document.getElementById('touch-confirm');
-    saveBtn.disabled = true; saveBtn.textContent = '⏳ Сохраняем...';
+    const notes   = parts.join('\n\n');
+    const saveBtn = document.getElementById('tw-save');
+    if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = '⏳ Сохраняем...'; }
 
     try {
       await API.saveTouchPoint({
-        client_id:    clientId,
-        type,
-        completed_at: new Date().toISOString(),
-        notes,
+        client_id: clientId, type,
+        completed_at: new Date().toISOString(), notes,
       });
 
-      // Сохраняем сигналы и PC если AI распознал
-      if (parsed?.signals) {
+      if (parsedAI?.signals) {
         const signalData = {};
         for (const key of Object.keys(SIGNALS)) {
-          signalData[key] = !!(parsed.signals[key]);
+          signalData[key] = !!(parsedAI.signals[key]);
         }
         signalData.status_note = notes;
-
         const pcData = {};
         for (const key of Object.keys(PC_CRITERIA)) {
-          const val = parsed?.pc?.[key];
+          const val = parsedAI?.pc?.[key];
           pcData[key] = (val >= 1 && val <= 5) ? val : null;
         }
-
         await Promise.all([
           API.saveBCHSEntry(clientId, month, year, signalData),
           API.savePCEntry(clientId,   month, year, pcData),
@@ -925,26 +968,24 @@ export const DashboardPage = {
       }
 
       this.touchPoints.push({
-        client_id:    clientId,
-        type,
-        completed_at: new Date().toISOString(),
-        notes,
+        client_id: clientId, type,
+        completed_at: new Date().toISOString(), notes,
       });
 
-      window.App.closeModal();
+      window.App.closeModal?.();
       window.App.toast(
-        parsed?.signals
-          ? '✅ Касание сохранено, сигналы записаны'
-          : '✅ Касание сохранено',
+        parsedAI?.signals ? '✅ Касание сохранено, сигналы записаны' : '✅ Касание сохранено',
         'success'
       );
       await this.load();
 
     } catch (e) {
-      window.App.toast('❌ Ошибка: ' + e.message, 'error');
-      saveBtn.disabled = false;
-      saveBtn.textContent = '✓ Сохранить касание';
+      window.App.toast?.('❌ Ошибка: ' + e.message, 'error');
+      if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = '✓ Сохранить касание'; }
     }
-  });
+  };
+
+  window.App.openModal(buildHTML(), { hideClose: false });
+  bindStep();
 },
 };

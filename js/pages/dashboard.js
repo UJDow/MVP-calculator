@@ -180,7 +180,7 @@ export const DashboardPage = {
     }
 
     const tabs = [
-  { key: 'today',  label: `Сегодня`,    count: null      },
+  { key: 'today',  label: `Сегодня`,    count: undefined },
   { key: 'urgent', label: `Внимание`,   count: urgent    },
   { key: 'touch',  label: `Касания`,    count: needTouch },
   { key: 'all',    label: `Портфель`,   count: total     },
@@ -194,7 +194,7 @@ export const DashboardPage = {
                      background:${this.activeTab === t.key ? '#6366f1' : 'var(--surface)'};
                      color:${this.activeTab === t.key ? '#fff' : 'var(--text-secondary)'};
                      cursor:pointer;transition:all .15s">
-        ${t.label} <span style="opacity:0.75;font-size:11px">${t.count}</span>
+        ${t.label}${t.count != null ? `<span style="opacity:0.75;font-size:11px;margin-left:4px">${t.count}</span>` : ''}
       </button>`).join('');
 
     document.querySelectorAll('.dash-tab').forEach(btn => {
@@ -554,11 +554,10 @@ export const DashboardPage = {
     const urgency = this._touchUrgency(c.id, c.bcg_category, row);
     const isPrimary = urgency === 'immediate';
 
-    const accentColor  = isPrimary ? '#f87171' : '#fbbf24';
-    const bgColor      = isPrimary ? '#fff1f2' : '#fffbeb';
-    const borderColor  = isPrimary ? '#fecaca' : '#fde68a';
-    const badgeColor   = isPrimary ? '#fca5a5' : '#fcd34d';
-    const badgeText    = isPrimary ? 'срочно'  : 'скоро';
+    const accentColor  = isPrimary ? '#e89090' : '#d4a843';
+const bgColor      = isPrimary ? '#fdf4f4' : '#fdfaf0';
+const borderColor  = isPrimary ? '#f0dada' : '#f0e8c0';
+const badgeColor   = isPrimary ? '#f5d5d5' : '#f5e8b0';
 
     const nextAct = this._nextAction(row) ?? 'Записать касание';
     const loyaltyStr = row.loyalty !== null ? `${row.loyalty}%` : '—';
@@ -596,7 +595,7 @@ export const DashboardPage = {
                   data-action="touch"
                   data-id="${c.id}" data-name="${c.name}"
                   style="display:flex;align-items:center;gap:6px;
-                         background:${accentColor};border:none;color:#fff;
+                         background:${accentColor}22;border:1px solid ${accentColor}55;color:${accentColor};
                          border-radius:8px;padding:7px 14px;font-size:12px;
                          font-weight:600;cursor:pointer;transition:opacity .15s"
                   onmouseover="this.style.opacity='.85'"
@@ -622,9 +621,9 @@ export const DashboardPage = {
   const riskCard = (row) => {
     const c = row.client;
     const isHigh = row.riskPct > 30;
-    const accentColor = isHigh ? '#f87171' : '#fbbf24';
-    const bgColor     = isHigh ? '#fff1f2' : '#fffbeb';
-    const borderColor = isHigh ? '#fecaca' : '#fde68a';
+    const accentColor = isHigh ? '#e89090' : '#d4a843';
+const bgColor     = isHigh ? '#fdf4f4' : '#fdfaf0';
+const borderColor = isHigh ? '#f0dada' : '#f0e8c0';
 
     return `
       <div style="display:flex;align-items:center;gap:12px;

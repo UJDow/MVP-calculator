@@ -382,6 +382,37 @@ export const PortfolioPage = {
       document.getElementById('pf-save-btn')
         ?.addEventListener('click', () => this._savePortfolioStrats());
 
+      // KPI expandable cards — clean expand panel
+      {
+        const kpiGrid = document.querySelector('.pf-kpi-grid-new');
+        if (kpiGrid) {
+          const collapse = () => {
+            kpiGrid.querySelectorAll('.pf-kpi-card').forEach(c => {
+              c.classList.remove('pf-kpi-active', 'pf-kpi-dimmed');
+            });
+          };
+
+          // Закрытие по клику вне грида
+          document.addEventListener('click', e => {
+            if (!kpiGrid.contains(e.target)) collapse();
+          });
+
+          kpiGrid.querySelectorAll('.pf-kpi-card').forEach(card => {
+            card.addEventListener('click', e => {
+              if (e.target.closest('.pf-kpi-card-close')) { collapse(); return; }
+              if (card.classList.contains('pf-kpi-active')) { collapse(); return; }
+
+              kpiGrid.querySelectorAll('.pf-kpi-card').forEach(c => {
+                c.classList.remove('pf-kpi-active');
+                c.classList.add('pf-kpi-dimmed');
+              });
+              card.classList.remove('pf-kpi-dimmed');
+              card.classList.add('pf-kpi-active');
+            });
+          });
+        }
+      }
+
       // AI режим тогл
 document.getElementById('pf-ai-mode-sw')
   ?.addEventListener('change', (e) => {
@@ -393,26 +424,22 @@ document.getElementById('pf-ai-mode-sw')
   ['title', 'goal', 'actions', 'metric', 'deadline'].forEach(field => {
     const inp = document.getElementById(`pf-${key}-${field}`);
     if (!inp) return;
-    inp.addEventListener('input', () => {
-      clearTimeout(this._saveTimer);
-      const bar = document.getElementById('pf-manual-save-bar');
-      if (bar) bar.style.display = 'flex';
-      this._saveTimer = setTimeout(() => {
-        this._savePortfolioStrats();
-        if (bar) bar.style.display = 'none';
-        window.App.toast('Автосохранено', 'success');
-      }, 2000);
+    inp.addEventListener("input", () => {
+      const saveBtn = document.getElementById(`pf-save-btn-${key}`);
+      if (saveBtn) saveBtn.style.display = 'inline-flex';
     });
   });
 });
 
 // Ручное сохранение
-document.getElementById('pf-save-btn')
-  ?.addEventListener('click', () => {
-    this._savePortfolioStrats();
-    const bar = document.getElementById('pf-manual-save-bar');
-    if (bar) bar.style.display = 'none';
-  });
+['short', 'mid', 'long'].forEach(key => {
+  document.getElementById(`pf-save-btn-${key}`)
+    ?.addEventListener('click', () => {
+      this._savePortfolioStrats();
+      const saveBtn = document.getElementById(`pf-save-btn-${key}`);
+      if (saveBtn) saveBtn.style.display = 'none';
+    });
+});
 
 
     } catch (e) {
@@ -448,79 +475,94 @@ document.getElementById('pf-save-btn')
   },
 
   _summaryHTML(s) {
-    const loyaltyColor = s.avgLoyalty === null ? 'var(--text-primary)'
+    const loyaltyColor = s.avgLoyalty === null ? '#6b7280'
       : s.avgLoyalty >= 70 ? '#10b981'
       : s.avgLoyalty >= 50 ? '#f59e0b' : '#ef4444';
     const riskColor = s.totalRisk === 0 ? '#10b981'
       : s.totalRisk > 50000 ? '#ef4444' : '#f59e0b';
-    const potColor = s.avgPotential === null ? 'var(--text-primary)'
+    const potColor = s.avgPotential === null ? '#6b7280'
       : s.avgPotential >= 85 ? '#10b981'
       : s.avgPotential >= 65 ? '#f59e0b' : '#ef4444';
 
-    const bcgRows = Object.entries(s.bcgCount).map(([key, count]) => {
+    const bcgTotal = Object.values(s.bcgCount).reduce((a,b) => a+b, 0) || 1;
+    const bcgBars = Object.entries(s.bcgCount).map(([key, count]) => {
       const c = BCG_CFG[key];
-      return `<div style="display:flex;align-items:center;justify-content:space-between;
-                          margin-bottom:3px">
-        <span style="font-size:11px;color:${c.color};font-weight:600">${c.label}</span>
-        <span style="font-size:12px;font-weight:700;color:var(--text-primary)">${count}</span>
+      const w = Math.round(count / bcgTotal * 100);
+      return `<div class="kpi-det-row">
+        <span class="kpi-det-label" style="color:${c.color}">${c.label}</span>
+        <div class="kpi-det-bar-wrap">
+          <div class="kpi-det-bar" style="width:${w}%;background:${c.color};opacity:0.18;border-radius:3px;"></div>
+        </div>
+        <span class="kpi-det-count">${count}</span>
       </div>`;
     }).join('');
 
     const top3rows = s.top3Risk.length
-      ? s.top3Risk.map(r => `
-          <div style="display:flex;justify-content:space-between;
-                      align-items:center;margin-bottom:4px">
-            <span style="font-size:12px;color:var(--text-primary);
-                         font-weight:500">${r.name}</span>
-            <span style="font-size:11px;color:#ef4444;font-weight:600">
+      ? s.top3Risk.map((r, i) => `
+        <div class="kpi-det-row">
+          <span class="kpi-det-num">${i+1}</span>
+          <span class="kpi-det-name">${r.name}</span>
+          <span class="kpi-det-risk">$${r.risk.toLocaleString('ru-RU')}</span>
+          <span class="kpi-det-pct">${r.pct}%</span>
+        </div>`).join('')
+      : `<div style="font-size:12px;color:var(--text-muted);padding:8px 0">Нет рисков</div>`;
 
-              $${r.risk.toLocaleString('ru-RU')} · ${r.pct}%
-            </span>
-          </div>`).join('')
-      : `<div style="font-size:12px;color:var(--text-muted)">Нет рисков</div>`;
+    const cards = [
+      {
+        id: 'clients',
+        label: 'Клиентов',
+        value: s.total,
+        hint: 'в портфеле',
+        valueColor: 'var(--text-primary)',
+        detail: `<div class="kpi-det-title">BCG распределение</div>${bcgBars}`,
+      },
+      {
+        id: 'loyalty',
+        label: 'Лояльность',
+        value: s.avgLoyalty !== null ? s.avgLoyalty + '%' : '—',
+        hint: 'средняя по портфелю',
+        valueColor: loyaltyColor,
+        detail: `<div class="kpi-det-title">По зонам лояльности</div>
+          <div class="kpi-det-row"><span class="kpi-det-label">Ниже 50%</span>
+            <span class="kpi-det-risk" style="color:#ef4444">${s.bcgCount.TAIL || 0} кл.</span></div>
+          <div class="kpi-det-row"><span class="kpi-det-label">50–70%</span>
+            <span class="kpi-det-risk" style="color:#f59e0b">${(s.bcgCount.GROWTH_EARLY||0)+(s.bcgCount.GROWTH||0)} кл.</span></div>
+          <div class="kpi-det-row"><span class="kpi-det-label">Выше 70%</span>
+            <span class="kpi-det-risk" style="color:#10b981">${(s.bcgCount.KEY||0)+(s.bcgCount.STABLE||0)} кл.</span></div>`,
+      },
+      {
+        id: 'risk',
+        label: 'Revenue at Risk',
+        value: '$' + s.totalRisk.toLocaleString('ru-RU'),
+        hint: 'суммарно',
+        valueColor: riskColor,
+        detail: `<div class="kpi-det-title">Топ-3 риска</div>${top3rows}`,
+      },
+      {
+        id: 'potential',
+        label: 'Реализация',
+        value: s.avgPotential !== null ? s.avgPotential + '%' : '—',
+        hint: 'от потенциала',
+        valueColor: potColor,
+        detail: `<div class="kpi-det-title">Потенциал портфеля</div>
+          <div class="kpi-det-row"><span class="kpi-det-label">Реализовано</span>
+            <span class="kpi-det-risk" style="color:${potColor}">${s.avgPotential !== null ? s.avgPotential+'%' : '—'}</span></div>
+          <div class="kpi-det-row"><span class="kpi-det-label">Недореализовано</span>
+            <span class="kpi-det-risk">${s.avgPotential !== null ? (100-s.avgPotential)+'%' : '—'}</span></div>`,
+      },
+    ];
 
-    return `
-      <div>
-        <div class="pf-section-title" style="margin-bottom:14px">
-          Аналитическая сводка
+    const cardsHTML = cards.map(c => `
+      <div class="pf-kpi-card" data-card="${c.id}">
+        <div class="pf-kpi-card-collapsed">
+          <div class="pf-kpi-card-label">${c.label}</div>
+          <div class="pf-kpi-card-value" style="color:${c.valueColor}">${c.value}</div>
+          <div class="pf-kpi-card-hint">${c.hint}</div>
         </div>
-        <div class="pf-kpi-grid">
-          <div class="pf-kpi-cell">
-            <div class="pf-kpi-label">Клиентов</div>
-            <div class="pf-kpi-val">${s.total}</div>
-          </div>
-          <div class="pf-kpi-cell">
-            <div class="pf-kpi-label">Лояльность</div>
-            <div class="pf-kpi-val" style="color:${loyaltyColor}">
-              ${s.avgLoyalty !== null ? s.avgLoyalty + '%' : '—'}
-            </div>
-            <div class="pf-kpi-sub">средняя по портфелю</div>
-          </div>
-          <div class="pf-kpi-cell">
-            <div class="pf-kpi-label">Revenue at Risk</div>
-            <div class="pf-kpi-val" style="color:${riskColor}">
+        <div class="pf-kpi-card-detail" style="display:none">${c.detail}</div>
+      </div>`).join('');
 
-              $${s.totalRisk.toLocaleString('ru-RU')}
-            </div>
-            <div class="pf-kpi-sub">суммарно</div>
-          </div>
-          <div class="pf-kpi-cell">
-            <div class="pf-kpi-label">Реализация</div>
-            <div class="pf-kpi-val" style="color:${potColor}">
-              ${s.avgPotential !== null ? s.avgPotential + '%' : '—'}
-            </div>
-            <div class="pf-kpi-sub">от потенциала</div>
-          </div>
-          <div class="pf-kpi-cell">
-            <div class="pf-kpi-label">BCG распределение</div>
-            <div style="margin-top:6px">${bcgRows}</div>
-          </div>
-          <div class="pf-kpi-cell">
-            <div class="pf-kpi-label">Топ-3 риска</div>
-            <div style="margin-top:6px">${top3rows}</div>
-          </div>
-        </div>
-      </div>`;
+    return `<div class="pf-kpi-grid-new">${cardsHTML}</div>`;
   },
 
   _horizonFormHTML(key, label, period, dotColor, saved) {
@@ -532,6 +574,10 @@ document.getElementById('pf-save-btn')
             <div class="pf-horizon-dot" style="background:${dotColor}"></div>
             ${label}
             <span class="pf-horizon-period">${period}</span>
+          </div>
+          <div class="pf-horizon-actions">
+            <button class="pf-horizon-save-btn" id="pf-save-btn-${key}"
+                    style="display:none">Сохранить</button>
           </div>
         </div>
         <div class="pf-horizon-body">
@@ -591,162 +637,15 @@ document.getElementById('pf-save-btn')
     }
   },
 
-  /* ── AI horizon ── */
-  async _aiHorizon(key, summary, computed) {
-    const btn = document.getElementById(`pf-ai-btn-${key}`);
-    if (btn) { btn.disabled = true; btn.innerHTML = `${ic.ai} Генерирую...`; }
-
-    const horizonLabels = {
-      short: 'Краткосрочная (1 месяц)',
-      mid:   'Среднесрочная (1–2 квартала)',
-      long:  'Долгосрочная (4 квартала)',
-    };
-
-    const direction = await this._askDirection();
-    if (direction === null) {
-      if (btn) { btn.disabled = false; btn.innerHTML = `${ic.ai} AI варианты`; }
-      return;
-    }
-
-    try {
-      const clientsSnapshot = (computed || [])
-        .filter(r => r.bchs !== null)
-        .sort((a, b) => (b.revenueAtRisk || 0) - (a.revenueAtRisk || 0))
-        .slice(0, 10)
-        .map(r => ({
-          name:  r.client.name,
-          bcg:   r.client.bcg_category,
-          bchs:  r.bchs,
-          trend: r.trend?.label ?? '—',
-          mr:    r.client.monthly_revenue || 0,
-          risk:  r.revenueAtRisk || 0,
-        }));
-
-      const data = await API.callAI({
-        type: 'horizon', horizon: key, direction, max_tokens: 1800,
-        summary: {
-          total:        summary.total,
-          avgLoyalty:   summary.avgLoyalty,
-          totalRisk:    summary.totalRisk,
-          bcgCount:     summary.bcgCount,
-          top3Risk:     summary.top3Risk.map(r =>
-            `${r.name} ($${r.risk.toLocaleString('ru-RU')}, ${r.pct}%)`
-          ).join('; ') || 'нет',
-          avgPotential: summary.avgPotential,
-        },
-        clients_snapshot:    clientsSnapshot,
-        existing_strategies: this._portfolioData,
-      });
-
-      const content  = data?.choices?.[0]?.message?.content ?? '';
-      if (!content) throw new Error('Пустой ответ от AI');
-      const match    = content.match(/\{[\s\S]*\}/);
-      const parsed   = JSON.parse(match ? match[0] : content);
-      const variants = parsed.variants ?? [];
-      if (!variants.length) throw new Error('AI не вернул варианты');
-
-      this._showVariantPicker(variants, (chosen) => {
-  const titleEl   = document.getElementById(`pf-${key}-title`);
-  const goalEl    = document.getElementById(`pf-${key}-goal`);
-  const actionsEl = document.getElementById(`pf-${key}-actions`);
-  const metricEl  = document.getElementById(`pf-${key}-metric`);
-  if (titleEl)   titleEl.value   = chosen.title   || chosen.name   || '';
-  if (goalEl)    goalEl.value    = chosen.goal     || '';
-  if (actionsEl) actionsEl.value = chosen.actions  || '';
-  if (metricEl)  metricEl.value  = chosen.metric   || chosen.success_metric || '';
-});
-
-    } catch (e) {
-      window.App.toast('Ошибка AI: ' + e.message, 'error');
-    } finally {
-      if (btn) { btn.disabled = false; btn.innerHTML = `${ic.ai} AI варианты`; }
-    }
-  },
 
   /* ── Direction picker ── */
-  _askDirection() {
-    return new Promise(resolve => {
-      const opts = [
-        { id: 'retention',    icon: '🛡', label: 'Удержание',  hint: 'Снизить риски оттока, укрепить отношения' },
-        { id: 'growth',       icon: '↗',  label: 'Рост',       hint: 'Апсейл, расширение услуг, новые возможности' },
-        { id: 'optimization', icon: '⚡', label: 'Оптимизация',hint: 'Эффективность команды и процессов' },
-        { id: 'custom',       icon: '✎',  label: 'Своё',       hint: 'Опиши направление самостоятельно' },
-      ];
-
-      const hints  = { retention:'Снизить риски оттока, укрепить отношения', growth:'Апсейл, расширение услуг', optimization:'Эффективность команды и процессов', custom:'' };
-      const labels = { retention:'Удержание', growth:'Рост', optimization:'Оптимизация', custom:'Своё' };
-
-      window.App.openModal(`
-        <div style="padding:24px;max-width:460px;width:100%;box-sizing:border-box">
-          <div class="pf-modal-head">Выбери направление стратегии</div>
-          <div class="pf-modal-sub">AI сгенерирует 3 варианта под выбранное направление</div>
-
-          <div id="dir-cards" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;
-                                     margin-bottom:16px">
-            ${opts.map(o => `
-              <div class="pf-dir-card" data-id="${o.id}">
-                <div class="pf-dir-icon">${o.icon}</div>
-                <div class="pf-dir-label">${o.label}</div>
-                <div class="pf-dir-hint">${o.hint}</div>
-              </div>`).join('')}
-          </div>
-
-          <div id="dir-text-wrap" style="display:none">
-            <div id="dir-selected-label"
-                 style="font-size:13px;font-weight:700;color:#6366f1;
-                        margin-bottom:10px"></div>
-            <textarea id="dir-custom-input"
-                      style="width:100%;box-sizing:border-box;min-height:100px;
-                             border:1.5px solid #6366f1;border-radius:8px;
-                             padding:10px 12px;font-size:13px;font-family:inherit;
-                             resize:vertical;background:#fafafa"
-                      placeholder="Уточни или измени направление..."></textarea>
-            <div style="display:flex;gap:8px;margin-top:12px">
-              <button id="dir-confirm" class="pf-btn pf-btn-primary" style="flex:1">
-                Генерировать
-              </button>
-              <button id="dir-back" class="pf-btn pf-btn-secondary">Назад</button>
-              <button id="dir-cancel" class="pf-btn pf-btn-secondary">${ic.close}</button>
-            </div>
-          </div>
-        </div>`);
-
-      document.querySelectorAll('.pf-dir-card').forEach(card => {
-        card.addEventListener('click', () => {
-          const id    = card.dataset.id;
-          const wrap  = document.getElementById('dir-text-wrap');
-          const lbl   = document.getElementById('dir-selected-label');
-          const input = document.getElementById('dir-custom-input');
-          document.getElementById('dir-cards').style.display = 'none';
-          lbl.textContent = labels[id];
-          input.value     = id === 'custom' ? '' : hints[id];
-          wrap.style.display = 'block';
-          input.focus();
-
-          document.getElementById('dir-back').onclick = () => {
-            wrap.style.display = 'none';
-            document.getElementById('dir-cards').style.display = 'grid';
-          };
-          document.getElementById('dir-confirm').onclick = () => {
-            const val = input.value.trim();
-            window.App.closeModal?.();
-            resolve(val || hints[id] || id);
-          };
-          document.getElementById('dir-cancel').onclick = () => {
-            window.App.closeModal?.();
-            resolve(null);
-          };
-        });
-      });
-    });
-  },
 
   _setAiMode(enabled, summary, computed) {
   ['short', 'mid', 'long'].forEach(key => {
     const existing = document.getElementById(`pf-ai-gen-btn-${key}`);
     if (enabled && !existing) {
-      const head = document.querySelector(`#pf-horizon-${key} .pf-horizon-head`);
-      if (!head) return;
+      const actions = document.querySelector(`#pf-horizon-${key} .pf-horizon-actions`);
+      if (!actions) return;
       const btn = document.createElement('button');
       btn.id = `pf-ai-gen-btn-${key}`;
       btn.className = 'pf-ai-gen-btn';
@@ -759,73 +658,229 @@ document.getElementById('pf-save-btn')
         Сгенерировать
       `;
       btn.onclick = () => this._aiHorizon(key, summary, computed);
-      head.appendChild(btn);
+      actions.appendChild(btn);
     } else if (!enabled && existing) {
       existing.remove();
     }
   });
 },
 
+  async _aiHorizon(key, summary, computed) {
+    const genBtn = document.getElementById(`pf-ai-gen-btn-${key}`);
+    if (genBtn) { genBtn.disabled = true; genBtn.textContent = 'Генерирую...'; }
 
-  /* ── Variant picker ── */
-  _showVariantPicker(variants, onSelect) {
-  document.getElementById('pf-variant-picker')?.remove();
-
-  const items = variants.map((v, i) => `
-    <label class="variant-toggle-row" for="vt-${i}">
-      <div class="variant-toggle-content">
-        <div class="variant-toggle-title">${v.name || v.title || `Вариант ${i+1}`}</div>
-        <div class="variant-toggle-text">${v.goal || v.text || ''}</div>
+    document.getElementById('pf-variant-picker')?.remove();
+    const el = document.createElement('div');
+    el.id = 'pf-variant-picker';
+    el.innerHTML = `
+      <div class="variant-picker-backdrop"></div>
+      <div class="variant-picker-panel">
+        <div class="variant-picker-header">
+          <span>AI варианты</span>
+          <button class="variant-picker-close"
+            onclick="document.getElementById('pf-variant-picker').remove()">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+                 stroke="currentColor" stroke-width="2">
+              <line x1="18" y1="6" x2="6" y2="18"/>
+              <line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
+        </div>
+        <div class="variant-picker-body" id="vp-body">
+          <div class="vp-direction-label">Выбери направление</div>
+          <div class="vp-dir-grid">
+            <button class="vp-dir-btn vp-dir-retention" data-dir="retention">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+              </svg>
+              Удержание
+            </button>
+            <button class="vp-dir-btn vp-dir-growth" data-dir="growth">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/>
+                <polyline points="17 6 23 6 23 12"/>
+              </svg>
+              Рост
+            </button>
+            <button class="vp-dir-btn vp-dir-optimization" data-dir="optimization">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="4" y1="21" x2="4" y2="14"/>
+                <line x1="4" y1="10" x2="4" y2="3"/>
+                <line x1="12" y1="21" x2="12" y2="12"/>
+                <line x1="12" y1="8" x2="12" y2="3"/>
+                <line x1="20" y1="21" x2="20" y2="16"/>
+                <line x1="20" y1="12" x2="20" y2="3"/>
+                <line x1="1" y1="14" x2="7" y2="14"/>
+                <line x1="9" y1="8" x2="15" y2="8"/>
+                <line x1="17" y1="16" x2="23" y2="16"/>
+              </svg>
+              Оптимизация
+            </button>
+            <button class="vp-dir-btn vp-dir-custom" data-dir="custom">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 20h9"/>
+                <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
+              </svg>
+              Своё
+            </button>
+          </div>
+          <textarea id="vp-custom-text" class="vp-custom-textarea"
+                    placeholder="Опиши направление..." style="display:none"></textarea>
+          <button class="vp-generate-btn" id="vp-gen-btn" disabled>
+            Сгенерировать варианты
+          </button>
+        </div>
       </div>
-      <div class="toggle-switch">
-        <input type="radio" name="variant-pick" id="vt-${i}" value="${i}" ${i===0?'checked':''}>
-        <span class="toggle-track"></span>
-      </div>
-    </label>
-  `).join('');
+    `;
+    document.body.appendChild(el);
+    requestAnimationFrame(() =>
+      el.querySelector('.variant-picker-panel').classList.add('visible')
+    );
 
-  const el = document.createElement('div');
-  el.id = 'pf-variant-picker';
-  el.innerHTML = `
-    <div class="variant-picker-backdrop"></div>
-    <div class="variant-picker-panel">
-      <div class="variant-picker-header">
-        <span>AI варианты</span>
-        <button class="variant-picker-close"
-          onclick="document.getElementById('pf-variant-picker').remove()">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+    const restoreGenBtn = () => {
+      if (genBtn) {
+        genBtn.disabled = false;
+        genBtn.innerHTML = `
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
                stroke="currentColor" stroke-width="2">
-            <line x1="18" y1="6" x2="6" y2="18"/>
-            <line x1="6" y1="6" x2="18" y2="18"/>
+            <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77
+                     l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
           </svg>
-        </button>
-      </div>
-      <div class="variant-picker-list">${items}</div>
-      <div class="variant-picker-footer">
-        <button class="variant-apply-btn" id="variant-apply-btn">Применить</button>
-      </div>
-    </div>
-  `;
-  document.body.appendChild(el);
+          Сгенерировать`;
+      }
+    };
 
-  requestAnimationFrame(() =>
-    el.querySelector('.variant-picker-panel').classList.add('visible')
-  );
+    el.querySelector('.variant-picker-backdrop').onclick = () => {
+      el.remove();
+      restoreGenBtn();
+    };
 
-  document.getElementById('variant-apply-btn').onclick = () => {
-    const checked = el.querySelector('input[name="variant-pick"]:checked');
-    if (checked) onSelect(variants[+checked.value]);
-    el.remove();
-  };
-  el.querySelector('.variant-picker-backdrop').onclick = () => el.remove();
-},
+    let selectedDir = null;
+    el.querySelectorAll('.vp-dir-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        el.querySelectorAll('.vp-dir-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        selectedDir = btn.dataset.dir;
+        const customArea = document.getElementById('vp-custom-text');
+        if (selectedDir === 'custom') {
+          customArea.style.display = 'block';
+          customArea.focus();
+        } else {
+          customArea.style.display = 'none';
+        }
+        document.getElementById('vp-gen-btn').disabled = false;
+      });
+    });
 
+    document.getElementById('vp-gen-btn').addEventListener('click', async () => {
+      const direction = selectedDir === 'custom'
+        ? (document.getElementById('vp-custom-text')?.value.trim() || 'custom')
+        : selectedDir;
 
+      const body = document.getElementById('vp-body');
+      body.innerHTML = `
+        <div class="vp-loading">
+          <div class="vp-spinner"></div>
+          <div class="vp-loading-text">Генерирую варианты...</div>
+        </div>
+      `;
 
-  /* ══════════════════════════════════════════
-     ТАБ 2 — СТРАТЕГИЯ ПО АККАУНТАМ
-  ══════════════════════════════════════════ */
+      try {
+        const clientsSnapshot = (computed || [])
+          .filter(r => r.bchs !== null)
+          .sort((a, b) => (b.revenueAtRisk || 0) - (a.revenueAtRisk || 0))
+          .slice(0, 10)
+          .map(r => ({
+            name:  r.client.name,
+            bcg:   r.client.bcg_category,
+            bchs:  r.bchs,
+            trend: r.trend?.label ?? '—',
+            mr:    r.client.monthly_revenue || 0,
+            risk:  r.revenueAtRisk || 0,
+          }));
+
+        const data = await API.callAI({
+          type: 'horizon', horizon: key, direction, max_tokens: 1800,
+          summary: {
+            total:        summary.total,
+            avgLoyalty:   summary.avgLoyalty,
+            totalRisk:    summary.totalRisk,
+            bcgCount:     summary.bcgCount,
+            top3Risk:     summary.top3Risk.map(r =>
+              `${r.name} ($${r.risk.toLocaleString('ru-RU')}, ${r.pct}%)`
+            ).join('; ') || 'нет',
+            avgPotential: summary.avgPotential,
+          },
+          clients_snapshot:    clientsSnapshot,
+          existing_strategies: this._portfolioData,
+        });
+
+        const content  = data?.choices?.[0]?.message?.content ?? '';
+        if (!content) throw new Error('Пустой ответ от AI');
+        const match    = content.match(/\{[\s\S]*\}/);
+        const parsed   = JSON.parse(match ? match[0] : content);
+        const variants = parsed.variants ?? [];
+        if (!variants.length) throw new Error('AI не вернул варианты');
+
+        const items = variants.map((v, i) => `
+          <label class="variant-toggle-row" for="vt-${i}">
+            <div class="variant-toggle-content">
+              <div class="variant-toggle-title">${v.name || v.title || 'Вариант ' + (i+1)}</div>
+              <div class="variant-toggle-text">${v.goal || v.text || ''}</div>
+            </div>
+            <div class="toggle-switch">
+              <input type="radio" name="variant-pick" id="vt-${i}"
+                     value="${i}" ${i===0?'checked':''}>
+              <span class="toggle-track"></span>
+            </div>
+          </label>
+        `).join('');
+
+        body.innerHTML = `
+          <div class="variant-picker-list">${items}</div>
+          <div class="variant-picker-footer">
+            <button class="variant-apply-btn" id="variant-apply-btn">Применить</button>
+          </div>
+        `;
+
+        document.getElementById('variant-apply-btn').onclick = () => {
+          const checked = el.querySelector('input[name="variant-pick"]:checked');
+          if (checked) {
+            const chosen    = variants[+checked.value];
+            const titleEl   = document.getElementById(`pf-${key}-title`);
+            const goalEl    = document.getElementById(`pf-${key}-goal`);
+            const actionsEl = document.getElementById(`pf-${key}-actions`);
+            const metricEl  = document.getElementById(`pf-${key}-metric`);
+            if (titleEl)   titleEl.value   = chosen.title   || chosen.name || '';
+            if (goalEl)    goalEl.value    = chosen.goal    || '';
+            if (actionsEl) actionsEl.value = chosen.actions || '';
+            if (metricEl)  metricEl.value  = chosen.metric  || chosen.success_metric || '';
+            const bar = document.getElementById('pf-manual-save-bar');
+            if (bar) bar.style.display = 'flex';
+          }
+          el.remove();
+          restoreGenBtn();
+        };
+
+      } catch(e) {
+        body.innerHTML = `
+          <div class="vp-error">
+            <div class="vp-error-text">${e.message}</div>
+            <button class="vp-retry-btn"
+              onclick="document.getElementById('pf-variant-picker').remove()">
+              Закрыть
+            </button>
+          </div>
+        `;
+        restoreGenBtn();
+      }
+    });
+
+    restoreGenBtn();
+  },
+
   async _renderAccountsTab() {
+
     const el = document.getElementById('pf-tab-accounts');
     el.innerHTML = `<div style="padding:40px;text-align:center;color:var(--text-muted);
                                 font-size:13px">Загрузка аккаунтов...</div>`;

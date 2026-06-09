@@ -14,7 +14,7 @@ export const DashboardPage = {
   computed:    [],
   touchPoints: [],
   expandedId:  null,
-  activeTab:   'all',  /* all | urgent | touch */
+  activeTab:   'today',
   searchQ:     '',
 
   async render() {
@@ -180,10 +180,11 @@ export const DashboardPage = {
     }
 
     const tabs = [
-      { key: 'all',    label: `Все`,          count: total   },
-      { key: 'urgent', label: `🔴 Внимание`,  count: urgent  },
-      { key: 'touch',  label: `📍 Касания`,   count: needTouch },
-    ];
+  { key: 'today',  label: `Сегодня`,    count: null      },
+  { key: 'urgent', label: `Внимание`,   count: urgent    },
+  { key: 'touch',  label: `Касания`,    count: needTouch },
+  { key: 'all',    label: `Портфель`,   count: total     },
+];
 
     document.getElementById('dash-tabs').innerHTML = tabs.map(t => `
       <button class="dash-tab${this.activeTab === t.key ? ' active' : ''}"
@@ -234,9 +235,14 @@ export const DashboardPage = {
 
   /* ── Рендер списка ── */
   renderList() {
-    const rows = this.filtered();
+  if (this.activeTab === 'today') {
+    this._renderToday();
+    return;
+  }
 
-    if (rows.length === 0) {
+  const rows = this.filtered();
+
+  if (rows.length === 0) {
       document.getElementById('dash-body').innerHTML = `
         <div class="empty-state">
           <div class="empty-state-icon">✅</div>

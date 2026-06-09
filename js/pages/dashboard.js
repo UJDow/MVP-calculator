@@ -558,6 +558,7 @@ export const DashboardPage = {
 const bgColor      = isPrimary ? '#fdf4f4' : '#fdfaf0';
 const borderColor  = isPrimary ? '#f0dada' : '#f0e8c0';
 const badgeColor   = isPrimary ? '#f5d5d5' : '#f5e8b0';
+const badgeText    = isPrimary ? 'срочно'  : 'скоро';
 
     const nextAct = this._nextAction(row) ?? 'Записать касание';
     const loyaltyStr = row.loyalty !== null ? `${row.loyalty}%` : '—';

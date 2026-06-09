@@ -624,15 +624,16 @@ export const DashboardPage = {
         text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;display:block
       }
       .tw-field { display:flex;flex-direction:column }
-      .tw-textarea {
+            .tw-textarea {
   width:100%;box-sizing:border-box;
-  resize:none;overflow:hidden;
+  resize:none;overflow-y:auto;
   font-size:13px;line-height:1.6;
   border:1.5px solid #e2e8f0;border-radius:10px;
   padding:12px 14px;background:#f8fafc;
   transition:border-color .15s, background .15s;
-  font-family:inherit;min-height:80px;
-  field-sizing:content;
+  font-family:inherit;
+  min-height:80px;
+  max-height:220px;
 }
 .tw-textarea:focus {
   border-color:#6366f1;outline:none;
@@ -687,9 +688,9 @@ export const DashboardPage = {
 
       <div class="tw-field">
         <label class="tw-label">Транскрипт или заметки</label>
-        <textarea id="touch-ai-input" class="tw-textarea"
-          rows="10"
-          placeholder="Вставь транскрипт Bluedot, заметки после звонка или просто опиши своими словами что произошло...
+                <textarea id="touch-ai-input" class="tw-textarea"
+          style="min-height:120px;max-height:320px"
+          placeholder="Вставь транскрипт Bluedot..."></textarea>
 
 AI сам разберёт структуру, выделит задачи, шаги и сигналы по клиенту."></textarea>
       </div>
@@ -960,10 +961,13 @@ AI сам разберёт структуру, выделит задачи, ша
     });
 
         // ── авторесайз — всегда после рендера ──
-    document.querySelectorAll('.tw-textarea').forEach(el => {
+        document.querySelectorAll('.tw-textarea').forEach(el => {
       const resize = () => {
         el.style.height = 'auto';
-        el.style.height = el.scrollHeight + 'px';
+        const max = 220;
+        const next = Math.min(el.scrollHeight, max);
+        el.style.height = next + 'px';
+        el.style.overflowY = el.scrollHeight > max ? 'auto' : 'hidden';
       };
       resize();
       el.addEventListener('input', resize);

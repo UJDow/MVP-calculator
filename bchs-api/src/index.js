@@ -21,9 +21,11 @@ function buildMessages(body) {
     return [
       {
         role: 'system',
-        content:
-          'Ты CSM-аналитик. Анализируй текст статуса клиента. ' +
-          'Отвечай ТОЛЬКО валидным JSON без markdown и без пояснений.',
+              content:
+        'Ты CSM-аналитик. Разбираешь транскрипт встречи или звонка с клиентом. ' +
+        'Выставляй сигнал true если есть хотя бы косвенное упоминание или намёк — ' +
+        'лучше выставить лишний сигнал чем пропустить важный. ' +
+        'Отвечай ТОЛЬКО валидным JSON без markdown и без пояснений.',
       },
       {
         role: 'user',
@@ -188,41 +190,41 @@ if (type === 'touch') {
         `  "outcome":     "ожидаемый результат, или null",\n` +
         `  "blockers":    "блокеры и риски, или null",\n` +
                 `  "signals": {\n` +
-        `    "team_scope_request":      false,\n` +
-        `    "new_services_interest":   false,\n` +
-        `    "strategic_sessions":      false,\n` +
-        `    "fast_responses":          false,\n` +
-        `    "internal_events":         false,\n` +
-        `    "shared_business_plans":   false,\n` +
-        `    "contract_renewal":        false,\n` +
-        `    "upsell":                  false,\n` +
-        `    "cross_sell":              false,\n` +
-        `    "positive_feedback":       false,\n` +
-        `    "slow_responses":          false,\n` +
-        `    "missed_meetings":         false,\n` +
-        `    "no_planning":             false,\n` +
-        `    "detailed_report_request": false,\n` +
-        `    "scope_reduction":         false,\n` +
-        `    "competitor_mentions":     false,\n` +
-        `    "new_decision_maker":      false,\n` +
-        `    "exit_questions":          false,\n` +
-        `    "reduced_frequency":       false,\n` +
-        `    "no_growth_response":      false,\n` +
-        `    "complaint":               false,\n` +
-        `    "payment_delay_10_30":     false,\n` +
-        `    "specialist_replacement":  false,\n` +
-        `    "escalation":              false,\n` +
-        `    "payment_delay_30plus":    false,\n` +
-        `    "churn":                   false\n` +
+        `    "team_scope_request":      false,  // расширение команды, скоупа, новые задачи\n` +
+        `    "new_services_interest":   false,  // интерес к новым продуктам или услугам\n` +
+        `    "strategic_sessions":      false,  // стратегические встречи, планирование\n` +
+        `    "fast_responses":          false,  // высокая вовлечённость, быстро отвечают\n` +
+        `    "internal_events":         false,  // приглашение на мероприятия клиента\n` +
+        `    "shared_business_plans":   false,  // совместное планирование, бизнес-планы\n` +
+        `    "contract_renewal":        false,  // продление контракта, пролонгация\n` +
+        `    "upsell":                  false,  // увеличение объёма, апселл\n` +
+        `    "cross_sell":              false,  // новые направления, кросс-продажи\n` +
+        `    "positive_feedback":       false,  // доволен, хвалит, NPS высокий\n` +
+        `    "slow_responses":          false,  // медленно отвечают, низкая активность\n` +
+        `    "missed_meetings":         false,  // пропустили встречу, перенесли\n` +
+        `    "no_planning":             false,  // отказ от планирования, не хотят встречаться\n` +
+        `    "detailed_report_request": false,  // запрос детальных отчётов, недоверие\n` +
+        `    "scope_reduction":         false,  // сокращение объёма, урезание бюджета\n` +
+        `    "competitor_mentions":     false,  // упоминание конкурентов, сравнение\n` +
+        `    "new_decision_maker":      false,  // новый ЛПР, смена контакта\n` +
+        `    "exit_questions":          false,  // вопросы о выходе, расторжении\n` +
+        `    "reduced_frequency":       false,  // снижение частоты встреч\n` +
+        `    "no_growth_response":      false,  // игнорируют предложения роста\n` +
+        `    "complaint":               false,  // жалоба, недовольство\n` +
+        `    "payment_delay_10_30":     false,  // задержка оплаты 10-30 дней\n` +
+        `    "specialist_replacement":  false,  // замена специалиста по инициативе клиента\n` +
+        `    "escalation":              false,  // эскалация до топ-менеджмента\n` +
+        `    "payment_delay_30plus":    false,  // задержка оплаты 30+ дней\n` +
+        `    "churn":                   false   // отток, завершение контракта\n` +
         `  },\n` +
                 `  "pc": {\n` +
-        `    "people_count":       null,\n` +
-        `    "project_complexity": null,\n` +
-        `    "reporting":          null,\n` +
-        `    "risk_probability":   null,\n` +
-        `    "risk_consequences":  null,\n` +
-        `    "face_role":          null,\n` +
-        `    "emotional_load":     null\n` +
+        `    "people_count":       null,  // 1-5: размер команды клиента, сколько людей задействовано\n` +
+        `    "project_complexity": null,  // 1-5: насколько сложный проект, много ли технических деталей\n` +
+        `    "reporting":          null,  // 1-5: объём отчётности, насколько много запросов по отчётам\n` +
+        `    "risk_probability":   null,  // 1-5: вероятность рисков по проекту\n` +
+        `    "risk_consequences":  null,  // 1-5: насколько критичны последствия если что-то пойдёт не так\n` +
+        `    "face_role":          null,  // 1-5: насколько важна роль лица компании в этом клиенте\n` +
+        `    "emotional_load":     null   // 1-5: эмоциональная нагрузка на команду от этого клиента\n` +
         `  },\n` +
         `  "explanation": "1-2 предложения почему выставлены эти сигналы"\n` +
         `}`,

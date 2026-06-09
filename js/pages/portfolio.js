@@ -353,33 +353,67 @@ export const PortfolioPage = {
       });
 
       el.innerHTML = `
-        ${this._summaryHTML(summary)}
+  ${this._summaryHTML(summary)}
 
-        <div class="pf-section-head" style="margin-top:28px">
-          <div class="pf-section-title">Стратегические горизонты</div>
-          <button class="pf-btn pf-btn-primary" id="pf-save-btn">
-            ${ic.save} Сохранить всё
-          </button>
-        </div>
+  <div class="pf-section-head" style="margin-top:28px">
+    <div class="pf-section-title">Стратегические горизонты</div>
+    <label class="pf-ai-mode-toggle">
+      <input type="checkbox" id="pf-ai-mode-sw">
+      <span class="pf-ai-mode-track">
+        <span class="pf-ai-mode-thumb"></span>
+      </span>
+      <span class="pf-ai-mode-label">AI режим</span>
+    </label>
+  </div>
 
-        ${this._horizonFormHTML('short', 'Краткосрочная', '1 месяц',      '#ef4444', this._portfolioData.short)}
-        ${this._horizonFormHTML('mid',   'Среднесрочная', '1–2 квартала', '#f59e0b', this._portfolioData.mid)}
-        ${this._horizonFormHTML('long',  'Долгосрочная',  '4 квартала',   '#10b981', this._portfolioData.long)}
-      `;
+  ${this._horizonFormHTML('short', 'Краткосрочная', '1 месяц',      '#ef4444', this._portfolioData.short)}
+  ${this._horizonFormHTML('mid',   'Среднесрочная', '1–2 квартала', '#f59e0b', this._portfolioData.mid)}
+  ${this._horizonFormHTML('long',  'Долгосрочная',  '4 квартала',   '#10b981', this._portfolioData.long)}
+
+  <div id="pf-manual-save-bar" class="pf-manual-save-bar" style="display:none">
+    <span class="pf-save-hint">Есть несохранённые изменения</span>
+    <button class="pf-btn pf-btn-primary" id="pf-save-btn">
+      ${ic.save} Сохранить
+    </button>
+  </div>
+`;
+
 
       document.getElementById('pf-save-btn')
         ?.addEventListener('click', () => this._savePortfolioStrats());
 
-      ['short', 'mid', 'long'].forEach(key => {
-  document.getElementById(`pf-ai-sw-${key}`)
-    ?.addEventListener('change', (e) => {
-      if (e.target.checked) {
-        this._aiHorizon(key, summary, computed);
-        // После выбора варианта — тогл возвращается в off
-        setTimeout(() => { e.target.checked = false; }, 400);
-      }
+      // AI режим тогл
+document.getElementById('pf-ai-mode-sw')
+  ?.addEventListener('change', (e) => {
+    this._setAiMode(e.target.checked, summary, computed);
+  });
+
+// Autosave при ручном вводе
+['short', 'mid', 'long'].forEach(key => {
+  ['title', 'goal', 'actions', 'metric', 'deadline'].forEach(field => {
+    const inp = document.getElementById(`pf-${key}-${field}`);
+    if (!inp) return;
+    inp.addEventListener('input', () => {
+      clearTimeout(this._saveTimer);
+      const bar = document.getElementById('pf-manual-save-bar');
+      if (bar) bar.style.display = 'flex';
+      this._saveTimer = setTimeout(() => {
+        this._savePortfolioStrats();
+        if (bar) bar.style.display = 'none';
+        window.App.toast('Автосохранено', 'success');
+      }, 2000);
     });
+  });
 });
+
+// Ручное сохранение
+document.getElementById('pf-save-btn')
+  ?.addEventListener('click', () => {
+    this._savePortfolioStrats();
+    const bar = document.getElementById('pf-manual-save-bar');
+    if (bar) bar.style.display = 'none';
+  });
+
 
     } catch (e) {
       console.error('[PortfolioPage._renderPortfolioTab]', e);
@@ -492,20 +526,13 @@ export const PortfolioPage = {
   _horizonFormHTML(key, label, period, dotColor, saved) {
     const v = f => saved ? (saved[f] || '') : '';
     return `
-      <div class="pf-horizon">
+      <div class="pf-horizon" id="pf-horizon-${key}">
         <div class="pf-horizon-head">
           <div class="pf-horizon-title">
             <div class="pf-horizon-dot" style="background:${dotColor}"></div>
             ${label}
             <span class="pf-horizon-period">${period}</span>
           </div>
-          <div class="pf-ai-toggle-wrap">
-  <span class="pf-ai-toggle-label">AI</span>
-  <label class="pf-ai-toggle" for="pf-ai-sw-${key}">
-    <input type="checkbox" id="pf-ai-sw-${key}" data-key="${key}">
-    <span class="pf-ai-track"></span>
-  </label>
-</div>
         </div>
         <div class="pf-horizon-body">
           <div class="pf-field pf-full">
@@ -713,6 +740,32 @@ export const PortfolioPage = {
       });
     });
   },
+
+  _setAiMode(enabled, summary, computed) {
+  ['short', 'mid', 'long'].forEach(key => {
+    const existing = document.getElementById(`pf-ai-gen-btn-${key}`);
+    if (enabled && !existing) {
+      const head = document.querySelector(`#pf-horizon-${key} .pf-horizon-head`);
+      if (!head) return;
+      const btn = document.createElement('button');
+      btn.id = `pf-ai-gen-btn-${key}`;
+      btn.className = 'pf-ai-gen-btn';
+      btn.innerHTML = `
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+             stroke="currentColor" stroke-width="2">
+          <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77
+                   l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+        </svg>
+        Сгенерировать
+      `;
+      btn.onclick = () => this._aiHorizon(key, summary, computed);
+      head.appendChild(btn);
+    } else if (!enabled && existing) {
+      existing.remove();
+    }
+  });
+},
+
 
   /* ── Variant picker ── */
   _showVariantPicker(variants, onSelect) {

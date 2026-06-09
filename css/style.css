@@ -4872,3 +4872,96 @@ body {
   background: #7c3aed;
 }
 
+/* ── AI Mode Toggle ── */
+.pf-ai-mode-toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.pf-ai-mode-track {
+  position: relative;
+  display: block;
+  width: 44px;
+  height: 24px;
+  background: #ede9fe;
+  border: 1.5px solid #ddd6fe;
+  border-radius: 100px;
+  transition: background 0.2s, border-color 0.2s;
+  flex-shrink: 0;
+}
+
+.pf-ai-mode-thumb {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 16px;
+  height: 16px;
+  background: #c4b5fd;
+  border-radius: 50%;
+  box-shadow: 0 1px 3px rgba(124,58,237,0.15);
+  transition: transform 0.22s cubic-bezier(.4,0,.2,1),
+              background 0.2s;
+}
+
+#pf-ai-mode-sw { display: none; }
+
+#pf-ai-mode-sw:checked ~ .pf-ai-mode-track {
+  background: #ede9fe;
+  border-color: #a78bfa;
+}
+
+#pf-ai-mode-sw:checked ~ .pf-ai-mode-track .pf-ai-mode-thumb {
+  transform: translateX(20px);
+  background: #7c3aed;
+}
+
+.pf-ai-mode-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #7c3aed;
+  letter-spacing: 0.2px;
+}
+
+/* ── AI Generate Button (появляется в AI режиме) ── */
+.pf-ai-gen-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  background: #faf5ff;
+  border: 1.5px solid #ddd6fe;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #7c3aed;
+  cursor: pointer;
+  transition: background 0.18s, border-color 0.18s;
+  margin-left: auto;
+}
+
+.pf-ai-gen-btn:hover {
+  background: #ede9fe;
+  border-color: #a78bfa;
+}
+
+/* ── Manual Save Bar ── */
+.pf-manual-save-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  background: #faf5ff;
+  border: 1.5px solid #ddd6fe;
+  border-radius: 12px;
+  margin-top: 16px;
+  animation: mdSlideDown 0.2s ease;
+}
+
+.pf-save-hint {
+  font-size: 13px;
+  color: #7c3aed;
+  font-weight: 500;
+}

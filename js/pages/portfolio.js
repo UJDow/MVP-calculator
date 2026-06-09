@@ -281,7 +281,7 @@ export const PortfolioPage = {
               Управление портфелем
             </div>
             <div class="page-subtitle">
-              Стратегия · Аккаунт-планы · Покрытие
+          
             </div>
           </div>
         </div>
@@ -289,13 +289,13 @@ export const PortfolioPage = {
 
       <div class="pf-tabs" id="pf-tabs">
         <button class="pf-tab active" data-pftab="portfolio">
-          ${ic.chart} Стратегия портфеля
+          Стратегия портфеля
         </button>
         <button class="pf-tab" data-pftab="accounts">
-          ${ic.users} Стратегия по аккаунтам
+          Стратегия по аккаунтам
         </button>
         <button class="pf-tab" data-pftab="coverage">
-          ${ic.map} Покрытие
+          Покрытие
         </button>
       </div>
 
@@ -696,41 +696,53 @@ export const PortfolioPage = {
   },
 
   /* ── Variant picker ── */
-  _showVariantPicker(key, variants, horizonLabel) {
-    window.App.openModal(`
-      <div style="padding:24px;max-width:500px;width:100%;box-sizing:border-box">
-        <div class="pf-modal-head">3 варианта стратегии</div>
-        <div class="pf-modal-sub">${horizonLabel} · Выбери — заполнится в форму</div>
-        ${variants.map((v, i) => `
-          <div class="pf-variant-card" data-idx="${i}">
-            <div class="pf-variant-label">${v.label ?? `Вариант ${i + 1}`}</div>
-            <div class="pf-variant-goal">${v.goal ?? '—'}</div>
-            <div class="pf-variant-meta">
-              <span>${v.deadline ?? '—'}</span>
-              <span>${v.success_metric ?? '—'}</span>
-            </div>
-          </div>`).join('')}
-        <button class="pf-btn pf-btn-secondary" id="variant-cancel"
-                style="margin-top:4px">${ic.close} Отмена</button>
-      </div>`);
+  _showVariantPicker(variants, onSelect) {
+  // Удаляем старый picker если есть
+  document.getElementById('pf-variant-picker')?.remove();
 
-    document.querySelectorAll('.pf-variant-card').forEach(card => {
-      card.addEventListener('click', () => {
-        const v = variants[parseInt(card.dataset.idx)];
-        const s = (id, val) => { const el = document.getElementById(id); if (el) el.value = val || ''; };
-        s(`pf-${key}-title`,    v.title    ?? v.label ?? '');
-        s(`pf-${key}-goal`,     v.goal     ?? '');
-        s(`pf-${key}-actions`,  v.actions  ?? '');
-        s(`pf-${key}-metric`,   v.success_metric ?? '');
-        s(`pf-${key}-deadline`, v.deadline ?? '');
-        window.App.closeModal();
-        window.App.toast('Вариант применён — проверьте и сохраните', 'success');
-      });
-    });
+  const items = variants.map((v, i) => `
+    <label class="variant-toggle-row" for="vt-${i}">
+      <div class="variant-toggle-content">
+        <div class="variant-toggle-title">${v.name || v.title || `Вариант ${i+1}`}</div>
+        <div class="variant-toggle-text">${v.goal || v.text || ''}</div>
+      </div>
+      <div class="toggle-switch">
+        <input type="radio" name="variant-pick" id="vt-${i}" value="${i}" ${i===0?'checked':''}>
+        <span class="toggle-track"></span>
+      </div>
+    </label>
+  `).join('');
 
-    document.getElementById('variant-cancel')
-      ?.addEventListener('click', () => window.App.closeModal());
-  },
+  const el = document.createElement('div');
+  el.id = 'pf-variant-picker';
+  el.innerHTML = `
+    <div class="variant-picker-backdrop"></div>
+    <div class="variant-picker-panel">
+      <div class="variant-picker-header">
+        <span>AI варианты</span>
+        <button class="variant-picker-close" onclick="document.getElementById('pf-variant-picker').remove()">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <div class="variant-picker-list">${items}</div>
+      <div class="variant-picker-footer">
+        <button class="variant-apply-btn" id="variant-apply-btn">Применить</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(el);
+
+  // Анимация появления
+  requestAnimationFrame(() => el.querySelector('.variant-picker-panel').classList.add('visible'));
+
+  document.getElementById('variant-apply-btn').onclick = () => {
+    const checked = el.querySelector('input[name="variant-pick"]:checked');
+    if (checked) onSelect(variants[+checked.value]);
+    el.remove();
+  };
+  el.querySelector('.variant-picker-backdrop').onclick = () => el.remove();
+},
+
 
   /* ══════════════════════════════════════════
      ТАБ 2 — СТРАТЕГИЯ ПО АККАУНТАМ

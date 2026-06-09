@@ -192,14 +192,14 @@ export const App = {
 
   /* ── Modal helpers ── */
   openModal(html) {
-    document.getElementById('modal-content').innerHTML = html;
-    document.getElementById('modal-overlay').classList.remove('hidden');
-  },
+  document.getElementById('modal-overlay').classList.remove('hidden');
+  document.getElementById('modal-content').innerHTML = html;
+},
 
-  closeModal() {
-    document.getElementById('modal-overlay').classList.add('hidden');
-    document.getElementById('modal-content').innerHTML = '';
-  },
+closeModal() {
+  document.getElementById('modal-content').innerHTML = '';
+  document.getElementById('modal-overlay').classList.add('hidden');
+},
 
   /* ── Toast notifications ── */
   toast(msg, type = '') {

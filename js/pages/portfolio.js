@@ -450,7 +450,7 @@ export const PortfolioPage = {
           if (chevron) chevron.style.transform = 'rotate(0deg)';
           if (view) view.style.display = 'none';
           if (edit) edit.style.display = 'block';
-          document.getElementById(`pf-${key}-title`)?.focus();
+          document.getElementById(`pf-${key}-focus`)?.focus();
         });
 
         // Отмена редактирования
@@ -485,7 +485,7 @@ document.getElementById('pf-ai-mode-sw')
       const view   = document.getElementById(`pf-hz-view-${key}`);
       const edit   = document.getElementById(`pf-hz-edit-${key}`);
       const subEl  = document.querySelector(`#pf-horizon-${key} .pf-hz-subtitle`);
-      const titleVal = document.getElementById(`pf-${key}-title`)?.value || '';
+      const titleVal = document.getElementById(`pf-${key}-focus`)?.value || '';
       if (subEl) subEl.textContent = titleVal.slice(0, 50) + (titleVal.length > 50 ? '…' : '');
       if (view) view.style.display = 'block';
       if (edit) edit.style.display = 'none';
@@ -618,7 +618,7 @@ document.getElementById('pf-ai-mode-sw')
 
   _horizonFormHTML(key, label, period, dotColor, saved) {
     const v = f => saved ? (saved[f] || '') : '';
-    const hasData = !!(v('title') || v('goal') || v('actions'));
+    const hasData = !!(v('focus') || v('outcome'));
     const deadlineStr = v('deadline')
       ? new Date(v('deadline')).toLocaleDateString('ru-RU', { day:'numeric', month:'long', year:'numeric' })
       : null;
@@ -635,7 +635,7 @@ document.getElementById('pf-ai-mode-sw')
             </div>
             <div class="pf-hz-meta">
               <span class="pf-hz-period">${period}</span>
-              ${hasData && v('title') ? `<div class="pf-hz-subtitle">${v('title')}</div>` : ''}
+              ${hasData && v('focus') ? `<div class="pf-hz-subtitle">${v('focus')}</div>` : ''}
             </div>
           </div>
           <div class="pf-hz-right">
@@ -658,20 +658,20 @@ document.getElementById('pf-ai-mode-sw')
           <div class="pf-hz-view" id="pf-hz-view-${key}">
             ${hasData ? `
               <div class="pf-hz-view-grid">
-                ${v('goal') ? `
+                ${v('focus') ? `
                   <div class="pf-hz-view-block">
-                    <div class="pf-hz-view-label">Цель</div>
-                    <div class="pf-hz-view-text">${v('goal')}</div>
+                    <div class="pf-hz-view-label">Фокус</div>
+                    <div class="pf-hz-view-text">${v('focus')}</div>
                   </div>` : ''}
-                ${v('actions') ? `
+                ${v('outcome') ? `
                   <div class="pf-hz-view-block">
-                    <div class="pf-hz-view-label">Действия</div>
-                    <div class="pf-hz-view-text">${v('actions')}</div>
+                    <div class="pf-hz-view-label">Результат</div>
+                    <div class="pf-hz-view-text">${v('outcome')}</div>
                   </div>` : ''}
-                ${v('success_metric') ? `
+                ${v('risk') ? `
                   <div class="pf-hz-view-block pf-hz-view-block--half">
-                    <div class="pf-hz-view-label">Метрика успеха</div>
-                    <div class="pf-hz-view-text">${v('success_metric')}</div>
+                    <div class="pf-hz-view-label">Главный риск</div>
+                    <div class="pf-hz-view-text">${v('risk')}</div>
                   </div>` : ''}
                 ${deadlineStr ? `
                   <div class="pf-hz-view-block pf-hz-view-block--half">
@@ -690,24 +690,27 @@ document.getElementById('pf-ai-mode-sw')
           <div class="pf-hz-edit" id="pf-hz-edit-${key}" style="display:none">
             <div class="pf-hz-edit-grid">
               <div class="pf-field pf-hz-full">
-                <label>Название</label>
-                <input id="pf-${key}-title" value="${v('title')}"
-                       placeholder="Например: Операционная чистота" />
+                <label>Фокус</label>
+                <input id="pf-${key}-focus" value="${v('focus')}"
+                       placeholder="На чём сосредоточены в этом периоде..." />
               </div>
               <div class="pf-field pf-hz-full">
-                <label>Цель</label>
-                <textarea id="pf-${key}-goal"
-                          placeholder="Что хотим достичь...">${v('goal')}</textarea>
+                <label>Результат</label>
+                <textarea id="pf-${key}-outcome"
+                          placeholder="Что конкретно изменится, с цифрами...">${v('outcome')}</textarea>
               </div>
               <div class="pf-field pf-hz-full">
-                <label>Действия</label>
-                <textarea id="pf-${key}-actions" style="min-height:90px"
-                          placeholder="Конкретные шаги...">${v('actions')}</textarea>
+                <label>Главный риск</label>
+                <input id="pf-${key}-risk" value="${v('risk')}"
+                       placeholder="Что может помешать..." />
               </div>
               <div class="pf-field">
-                <label>Метрика успеха</label>
-                <textarea id="pf-${key}-metric"
-                          placeholder="Как измерим результат">${v('success_metric')}</textarea>
+                <label>Статус</label>
+                <select id="pf-${key}-status">
+                  <option value="on_track" ${v('status') === 'on_track' || !v('status') ? 'selected' : ''}>On Track</option>
+                  <option value="at_risk"  ${v('status') === 'at_risk'  ? 'selected' : ''}>At Risk</option>
+                  <option value="off_track"${v('status') === 'off_track' ? 'selected' : ''}>Off Track</option>
+                </select>
               </div>
               <div class="pf-field">
                 <label>Дедлайн</label>
@@ -731,11 +734,11 @@ document.getElementById('pf-ai-mode-sw')
   _readHorizon(key) {
     const g = id => document.getElementById(id)?.value.trim() ?? '';
     return {
-      title:          g(`pf-${key}-title`),
-      goal:           g(`pf-${key}-goal`),
-      actions:        g(`pf-${key}-actions`),
-      success_metric: g(`pf-${key}-metric`),
-      deadline:       g(`pf-${key}-deadline`),
+      focus:    g(`pf-${key}-focus`),
+      outcome:  g(`pf-${key}-outcome`),
+      risk:     g(`pf-${key}-risk`),
+      status:   g(`pf-${key}-status`) || 'on_track',
+      deadline: g(`pf-${key}-deadline`),
     };
   },
 
@@ -944,8 +947,8 @@ document.getElementById('pf-ai-mode-sw')
         const items = variants.map((v, i) => `
           <label class="variant-toggle-row" for="vt-${i}">
             <div class="variant-toggle-content">
-              <div class="variant-toggle-title">${v.name || v.title || 'Вариант ' + (i+1)}</div>
-              <div class="variant-toggle-text">${v.goal || v.text || ''}</div>
+              <div class="variant-toggle-title">${v.label || v.name || 'Вариант ' + (i+1)}</div>
+              <div class="variant-toggle-text">${v.focus || v.outcome || v.text || ''}</div>
             </div>
             <div class="toggle-switch">
               <input type="radio" name="variant-pick" id="vt-${i}"
@@ -966,14 +969,14 @@ document.getElementById('pf-ai-mode-sw')
           const checked = el.querySelector('input[name="variant-pick"]:checked');
           if (checked) {
             const chosen    = variants[+checked.value];
-            const titleEl   = document.getElementById(`pf-${key}-title`);
-            const goalEl    = document.getElementById(`pf-${key}-goal`);
-            const actionsEl = document.getElementById(`pf-${key}-actions`);
-            const metricEl  = document.getElementById(`pf-${key}-metric`);
-            if (titleEl)   titleEl.value   = chosen.title   || chosen.name || '';
-            if (goalEl)    goalEl.value    = chosen.goal    || '';
-            if (actionsEl) actionsEl.value = chosen.actions || '';
-            if (metricEl)  metricEl.value  = chosen.metric  || chosen.success_metric || '';
+            const titleEl   = document.getElementById(`pf-${key}-focus`);
+            const goalEl    = document.getElementById(`pf-${key}-outcome`);
+            const riskEl    = document.getElementById(`pf-${key}-risk`);
+            const deadlineEl = document.getElementById(`pf-${key}-deadline`);
+            if (titleEl)    titleEl.value    = chosen.focus    || chosen.name || '';
+            if (goalEl)     goalEl.value     = chosen.outcome  || '';
+            if (riskEl)     riskEl.value     = chosen.risk     || '';
+            if (deadlineEl && chosen.deadline) deadlineEl.value = chosen.deadline;
             const bar = document.getElementById('pf-manual-save-bar');
             if (bar) bar.style.display = 'flex';
           }
@@ -1070,7 +1073,7 @@ document.getElementById('pf-ai-mode-sw')
           s => String(s.client_id) === String(c.id) && s.status !== 'Done'
         );
         const stratText = strat
-          ? (strat.goal || '').slice(0, 55) + ((strat.goal || '').length > 55 ? '…' : '')
+          ? (strat.outcome || '').slice(0, 55) + ((strat.outcome || '').length > 55 ? '…' : '')
           : null;
 
         const statusColor = { Active:'#10b981', Paused:'#f59e0b', Done:'#9ca3af' }[strat?.status] ?? '#9ca3af';

@@ -1,10 +1,12 @@
 /* ============================================
    js/mc_page.js — Monte Carlo Forecast Page (ES Module)
    Portfolio BCHS v7.0
-   Tab inside Client Detail (Page 3)
+   Tab inside Client Detail — backend-powered
    ============================================ */
 
 import { MCEngine } from './mc_engine.js';
+
+const BASE_URL = 'https://bchs-api.lexsnitko.workers.dev';
 
 export const MCPage = {
 
@@ -14,7 +16,7 @@ export const MCPage = {
   async getConfig(clientId) {
     if (this._cfgCache[clientId]) return this._cfgCache[clientId];
     try {
-      const r = await fetch('tables/mc_configs?limit=500');
+      const r = await fetch(`${BASE_URL}/tables/mc_configs?limit=500`);
       if (!r.ok) return null;
       const j    = await r.json();
       const rows = Array.isArray(j.data) ? j.data : (Array.isArray(j) ? j : []);
@@ -32,8 +34,8 @@ export const MCPage = {
       .forEach(k => delete payload[k]);
     try {
       const url    = existing
-        ? `tables/mc_configs/${existing.id}`
-        : 'tables/mc_configs';
+        ? `${BASE_URL}/tables/mc_configs/${existing.id}`
+        : `${BASE_URL}/tables/mc_configs`;
       const method = existing ? 'PUT' : 'POST';
       const r = await fetch(url, {
         method,
@@ -54,19 +56,20 @@ export const MCPage = {
   bchs_raw:      null,
   cfg:           null,
   result:        null,
+  advice:        null,
   activeHorizon: '3m',
   configOpen:    false,
   fanChart:      null,
 
-  /* ── Entry point — called from DetailPage tab click ─────────── */
+  /* ── Entry point ─────────────────────────────────────────────── */
   async mount(client, bchs_raw) {
     this.client        = client;
     this.bchs_raw      = bchs_raw;
     this.result        = null;
+    this.advice        = null;
     this.activeHorizon = '3m';
     this.configOpen    = false;
 
-    /* Уничтожаем старый Chart.js инстанс если есть */
     if (this.fanChart) {
       this.fanChart.destroy();
       this.fanChart = null;
@@ -76,30 +79,70 @@ export const MCPage = {
     if (!container) return;
 
     const stored = await this.getConfig(client.id);
-    this.cfg = Object.assign({}, MCEngine.DEFAULTS, stored || {});
+    this.cfg = Object.assign({}, MCEngine.DEFAULTS,
+      { monthly_revenue: client.monthly_revenue || 5000 },
+      stored || {}
+    );
 
     this._renderShell(container);
-    await this._runAndRender();
+
+    // Пробуем загрузить сохранённый снапшот — покажем мгновенно
+    const cached = await this._loadSnapshot();
+    if (cached) {
+      this.result = { horizons: cached.horizons, fan_chart: null };
+      this.advice = cached.advice;
+      this._lastSnapshot = cached;
+      const output = document.getElementById('mc-output');
+      const nodata = document.getElementById('mc-nodata');
+      if (output) { output.classList.remove('hidden'); this._renderOutput(output); }
+      setTimeout(() => { const chip=document.querySelector('.mc-advice-risk-chip'); if(chip){const l={low:'Низкий риск',medium:'Средний риск',high:'Высокий риск',critical:'Критический'};const r=this._riskForHorizon(this.activeHorizon||'3m');chip.textContent=l[r];chip.className='mc-advice-risk-chip '+r;}}, 150);
+      if (nodata) nodata.classList.add('hidden');
+
+      // Показываем метку что данные кешированы
+      const blSigs = document.getElementById('mc-bl-signals');
+      if (blSigs && cached.ts) {
+        const d = new Date(cached.ts);
+        blSigs.textContent = 'Кеш от ' + d.toLocaleDateString('ru-RU') +
+          ' · Нажмите ↻ для обновления';
+        blSigs.style.color = '#9ca3af';
+      }
+    } else {
+      await this._runAndRender();
+    }
   },
 
-  /* ── Shell ──────────────────────────────────────────────────── */
+  async _loadSnapshot() {
+    /* 1. Память — та же сессия */
+    if (this._lastSnapshot?.horizons) return this._lastSnapshot;
+    if (!this.client?.id) return null;
+    /* 2. БД — таблица mc_snapshots */
+    try {
+      const r = await fetch(`${BASE_URL}/mc/snapshot?client_id=${this.client.id}`);
+      if (!r.ok) return null;
+      const j = await r.json();
+      if (j.data?.horizons) return j.data;
+      return null;
+    } catch { return null; }
+  },
+
+  /* ── Shell ───────────────────────────────────────────────────── */
   _renderShell(container) {
     container.innerHTML = `
       <div class="mc-header">
         <div>
-          <div class="mc-title">🎲 Monte Carlo Прогноз</div>
-          <div class="mc-subtitle">5 000 сценариев · Каскад 3М → 6М → 12М</div>
+          <div class="mc-title">Monte Carlo Прогноз</div>
+          <div class="mc-subtitle">5 000 сценариев · Каскад 3М → 6М → 12М · AI-советы</div>
         </div>
         <div class="mc-header-actions">
-          <button class="btn btn-primary btn-sm"    id="mc-run">↻ Пересчитать</button>
-          <button class="btn btn-secondary btn-sm"  id="mc-cfg-toggle">⚙ Параметры</button>
+          <button class="btn btn-primary btn-sm"   id="mc-run">↻ Пересчитать</button>
+          <button class="btn btn-secondary btn-sm" id="mc-cfg-toggle">Параметры</button>
         </div>
       </div>
 
       <div class="mc-baseline" id="mc-baseline">
-        <span>📊 Текущий bCHS: <strong id="mc-bl-bchs">—</strong></span>
-        <span>💰 Базовый MR: <strong id="mc-bl-mr">—</strong></span>
-        <span class="text-muted" style="font-size:11px">Шкала bCHS приведена к 0–100</span>
+        <span>Текущий bCHS: <strong id="mc-bl-bchs">—</strong></span>
+        <span>Базовый MR: <strong id="mc-bl-mr">—</strong></span>
+        <span id="mc-bl-signals" style="font-size:11px;color:var(--text-muted)"></span>
       </div>
 
       <div id="mc-config-panel" class="mc-config-panel hidden">
@@ -109,11 +152,11 @@ export const MCPage = {
       <div id="mc-results">
         <div class="mc-loading hidden" id="mc-loading">
           <div class="mc-spinner"></div>
-          <div class="mc-loading-text">Запускаем 5 000 сценариев...</div>
+          <div class="mc-loading-text">Анализируем контекст и запускаем сценарии...</div>
         </div>
         <div id="mc-output" class="hidden"></div>
         <div id="mc-nodata" class="mc-nodata hidden">
-          <div style="font-size:32px">🎲</div>
+          <div class="mc-nodata-icon"></div>
           <div class="mc-nodata-title">Прогноз ещё не запущен</div>
           <button class="btn btn-primary" id="mc-first-run">▶ Запустить прогноз</button>
         </div>
@@ -127,20 +170,13 @@ export const MCPage = {
     document.getElementById('mc-first-run')
       ?.addEventListener('click', () => this._runAndRender());
 
-    /* Baseline row */
-    const scaled =
-      this.bchs_raw !== null && this.bchs_raw !== undefined
-        ? Math.round((this.bchs_raw + 81) / 162 * 100 * 10) / 10
-        : 50;
-
     const blBchs = document.getElementById('mc-bl-bchs');
     const blMr   = document.getElementById('mc-bl-mr');
-    if (blBchs) blBchs.textContent = String(scaled);
-    if (blMr)   blMr.textContent   =
-      this._fmtMR(this.cfg.monthly_revenue ?? MCEngine.DEFAULTS.monthly_revenue);
+    if (blBchs) blBchs.textContent = this.bchs_raw !== null ? String(this.bchs_raw) : '—';
+    if (blMr)   blMr.textContent   = this._fmtMR(this.cfg.monthly_revenue);
   },
 
-  /* ── Config panel ───────────────────────────────────────────── */
+  /* ── Config panel ────────────────────────────────────────────── */
   _configPanelHTML() {
     const c = this.cfg;
     const f = (key, label, step, min, max) => `
@@ -153,18 +189,22 @@ export const MCPage = {
 
     return `
       <div class="mc-config-inner">
-        <div class="mc-config-title">⚙ Параметры симуляции</div>
+        <div class="mc-config-title">Параметры симуляции</div>
+        <div style="font-size:12px;color:var(--text-muted);margin-bottom:12px">
+          Параметры автоматически корректируются под сигналы клиента.
+          Здесь можно задать базовые значения.
+        </div>
         <div class="mc-config-grid">
           <div class="mc-config-col">
-            <div class="mc-config-group-title">📈 Динамика bCHS</div>
-            ${f('drift',           'Дрейф (ежемес.)',         '0.1',  '-10',     '10')}
-            ${f('volatility',      'Волатильность (σ)',        '0.1',  '0',       '20')}
-            ${f('mean_reversion',  'Сила возврата к норме',    '0.01', '0',       '1')}
-            ${f('equilibrium',     'Норма равновесия (0–100)', '1',    '0',       '100')}
-            ${f('monthly_revenue', 'Базовый MR (₽/мес)',       '100',  '0',       '9999999')}
+            <div class="mc-config-group-title">Динамика bCHS</div>
+            ${f('drift',           'Дрейф (ежемес.)',         '0.1',  '-10',    '10')}
+            ${f('volatility',      'Волатильность (σ)',        '0.1',  '0',      '20')}
+            ${f('mean_reversion',  'Сила возврата к норме',    '0.01', '0',      '1')}
+            ${f('equilibrium',     'Норма равновесия (0–100)', '1',    '0',      '100')}
+            ${f('monthly_revenue', 'Базовый MR ($/мес)',       '100',  '0',      '9999999')}
           </div>
           <div class="mc-config-col">
-            <div class="mc-config-group-title">🎲 Вероятности событий</div>
+            <div class="mc-config-group-title">Вероятности событий</div>
             ${f('p_strategic_meeting',      'P(стратег. встреча)',     '0.01', '0', '1')}
             ${f('impact_strategic_meeting', 'Эффект стратег. встречи', '0.5',  '-20','20')}
             ${f('p_fast_response',          'P(быстрый ответ)',        '0.01', '0', '1')}
@@ -181,8 +221,8 @@ export const MCPage = {
           </div>
         </div>
         <div class="mc-config-actions">
-          <button class="btn btn-primary btn-sm"   id="mc-cfg-save">💾 Сохранить и пересчитать</button>
-          <button class="btn btn-secondary btn-sm" id="mc-cfg-reset">↺ Сброс к умолчаниям</button>
+          <button class="btn btn-primary btn-sm"   id="mc-cfg-save">Сохранить и пересчитать</button>
+          <button class="btn btn-secondary btn-sm" id="mc-cfg-reset">Сброс к умолчаниям</button>
           <button class="btn btn-secondary btn-sm" id="mc-cfg-close">✕ Закрыть</button>
         </div>
       </div>`;
@@ -204,7 +244,6 @@ export const MCPage = {
     const resetBtn = document.getElementById('mc-cfg-reset');
     const closeBtn = document.getElementById('mc-cfg-close');
 
-    /* Используем _bound флаг чтобы не дублировать listeners */
     if (saveBtn && !saveBtn._bound) {
       saveBtn._bound = true;
       saveBtn.addEventListener('click', async () => {
@@ -212,7 +251,7 @@ export const MCPage = {
         saveBtn.textContent = '⏳ Сохраняем...';
         saveBtn.disabled    = true;
         await this.saveConfig(this.client.id, this.cfg);
-        saveBtn.textContent = '💾 Сохранить и пересчитать';
+        saveBtn.textContent = 'Сохранить и пересчитать';
         saveBtn.disabled    = false;
         const blMr = document.getElementById('mc-bl-mr');
         if (blMr) blMr.textContent = this._fmtMR(this.cfg.monthly_revenue);
@@ -224,7 +263,8 @@ export const MCPage = {
     if (resetBtn && !resetBtn._bound) {
       resetBtn._bound = true;
       resetBtn.addEventListener('click', () => {
-        this.cfg = Object.assign({}, MCEngine.DEFAULTS);
+        this.cfg = Object.assign({}, MCEngine.DEFAULTS,
+          { monthly_revenue: this.client?.monthly_revenue || 5000 });
         const panel = document.getElementById('mc-config-panel');
         if (panel) panel.innerHTML = this._configPanelHTML();
         this._bindConfigEvents();
@@ -248,7 +288,7 @@ export const MCPage = {
     }
   },
 
-  /* ── Run simulation ─────────────────────────────────────────── */
+  /* ── Run — гибрид: воркер даёт cfg+advice, клиент гоняет MCEngine ── */
   async _runAndRender() {
     const loading = document.getElementById('mc-loading');
     const output  = document.getElementById('mc-output');
@@ -258,32 +298,81 @@ export const MCPage = {
     output?.classList.add('hidden');
     nodata?.classList.add('hidden');
 
-    /* Yield — даём браузеру показать спиннер */
-    await new Promise(r => setTimeout(r, 30));
-
     try {
-      this.result = MCEngine.run(this.bchs_raw, this.cfg);
+      /* ── Шаг 1: получаем обогащённый cfg и AI-советы с воркера ─ */
+      const ctxResp = await fetch(`${BASE_URL}/mc/context`, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ client_id: this.client.id }),
+      });
+
+      let serverCtx = null;
+      if (ctxResp.ok) {
+        const ctxData = await ctxResp.json();
+        if (!ctxData.error) serverCtx = ctxData;
+      }
+
+      /* ── Шаг 2: мёрджим cfg (приоритет: сохранённый > серверный > defaults) ─ */
+      const baseCfg = Object.assign(
+        {},
+        MCEngine.DEFAULTS,
+        serverCtx?.suggested_cfg || {},
+        this.cfg || {}
+      );
+      if (this.client.monthly_revenue) baseCfg.monthly_revenue = this.client.monthly_revenue;
+
+      /* ── Шаг 3: клиент гоняет 5000 сценариев локально ─────── */
+      const currentBCHS = serverCtx?.current_bchs ?? this.bchs_raw ?? null;
+      const mcResult    = MCEngine.run(currentBCHS, baseCfg);
+
+      /* ── Сохраняем ────────────────────────────────────────── */
+      this.result = mcResult;
+      this.advice = serverCtx?.advice || null;
+      this.serverCtx = serverCtx;
+
+      this._lastSnapshot = {
+        ts:       new Date().toISOString(),
+        current_bchs: serverCtx?.current_bchs ?? null,
+        horizons: mcResult.horizons,
+        advice:   this.advice,
+        signals:  serverCtx?.active_signals || [],
+        cfg:      baseCfg,
+      };
+      this._saveSnapshotToStrategy().catch(() => {});
+
+      /* ── Baseline ─────────────────────────────────────────── */
+      const blBchs = document.getElementById('mc-bl-bchs');
+      const blMr   = document.getElementById('mc-bl-mr');
+      const blSigs = document.getElementById('mc-bl-signals');
+      if (blBchs) blBchs.textContent = currentBCHS !== null ? String(Math.round(currentBCHS * 10)/10) : '—';
+      if (blMr)   blMr.textContent   = this._fmtMR(baseCfg.monthly_revenue);
+      if (blSigs && serverCtx?.active_signals?.length) {
+        blSigs.innerHTML =
+          '<span class="mc-signal-badge">' + serverCtx.active_signals.length +
+          ' сигналов учтено</span>';
+      }
+
       loading?.classList.add('hidden');
       if (output) {
         output.classList.remove('hidden');
         this._renderOutput(output);
       }
+
     } catch (e) {
       console.error('[MCPage._runAndRender]', e);
       loading?.classList.add('hidden');
       if (output) {
         output.classList.remove('hidden');
-        output.innerHTML = `
-          <div class="empty-state">
-            <div class="empty-state-icon">⚠️</div>
-            <div class="empty-state-title">Ошибка симуляции</div>
-            <div class="empty-state-text">${e.message}</div>
-          </div>`;
+        output.innerHTML = `<div class="mc-error-state">
+          <div class="mc-error-icon">!</div>
+          <div class="mc-error-title">Ошибка прогноза</div>
+          <div class="mc-error-text">${e.message}</div>
+        </div>`;
       }
     }
   },
 
-  /* ── Output rendering ───────────────────────────────────────── */
+  /* ── Output rendering ────────────────────────────────────────── */
   _renderOutput(container) {
     const res = this.result;
     container.innerHTML = `
@@ -293,37 +382,121 @@ export const MCPage = {
         ${this._horizonCard('12m', res.horizons['12m'])}
       </div>
 
-      <div class="mc-chart-container">
-        <div class="mc-chart-title">📉 Веер прогнозов bCHS (P10 · Медиана · P90)</div>
-        <div style="height:240px;position:relative">
-          <canvas id="mc-fan-chart"></canvas>
-        </div>
-        <div class="mc-chart-legend">
-          <span class="mc-legend-item">
-            <span class="mc-legend-dot" style="background:rgba(59,130,246,0.3)"></span>P10–P90
-          </span>
-          <span class="mc-legend-item">
-            <span class="mc-legend-dot" style="background:rgba(59,130,246,0.15)"></span>P25–P75
-          </span>
-          <span class="mc-legend-item">
-            <span class="mc-legend-dot" style="background:#3b82f6"></span>Медиана
-          </span>
-        </div>
-      </div>
-
       <div id="mc-horizon-detail"></div>
+
+      ${this.advice ? this._renderAdvice(this.advice) : ''}
     `;
 
     this._bindHorizonCards();
-    this._drawFanChart();
     this._renderHorizonDetail();
+    this._updateRiskChip();
   },
 
+  /* ── AI Советы ───────────────────────────────────────────────── */
+  /* ── Пороги оттока по горизонту (best practice SaaS) ────────── */
+  _churnThreshold(horizonKey) {
+    return {
+      '3m':  { low: 5,  medium: 15 },
+      '6m':  { low: 10, medium: 25 },
+      '12m': { low: 20, medium: 40 },
+    }[horizonKey] ?? { low: 8, medium: 20 };
+  },
+
+  _churnClass(churn, horizonKey) {
+    const t = this._churnThreshold(horizonKey);
+    if (churn < t.low)    return 'low';
+    if (churn < t.medium) return 'medium';
+    return 'high';
+  },
+
+  /* ── Риск по горизонту ─────────────────────────────────────── */
+  _riskForHorizon(horizonKey) {
+    const h = this.result?.horizons?.[horizonKey];
+    if (!h) return 'medium';
+    const churn = h.churn_rate ?? 0;
+    if (churn >= 40) return 'critical';
+    if (churn >= 25) return 'high';
+    if (churn >= 12) return 'medium';
+    return 'low';
+  },
+
+  _updateRiskChip() {
+    const chip = document.getElementById('mc-risk-chip');
+    if (!chip) return;
+    const labels = {low:'Низкий риск',medium:'Средний риск',high:'Высокий риск',critical:'Критический'};
+    const rl = this._riskForHorizon(this.activeHorizon || '3m');
+    chip.textContent = labels[rl];
+    chip.className   = 'mc-advice-risk-chip ' + rl;
+  },
+
+  _renderAdvice(advice) {
+    const riskLabels = {
+      low:      'Низкий риск',
+      medium:   'Средний риск',
+      high:     'Высокий риск',
+      critical: 'Критический',
+    };
+    /* Риск считаем из данных симуляции по активному горизонту */
+    const riskLevel = this._riskForHorizon(this.activeHorizon || '3m');
+    const riskLabel = riskLabels[riskLevel];
+    const riskClass = riskLevel;
+
+    const adviceRows = (advice.advice || []).map(a => `
+      <div class="mc-advice-row">
+        <div class="mc-advice-dot ${a.priority ?? 'medium'}"></div>
+        <div class="mc-advice-content">
+          <div class="mc-advice-action">${a.action}</div>
+          <div class="mc-advice-impact">${a.impact}</div>
+        </div>
+        <div class="mc-advice-horizon-tag">${a.horizon}</div>
+      </div>
+    `).join('');
+
+    const hasFooter = advice.signals_impact || advice.upside_scenario;
+
+    return `
+      <div class="mc-advice-block">
+        <div class="mc-advice-header">
+          <div class="mc-advice-title">AI-анализ</div>
+          <div class="mc-advice-risk-chip" id="mc-risk-chip"></div>
+        </div>
+
+        ${advice.key_insight ? `
+          <div class="mc-advice-insight">
+            ${advice.key_insight}
+          </div>` : ''}
+
+        ${advice.summary ? `
+          <div class="mc-advice-summary">${advice.summary}</div>` : ''}
+
+        ${adviceRows ? `
+          <div class="mc-advice-list">
+            <div class="mc-advice-list-title">Рекомендации</div>
+            ${adviceRows}
+          </div>` : ''}
+
+        ${hasFooter ? `
+          <div class="mc-advice-footer">
+            ${advice.signals_impact ? `
+              <div class="mc-advice-signals-row">
+                <span class="mc-footer-label">Сигналы</span>
+                <span>${advice.signals_impact}</span>
+              </div>` : ''}
+            ${advice.upside_scenario ? `
+              <div class="mc-advice-upside-row">
+                <span class="mc-footer-label">Upside</span>
+                <span>${advice.upside_scenario}</span>
+              </div>` : ''}
+          </div>` : ''}
+      </div>`;
+  },
+
+  /* ── Horizon cards ───────────────────────────────────────────── */
   _horizonCard(key, stats) {
     const labels = { '3m': '3 Месяца', '6m': '6 Месяцев', '12m': '12 Месяцев' };
     const active = key === this.activeHorizon;
     const cr     = stats.churn_rate;
-    const crCls  = cr < 7 ? 'mc-churn-green' : cr < 15 ? 'mc-churn-yellow' : 'mc-churn-red';
+    const _ct=this._churnThreshold(key); const crCls=cr<_ct.low?'mc-churn-green':cr<_ct.medium?'mc-churn-yellow':'mc-churn-red';
     return `
       <div class="mc-horizon-card${active ? ' mc-horizon-active' : ''}"
            data-horizon="${key}">
@@ -341,179 +514,91 @@ export const MCPage = {
       card.addEventListener('click', () => {
         this.activeHorizon = card.dataset.horizon;
         document.querySelectorAll('.mc-horizon-card').forEach(c =>
-          c.classList.toggle('mc-horizon-active',
-            c.dataset.horizon === this.activeHorizon)
+          c.classList.toggle('mc-horizon-active', c.dataset.horizon === this.activeHorizon)
         );
         this._renderHorizonDetail();
+        this._updateRiskChip();
       });
     });
   },
 
-  /* ── Fan chart (Chart.js) ───────────────────────────────────── */
-  _drawFanChart() {
-    const ctx = document.getElementById('mc-fan-chart');
-    if (!ctx || typeof Chart === 'undefined') return;
-
-    /* Уничтожаем предыдущий инстанс */
-    if (this.fanChart) { this.fanChart.destroy(); this.fanChart = null; }
-
-    const fan    = this.result.fan_chart;
-    const keyPts = fan.filter(p => [0, 3, 6, 12].includes(p.month));
-    const labels = keyPts.map(p => p.month === 0 ? 'Старт' : `${p.month}М`);
-    const mk     = key => keyPts.map(p => p[key]);
-
-    this.fanChart = new Chart(ctx, {
-      type: 'line',
-      data: {
-        labels,
-        datasets: [
-          {
-            label:           'P90',
-            data:            mk('p90'),
-            borderColor:     'rgba(59,130,246,0.4)',
-            borderWidth:     1,
-            borderDash:      [3, 3],
-            pointRadius:     0,
-            fill:            '+1',
-            backgroundColor: 'rgba(59,130,246,0.06)',
-            tension:         0.4,
-          },
-          {
-            label:           'P75',
-            data:            mk('p75'),
-            borderColor:     'rgba(59,130,246,0.3)',
-            borderWidth:     0,
-            pointRadius:     0,
-            fill:            '+1',
-            backgroundColor: 'rgba(59,130,246,0.10)',
-            tension:         0.4,
-          },
-          {
-            label:                'Медиана',
-            data:                 mk('median'),
-            borderColor:          '#3b82f6',
-            borderWidth:          2.5,
-            pointBackgroundColor: '#3b82f6',
-            pointRadius:          5,
-            fill:                 '+1',
-            backgroundColor:      'rgba(59,130,246,0.10)',
-            tension:              0.4,
-          },
-          {
-            label:           'P25',
-            data:            mk('p25'),
-            borderColor:     'rgba(59,130,246,0.3)',
-            borderWidth:     0,
-            pointRadius:     0,
-            fill:            '+1',
-            backgroundColor: 'rgba(59,130,246,0.06)',
-            tension:         0.4,
-          },
-          {
-            label:       'P10',
-            data:        mk('p10'),
-            borderColor: 'rgba(59,130,246,0.4)',
-            borderWidth: 1,
-            borderDash:  [3, 3],
-            pointRadius: 0,
-            fill:        false,
-            tension:     0.4,
-          },
-          {
-            label:           'Текущий bCHS',
-            data:            [this.result.current_bchs_scaled, null, null, null],
-            borderColor:     '#f59e0b',
-            backgroundColor: '#f59e0b',
-            pointRadius:     [7, 0, 0, 0],
-            pointStyle:      'star',
-            borderWidth:     0,
-            fill:            false,
-          },
-        ],
-      },
-      options: {
-        responsive:          true,
-        maintainAspectRatio: false,
-        interaction:         { mode: 'index', intersect: false },
-        plugins: {
-          legend: { display: false },
-          tooltip: {
-            callbacks: {
-              label: ctx => {
-                if (ctx.dataset.label === 'Текущий bCHS' && ctx.dataIndex > 0) return null;
-                const v = ctx.parsed.y;
-                if (v === null) return null;
-                return ` ${ctx.dataset.label}: ${v.toFixed(1)}`;
-              },
-            },
-          },
-        },
-        scales: {
-          y: {
-            min:  0,
-            max:  100,
-            grid: { color: 'rgba(0,0,0,0.04)' },
-            ticks: {
-              font:     { family: 'Inter', size: 10 },
-              callback: v => v,
-            },
-          },
-          x: {
-            grid:  { display: false },
-            ticks: { font: { family: 'Inter', size: 11 } },
-          },
-        },
-      },
-    });
-  },
-
-  /* ── Horizon detail ─────────────────────────────────────────── */
+  /* ── Horizon detail ──────────────────────────────────────────── */
   _renderHorizonDetail() {
     const container = document.getElementById('mc-horizon-detail');
     if (!container) return;
     const stats   = this.result.horizons[this.activeHorizon];
     const hLabels = { '3m': '3 месяца', '6m': '6 месяцев', '12m': '12 месяцев' };
 
-    container.innerHTML = `
-      <div class="mc-stats-grid">
-        ${this._bchsStatsCard(stats)}
-        ${this._mrStatsCard(stats)}
-        ${this._churnGaugeCard(stats)}
-      </div>
-      <div class="mc-section">
-        <div class="mc-section-title">
-          Распределение сценариев · ${hLabels[this.activeHorizon]}
-          <span class="text-muted" style="font-weight:400;font-size:11px">
-            из ${stats.n.toLocaleString('ru-RU')} симуляций
-          </span>
+    // Анимация смены
+    container.style.opacity = '0';
+    container.style.transform = 'translateY(6px)';
+    container.style.transition = 'opacity 0.2s ease, transform 0.2s ease';
+
+    setTimeout(() => {
+      container.innerHTML = `
+        <div class="mc-stats-grid">
+          ${this._bchsStatsCard(stats)}
+          ${this._mrStatsCard(stats)}
+          ${this._churnGaugeCard(stats, this.activeHorizon)}
         </div>
-        <div class="mc-categories">
-          ${this._categoryBars(stats)}
+        <div class="mc-section">
+          <div class="mc-section-title">
+            Прогноз · ${hLabels[this.activeHorizon]}
+            <span style="font-weight:400;font-size:11px;color:#9ca3af">
+              из ${stats.n.toLocaleString('ru-RU')} симуляций
+            </span>
+          </div>
+          <div class="mc-scenario-bars">
+            ${this._scenarioBars(stats)}
+          </div>
         </div>
-      </div>
-      ${this._recommendation(stats)}
-    `;
+      `;
+      container.style.opacity = '1';
+      container.style.transform = 'translateY(0)';
+    }, 120);
+  },
+
+  _scenarioBars(stats) {
+    const b = stats.bchs;
+    const ranges = [
+      { label: 'P10 → P25',  from: b.p10,    to: b.p25,    color: '#fee2e2', text: '#ef4444' },
+      { label: 'P25 → Медиана', from: b.p25, to: b.median,  color: '#fef9c3', text: '#d97706' },
+      { label: 'Медиана',    from: b.median,  to: b.median,  color: '#e0e7ff', text: '#6366f1' },
+      { label: 'Медиана → P75', from: b.median, to: b.p75,  color: '#dcfce7', text: '#10b981' },
+      { label: 'P75 → P90',  from: b.p75,    to: b.p90,    color: '#d1fae5', text: '#059669' },
+    ];
+    return ranges.map(r => {
+      const mid = r.from === r.to ? r.from : ((r.from + r.to) / 2);
+      const w   = Math.max(mid, 2);
+      return `
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+          <div style="width:100px;font-size:11px;color:#9ca3af;flex-shrink:0">${r.label}</div>
+          <div style="flex:1;background:#f4f4f8;border-radius:20px;height:8px;overflow:hidden">
+            <div style="width:${w}%;background:${r.color};height:100%;border-radius:20px;
+                        border:1px solid ${r.text}22;transition:width 0.4s ease"></div>
+          </div>
+          <div style="width:36px;text-align:right;font-size:12px;font-weight:600;color:${r.text}">
+            ${r.to.toFixed(1)}
+          </div>
+        </div>`;
+    }).join('');
   },
 
   _bchsStatsCard(stats) {
     const b = stats.bchs;
     return `
       <div class="mc-stats-card">
-        <div class="mc-stats-card-title">📊 Прогноз bCHS (0–100)</div>
+        <div class="mc-stats-card-title">Прогноз bCHS (0–100)</div>
         <table class="mc-pct-table">
-          <tr><td class="mc-pct-label">P10</td>
-              <td class="mc-pct-val">${b.p10.toFixed(1)}</td></tr>
-          <tr><td class="mc-pct-label">P25</td>
-              <td class="mc-pct-val">${b.p25.toFixed(1)}</td></tr>
+          <tr><td class="mc-pct-label">P10</td><td class="mc-pct-val">${b.p10.toFixed(1)}</td></tr>
+          <tr><td class="mc-pct-label">P25</td><td class="mc-pct-val">${b.p25.toFixed(1)}</td></tr>
           <tr class="mc-pct-highlight">
-              <td class="mc-pct-label">Медиана</td>
-              <td class="mc-pct-val"><strong>${b.median.toFixed(1)}</strong></td></tr>
-          <tr><td class="mc-pct-label">Среднее</td>
-              <td class="mc-pct-val">${b.mean.toFixed(1)}</td></tr>
-          <tr><td class="mc-pct-label">P75</td>
-              <td class="mc-pct-val">${b.p75.toFixed(1)}</td></tr>
-          <tr><td class="mc-pct-label">P90</td>
-              <td class="mc-pct-val">${b.p90.toFixed(1)}</td></tr>
+            <td class="mc-pct-label">Медиана</td>
+            <td class="mc-pct-val"><strong>${b.median.toFixed(1)}</strong></td>
+          </tr>
+          <tr><td class="mc-pct-label">Среднее</td><td class="mc-pct-val">${b.mean.toFixed(1)}</td></tr>
+          <tr><td class="mc-pct-label">P75</td><td class="mc-pct-val">${b.p75.toFixed(1)}</td></tr>
+          <tr><td class="mc-pct-label">P90</td><td class="mc-pct-val">${b.p90.toFixed(1)}</td></tr>
         </table>
       </div>`;
   },
@@ -522,42 +607,39 @@ export const MCPage = {
     const m = stats.mr;
     return `
       <div class="mc-stats-card">
-        <div class="mc-stats-card-title">💰 Прогноз MR</div>
+        <div class="mc-stats-card-title">Прогноз MR</div>
         <table class="mc-pct-table">
-          <tr><td class="mc-pct-label">P10</td>
-              <td class="mc-pct-val">${this._fmtMR(m.p10)}</td></tr>
-          <tr><td class="mc-pct-label">P25</td>
-              <td class="mc-pct-val">${this._fmtMR(m.p25)}</td></tr>
+          <tr><td class="mc-pct-label">P10</td><td class="mc-pct-val">${this._fmtMR(m.p10)}</td></tr>
+          <tr><td class="mc-pct-label">P25</td><td class="mc-pct-val">${this._fmtMR(m.p25)}</td></tr>
           <tr class="mc-pct-highlight">
-              <td class="mc-pct-label">Медиана</td>
-              <td class="mc-pct-val"><strong>${this._fmtMR(m.median)}</strong></td></tr>
-          <tr><td class="mc-pct-label">Среднее</td>
-              <td class="mc-pct-val">${this._fmtMR(m.mean)}</td></tr>
-          <tr><td class="mc-pct-label">P75</td>
-              <td class="mc-pct-val">${this._fmtMR(m.p75)}</td></tr>
-          <tr><td class="mc-pct-label">P90</td>
-              <td class="mc-pct-val">${this._fmtMR(m.p90)}</td></tr>
+            <td class="mc-pct-label">Медиана</td>
+            <td class="mc-pct-val"><strong>${this._fmtMR(m.median)}</strong></td>
+          </tr>
+          <tr><td class="mc-pct-label">Среднее</td><td class="mc-pct-val">${this._fmtMR(m.mean)}</td></tr>
+          <tr><td class="mc-pct-label">P75</td><td class="mc-pct-val">${this._fmtMR(m.p75)}</td></tr>
+          <tr><td class="mc-pct-label">P90</td><td class="mc-pct-val">${this._fmtMR(m.p90)}</td></tr>
         </table>
       </div>`;
   },
 
-  _churnGaugeCard(stats) {
+  _churnGaugeCard(stats, horizonKey="3m") {
     const cr   = stats.churn_rate;
-    const cls  = cr < 7 ? '#10b981' : cr < 15 ? '#f59e0b' : '#ef4444';
-    const desc = cr < 7
+    const _gt = this._churnThreshold(horizonKey);
+    const cls  = cr < _gt.low ? '#10b981' : cr < _gt.medium ? '#f59e0b' : '#ef4444';
+    const desc = cr < _gt.low
       ? 'Риск оттока низкий — сценарий устойчив'
-      : cr < 15
+      : cr < _gt.medium
         ? 'Умеренный риск — держать под контролем'
         : 'Высокий риск оттока — требует вмешательства';
 
-    const r      = 38, cx = 50, cy = 50;
+    const r = 38, cx = 50, cy = 50;
     const circ   = 2 * Math.PI * r;
     const pct    = Math.min(cr / 50 * 100, 100);
     const offset = circ * (1 - pct / 100);
 
     return `
       <div class="mc-stats-card">
-        <div class="mc-stats-card-title">⚡ Риск оттока</div>
+        <div class="mc-stats-card-title">Риск оттока</div>
         <div style="display:flex;flex-direction:column;align-items:center;gap:8px;padding:8px 0">
           <svg width="100" height="100" viewBox="0 0 100 100">
             <circle cx="${cx}" cy="${cy}" r="${r}"
@@ -573,89 +655,31 @@ export const MCPage = {
                   font-size="16" font-weight="700"
                   fill="${cls}" font-family="Inter">${cr.toFixed(1)}%</text>
           </svg>
-          <div style="text-align:center;font-size:11.5px;
-                      color:var(--text-secondary);line-height:1.4">${desc}</div>
+          <div style="text-align:center;font-size:11.5px;color:var(--text-secondary);line-height:1.4">${desc}</div>
           <div style="font-size:11px;color:var(--text-muted)">
-            ${stats.churn_count.toLocaleString('ru-RU')} из
-            ${stats.n.toLocaleString('ru-RU')} сценариев
+            ${stats.churn_count.toLocaleString('ru-RU')} из ${stats.n.toLocaleString('ru-RU')} сценариев
           </div>
         </div>
       </div>`;
   },
 
-  _categoryBars(stats) {
-    return MCEngine.CATEGORIES.map(cat => {
-      const pct   = stats.categories[cat.key] || 0;
-      const count = Math.round(pct / 100 * stats.n);
-      const w     = Math.max(pct, 0.3);
-      return `
-        <div class="mc-cat-row">
-          <div class="mc-cat-name">${cat.label}</div>
-          <div class="mc-cat-bar-wrap">
-            <div class="mc-cat-bar" style="width:${w}%;background:${cat.color}"></div>
-          </div>
-          <div class="mc-cat-pct">${pct.toFixed(1)}%</div>
-          <div class="mc-cat-count">${count.toLocaleString('ru-RU')}</div>
-        </div>`;
-    }).join('');
+  /* ── Snapshot persistence ───────────────────────────────────── */
+  async _saveSnapshotToStrategy() {
+    if (!this.client?.id || !this._lastSnapshot) return;
+    /* Сохраняем в таблицу mc_snapshots */
+    try {
+      await fetch(`${BASE_URL}/mc/snapshot`, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({
+          client_id: this.client.id,
+          snapshot:  this._lastSnapshot,
+        }),
+      });
+    } catch { /* silent */ }
   },
 
-  _recommendation(stats) {
-    const cr          = stats.churn_rate;
-    const cats        = stats.categories;
-    const positivePct = (cats.champion  || 0) + (cats.promoter  || 0);
-    const negativePct = (cats.at_risk   || 0) + (cats.detractor || 0) + (cats.churned || 0);
-
-    let cls, icon, title, text;
-
-    if (cr > 20) {
-      cls   = 'mc-rec-red';
-      icon  = '🔴';
-      title = 'Критический риск оттока';
-      text  = `${cr.toFixed(1)}% симуляций заканчиваются оттоком. Немедленное вмешательство: `
-            + `антикризисная встреча, пересмотр условий, эскалация до топ-менеджмента. `
-            + `Каждый месяц промедления увеличивает вероятность потери клиента.`;
-    } else if (cr > 10) {
-      cls   = 'mc-rec-yellow';
-      icon  = '⚠️';
-      title = 'Повышенный риск — требует мониторинга';
-      text  = `${cr.toFixed(1)}% сценариев предполагают отток. `
-            + `Усилить ритм касаний, провести QBR в ближайшие 4 недели. `
-            + `Зафиксировать метрики-триггеры для быстрого реагирования.`;
-    } else if (positivePct > 50) {
-      cls   = 'mc-rec-green';
-      icon  = '🚀';
-      title = 'Потенциал роста подтверждён';
-      text  = `${positivePct.toFixed(1)}% сценариев — Champion или Promoter. `
-            + `Момент для инвестиции в расширение: стратегические сессии, `
-            + `апселл-предложение, углубление партнёрства.`;
-    } else if (negativePct > 40) {
-      cls   = 'mc-rec-yellow';
-      icon  = '📋';
-      title = 'Нестабильная зона — нужен план';
-      text  = `${negativePct.toFixed(1)}% сценариев в зоне At Risk / Detractor. `
-            + `Разработать конкретный план восстановления лояльности. `
-            + `Определить 2–3 ключевых действия на ближайший месяц.`;
-    } else {
-      cls   = 'mc-rec-gray';
-      icon  = '😐';
-      title = 'Нейтральный прогноз';
-      text  = `Сценарии распределены без явного перевеса. `
-            + `Держать текущий ритм работы, отслеживать bCHS ежемесячно. `
-            + `При появлении негативных сигналов — немедленно пересчитать прогноз.`;
-    }
-
-    return `
-      <div class="mc-recommendation ${cls}">
-        <div class="mc-rec-icon">${icon}</div>
-        <div class="mc-rec-body">
-          <div class="mc-rec-title">${title}</div>
-          <div class="mc-rec-text">${text}</div>
-        </div>
-      </div>`;
-  },
-
-  /* ── Format helpers ─────────────────────────────────────────── */
+  /* ── Format helpers ──────────────────────────────────────────── */
   _fmtMR(v) {
     if (v === null || v === undefined) return '—';
     if (Math.abs(v) >= 1_000_000) return (v / 1_000_000).toFixed(2) + ' М';
@@ -664,5 +688,5 @@ export const MCPage = {
   },
 };
 
-/* ── Expose globally для detail.js ─────────────────────────────── */
+/* ── Expose globally ─────────────────────────────────────────────── */
 window.MCPage = MCPage;

@@ -158,7 +158,7 @@ export const MCEngine = {
     const c = Object.assign({}, this.DEFAULTS, cfg || {});
 
     const initBCHS = (currentBCHSRaw !== null && currentBCHSRaw !== undefined)
-      ? Math.round((currentBCHSRaw + 81) / 162 * 100 * 10) / 10
+      ? Math.max(0, Math.min(100, Math.round(currentBCHSRaw * 10) / 10))
       : 50;
     const initMR = c.monthly_revenue || this.DEFAULTS.monthly_revenue;
 

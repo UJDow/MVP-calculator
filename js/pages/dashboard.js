@@ -1243,13 +1243,17 @@ AI сам разберёт структуру, выделит задачи, ша
       const text = (document.getElementById('touch-ai-input')?.value ?? '').trim();
       if (!text) { window.App.toast?.('Вставь транскрипт', 'error'); return; }
 
-      const btn   = document.getElementById('touch-ai-btn');
-      const aiSt  = document.getElementById('touch-ai-status');
+      const btn  = document.getElementById('touch-ai-btn');
+      const aiSt = document.getElementById('touch-ai-status');
       const aiRes = document.getElementById('touch-ai-result');
       btn.disabled = true; btn.textContent = '⏳ Анализирую...';
       aiSt.textContent = 'Отправляю запрос...';
 
       try {
+        const month = parseInt(saved['touch-month'] ?? now.getMonth()+1);
+        const year  = parseInt(saved['touch-year']  ?? now.getFullYear());
+        const type  = (saved['touch-type'] || 'checkin');
+
         const data = await API.callAI({
           type:        'touch',
           client_name: clientName,
@@ -1268,7 +1272,7 @@ AI сам разберёт структуру, выделит задачи, ша
         if (parsedAI.outcome)  saved['touch-outcome']   = parsedAI.outcome;
         if (parsedAI.blockers) saved['touch-blockers']  = parsedAI.blockers;
 
-                const signalCount = Object.values(parsedAI.signals || {}).filter(Boolean).length;
+        const signalCount = Object.values(parsedAI.signals || {}).filter(Boolean).length;
         aiRes.classList.remove('hidden');
         aiRes.innerHTML = `
           <div style="margin-bottom:10px">
@@ -1287,7 +1291,7 @@ AI сам разберёт структуру, выделит задачи, ша
 
       } catch (e) {
         aiSt.textContent = '❌ Ошибка';
-        window.App.toast?.('Ошибка AI: ' + e.message, 'error');
+        window.App.toast?.('Ошибка: ' + e.message, 'error');
       } finally {
         btn.disabled = false; btn.textContent = '🤖 Разобрать';
       }
@@ -1309,7 +1313,7 @@ AI сам разберёт структуру, выделит задачи, ша
 
   // ── финальное сохранение ──
   const _doSave = async () => {
-    const g    = id => (saved[id] ?? '').trim();
+    const g     = id => (saved[id] ?? '').trim();
     const type  = g('touch-type') || 'checkin';
     const month = parseInt(saved['touch-month'] ?? now.getMonth()+1);
     const year  = parseInt(saved['touch-year']  ?? now.getFullYear());
@@ -1333,34 +1337,35 @@ AI сам разберёт структуру, выделит задачи, ша
     if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = '⏳ Сохраняем...'; }
 
     try {
-      await API.saveTouchPoint({
-        client_id: clientId, type,
-        completed_at: new Date().toISOString(), notes,
-      });
-
-            if (parsedAI?.signals) {
-        // Берём только отмеченные чекбоксы — пользователь мог снять лишние
+      if (parsedAI) {
         const checkedSigs = new Set(
           [...document.querySelectorAll('.ai-sig-cb:checked')].map(el => el.dataset.key)
         );
         const checkedPc = new Set(
           [...document.querySelectorAll('.ai-pc-cb:checked')].map(el => el.dataset.key)
         );
-        const signalData = {};
-        for (const key of Object.keys(SIGNALS)) {
-          signalData[key] = !!(parsedAI.signals[key]) && checkedSigs.has(key);
-        }
-        signalData.status_note = notes;
-                const pcData = {};
-        for (const key of Object.keys(PC_CRITERIA)) {
-          const val = parsedAI?.pc?.[key];
-          pcData[key] = (val >= 1 && val <= 5) && checkedPc.has(key) ? val : null;
-        }
-        await Promise.all([
-          API.saveBCHSEntry(clientId, month, year, signalData),
-          API.savePCEntry(clientId,   month, year, pcData),
-        ]);
-        API.clearCache();
+        const filteredParsed = {
+          ...parsedAI,
+          signals: Object.fromEntries(
+            Object.entries(parsedAI.signals || {}).map(([k, v]) => [k, v && checkedSigs.has(k)])
+          ),
+          pc: Object.fromEntries(
+            Object.entries(parsedAI.pc || {}).map(([k, v]) => [k, checkedPc.has(k) ? v : null])
+          ),
+        };
+        await API.saveTouchPointFull({
+          client_id:   clientId,
+          client_name: clientName,
+          transcript:  '',
+          parsed:      filteredParsed,
+          notes,
+          type, month, year,
+        });
+      } else {
+        await API.saveTouchPoint({
+          client_id: clientId, type,
+          completed_at: new Date().toISOString(), notes,
+        });
       }
 
       this.touchPoints.push({
@@ -1373,6 +1378,7 @@ AI сам разберёт структуру, выделит задачи, ша
         parsedAI?.signals ? '✅ Касание сохранено, сигналы записаны' : '✅ Касание сохранено',
         'success'
       );
+      API.clearCache();
       await this.load();
 
     } catch (e) {

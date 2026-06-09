@@ -325,6 +325,10 @@ export const API = {
     return this._post('tables/touch_points', data);
   },
 
+  async saveTouchPointFull(data) {
+    return this._post('touch/save', data);
+  },
+
   async completeTouchPoint(id, notes = '') {
     return this._put(`tables/touch_points/${id}`, {
       completed_at: new Date().toISOString(),

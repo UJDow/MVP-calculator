@@ -63,6 +63,7 @@ export const DetailPage = {
     { id: 'touches',   label: '📍 Касания',  always: true },
     { id: 'notes',     label: '📝 Заметки',  always: true },
     { id: 'delivery',  label: '👥 Delivery', module: 'detail_delivery' },
+    { id: 'mc',        label: '🎲 Monte Carlo', module: 'detail_monte_carlo' },
   ];
 
     return tabs.filter(t => {
@@ -235,6 +236,29 @@ case 'notes':
             <div class="empty-state">
               <div class="empty-state-icon">⚠️</div>
               <div class="empty-state-title">DeliveryTab не загружен</div>
+            </div>`;
+        }
+        break;
+
+      case 'mc':
+        contentEl.innerHTML = `<div id="mc-tab-content"></div>`;
+        if (window.MCPage) {
+          window.MCPage.mount(
+            this.client,
+            this.computed?.bchs ?? null,
+          );
+          // передаём monthly_revenue клиента в cfg
+          if (window.MCPage && this.client.monthly_revenue) {
+            window.MCPage.cfg = Object.assign(
+              window.MCPage.cfg || {},
+              { monthly_revenue: this.client.monthly_revenue }
+            );
+          }
+        } else {
+          contentEl.innerHTML = `
+            <div class="empty-state">
+              <div class="empty-state-icon">⚠️</div>
+              <div class="empty-state-title">MCPage не загружен</div>
             </div>`;
         }
         break;

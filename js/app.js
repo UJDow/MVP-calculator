@@ -14,6 +14,8 @@ import { ClientsPage }   from './pages/clients.js';
 import { CalendarsPage } from './pages/calendars.js';
 import { TrackerPage }   from './pages/tracker.js';
 import { PortfolioPage } from './pages/portfolio.js';
+import { DeliveryTab }   from './pages/delivery.js';
+import { MCPage }        from './mc_page.js';
 import { applyRoleToNav } from './role_config.js';
 import { Backup }        from './backup.js';
 import { TouchPointsPage } from './pages/touchpoints.js';

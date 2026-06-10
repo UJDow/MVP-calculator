@@ -1037,7 +1037,7 @@ export const PortfolioPage = {
                     bubbles.forEach(x => { if (x !== b) x.style.opacity = '0.15'; });
                     b.setAttribute('r', String(Number(b.getAttribute('r')) + 3));
                     tip.innerHTML = '<b>' + b.dataset.name + '</b><br>'
-                      + 'BCHS: ' + b.dataset.bchs
+                      + 'Лояльность: ' + b.dataset.loyalty + '%'
                       + ' &nbsp;·&nbsp; Реализация: ' + b.dataset.pct + '%'
                       + ' &nbsp;·&nbsp; MR: ' + b.dataset.mr;
                     tip.style.display = 'block';
@@ -2094,7 +2094,10 @@ document.getElementById('pf-ai-mode-sw')
         hint: 'от потенциала',
         valueColor: potColor,
         detail: (() => {
-          const withPot = [...computed].filter(r => r.pctPot !== null && r.pctPot !== undefined && r.potential > 0);
+          const withPot = [...computed].filter(r =>
+            r.pctPot !== null && r.pctPot !== undefined &&
+            r.potential > 0 &&
+            r.loyalty !== null && r.loyalty !== undefined);
           if (!withPot.length) return '<div style="font-size:12px;color:#94a3b8;padding:8px 0">Нет данных</div>';
 
           const BCG_COLORS = { KEY:'#f59e0b', GROWTH:'#6366f1', GROWTH_EARLY:'#8b5cf6', STABLE:'#6b7280', TAIL:'#9ca3af' };
@@ -2102,19 +2105,20 @@ document.getElementById('pf-ai-mode-sw')
 
           // X = bchs балл, Y = реализация (%), размер = MR
           const W = 800, H = 400, PAD = 62;
-          const allBchs = withPot.map(r => r.bchs || 0);
-          const maxBchs = Math.max(...allBchs, 1);
-          const minBchs = Math.min(...allBchs);
-          const maxMR   = Math.max(...withPot.map(r => r.client.monthly_revenue || 0), 1);
+          // X = loyalty % — автомасштаб по реальному диапазону
+          const maxMR    = Math.max(...withPot.map(r => r.client.monthly_revenue || 0), 1);
+          const allLoy   = withPot.map(r => r.loyalty);
+          const minLoyX  = Math.max(0,   Math.floor(Math.min(...allLoy) / 5) * 5 - 5);
+          const maxLoyX  = Math.min(100, Math.ceil (Math.max(...allLoy) / 5) * 5 + 5);
 
-          const px = v => Math.round(PAD + ((v - minBchs) / (maxBchs - minBchs || 1)) * (W - PAD * 2));
+          const px = v => Math.round(PAD + ((v - minLoyX) / (maxLoyX - minLoyX)) * (W - PAD * 2));
           const py = v => Math.round(H - PAD - (v / 100) * (H - PAD * 2));
           const pr = v => Math.max(7, Math.min(40, Math.round(Math.sqrt(v / maxMR) * 40)));
 
           // оси
           const axisX = '<line x1="' + PAD + '" y1="' + (H-PAD) + '" x2="' + (W-4) + '" y2="' + (H-PAD) + '" stroke="#e2e8f0" stroke-width="1"/>';
           const axisY = '<line x1="' + PAD + '" y1="4" x2="' + PAD + '" y2="' + (H-PAD) + '" stroke="#e2e8f0" stroke-width="1"/>';
-          const labelX = '<text x="' + (W/2) + '" y="' + (H-4) + '" text-anchor="middle" font-size="11" fill="#64748b">BCHS балл</text>';
+          const labelX = '<text x="' + (W/2) + '" y="' + (H-4) + '" text-anchor="middle" font-size="11" fill="#64748b">Лояльность (%)</text>';
           const labelY = '<text x="10" y="' + (H/2) + '" text-anchor="middle" font-size="11" fill="#64748b" transform="rotate(-90 10 ' + (H/2) + ')">Реализация (%)</text>';
 
           // зоны по Y (реализация)
@@ -2130,10 +2134,10 @@ document.getElementById('pf-ai-mode-sw')
 
           // тики X
           const xTicks = [0, 0.25, 0.5, 0.75, 1].map(t => {
-            const v = Math.round(minBchs + (maxBchs - minBchs) * t);
+            const v   = Math.round(minLoyX + (maxLoyX - minLoyX) * t);
             const xpx = px(v);
             return '<line x1="' + xpx + '" y1="' + (H-PAD) + '" x2="' + xpx + '" y2="' + (H-PAD+4) + '" stroke="#cbd5e1" stroke-width="1"/>'
-              + '<text x="' + xpx + '" y="' + (H-PAD+15) + '" text-anchor="middle" font-size="10" fill="#64748b">' + v + '</text>';
+              + '<text x="' + xpx + '" y="' + (H-PAD+15) + '" text-anchor="middle" font-size="10" fill="#64748b">' + v + '%</text>';
           }).join('');
 
           // тики Y
@@ -2146,7 +2150,7 @@ document.getElementById('pf-ai-mode-sw')
           // пузыри + умные лейблы
           const placed = [];
           const bubbles = withPot.map(r => {
-            const x = px(r.bchs || 0);
+            const x = px(r.loyalty ?? 50);
             const y = py(r.pctPot);
             const rad = pr(r.client.monthly_revenue || 0);
             const c = pClr(r.pctPot);
@@ -2155,19 +2159,26 @@ document.getElementById('pf-ai-mode-sw')
               ? '$' + Math.round(r.client.monthly_revenue/1000) + 'k'
               : '$' + (r.client.monthly_revenue || 0);
 
-            let lx = x, ly = y - rad - 6;
-            const offsets = [[0,0],[0,-14],[16,0],[-16,0],[0,-28],[22,-10],[-22,-10],[0,rad+16]];
-            for (const [dx,dy] of offsets) {
-              const cx = x + dx, cy = y - rad - 6 + dy;
-              if (!placed.some(p => Math.abs(p.x-cx)<52 && Math.abs(p.y-cy)<14)) {
+            // smart label — над пузырём, смещаем если перекрытие
+            let lx = x, ly = y - rad - 8;
+            const offsets = [
+              [0, 0], [0, -16], [0, -30],
+              [30, -8], [-30, -8],
+              [30, 8], [-30, 8],
+              [45, 0], [-45, 0],
+              [0, rad + 20],
+            ];
+            for (const [dx, dy] of offsets) {
+              const cx = x + dx, cy = y - rad - 8 + dy;
+              if (!placed.some(p => Math.abs(p.x - cx) < 60 && Math.abs(p.y - cy) < 16)) {
                 lx = cx; ly = cy; break;
               }
             }
-            placed.push({x:lx, y:ly});
+            placed.push({x: lx, y: ly});
 
-            const needLine = Math.abs(lx-x)>6 || Math.abs(ly-(y-rad-6))>6;
+            const needLine = Math.abs(lx - x) > 6 || Math.abs(ly - (y - rad - 8)) > 6;
             const connector = needLine
-              ? '<line x1="'+lx+'" y1="'+(ly+3)+'" x2="'+x+'" y2="'+(y-rad)+'" stroke="#94a3b8" stroke-width="1" stroke-dasharray="3,2"/>'
+              ? '<line x1="' + lx + '" y1="' + (ly + 3) + '" x2="' + x + '" y2="' + (y - rad) + '" stroke="#94a3b8" stroke-width="1" stroke-dasharray="3,2"/>'
               : '';
 
             return '<circle class="pot-bubble" cx="' + x + '" cy="' + y + '" r="' + rad + '"'
@@ -2175,7 +2186,7 @@ document.getElementById('pf-ai-mode-sw')
               + ' data-action="go-detail" data-id="' + r.client.id + '"'
               + ' data-bcg="' + (r.client.bcg_category||'') + '"'
               + ' data-name="' + r.client.name + '" data-pct="' + r.pctPot + '"'
-              + ' data-bchs="' + (r.bchs || 0) + '" data-mr="' + mr + '"/>'
+              + ' data-loyalty="' + (r.loyalty ?? '—') + '" data-mr="' + mr + '"/>'
               + connector
               + '<text x="' + lx + '" y="' + ly + '" text-anchor="middle"'
               + ' style="font-size:11px;font-weight:600;fill:#1e293b;pointer-events:none">' + name + '</text>';

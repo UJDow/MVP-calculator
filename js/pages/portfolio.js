@@ -472,7 +472,7 @@ export const PortfolioPage = {
             bchs:  r.bchs ?? null,
             mr:    r.client.monthly_revenue ?? 0,
             trend: r.trend?.direction ?? '—',
-            risk:  r.riskAmt ?? 0,
+            risk:  r.revenueAtRisk ?? 0,
             churn: null,
           }));
           const result = await API.callAI({
@@ -595,7 +595,7 @@ export const PortfolioPage = {
                     loyalty: r.loyalty ?? null,
                     bchs:    r.bchs ?? null,
                     mr:      r.client.monthly_revenue ?? 0,
-                    risk:    r.riskAmt ?? 0,
+                    risk:    r.revenueAtRisk ?? 0,
                     trend:   r.trend?.direction ?? null,
                   }));
                   const result = await API.callAI({
@@ -858,7 +858,7 @@ export const PortfolioPage = {
                     mr:      r.client.monthly_revenue ?? 0,
                     loyalty: r.loyalty ?? null,
                     bchs:    r.bchs ?? null,
-                    risk:    r.riskAmt ?? 0,
+                    risk:    r.revenueAtRisk ?? 0,
                     trend:   r.trend?.direction ?? null,
                   }));
                   const result = await API.callAI({
@@ -1197,7 +1197,7 @@ export const PortfolioPage = {
                     loyalty: r.loyalty ?? null,
                     bchs:    r.bchs ?? null,
                     mr:      r.client.monthly_revenue ?? 0,
-                    risk:    r.riskAmt ?? 0,
+                    risk:    r.revenueAtRisk ?? 0,
                     trend:   r.trend?.direction ?? null,
                   }));
                   const result = await API.callAI({
@@ -1401,13 +1401,13 @@ document.getElementById('pf-ai-mode-sw')
     const riskEl = document.getElementById('pf-chart-risk');
     if (riskEl) {
       const sorted = [...computed]
-        .filter(r => (r.riskAmt ?? 0) > 0)
-        .sort((a, b) => (b.riskAmt ?? 0) - (a.riskAmt ?? 0))
+        .filter(r => (r.revenueAtRisk ?? 0) > 0)
+        .sort((a, b) => (b.revenueAtRisk ?? 0) - (a.revenueAtRisk ?? 0))
         .slice(0, 8);
-      const maxVal = sorted[0]?.riskAmt ?? 1;
+      const maxVal = sorted[0]?.revenueAtRisk ?? 1;
 
       riskEl.innerHTML = sorted.map(r => {
-        const amt   = r.riskAmt ?? 0;
+        const amt   = r.revenueAtRisk ?? 0;
         const pct   = r.riskPct ?? 0;
         const w     = Math.max(4, Math.round((amt / maxVal) * 100));
         const color = pct > 30 ? '#ef4444' : pct > 15 ? '#f59e0b' : '#6366f1';

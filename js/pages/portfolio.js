@@ -1961,11 +1961,8 @@ document.getElementById('pf-ai-mode-sw')
           const labelY = '<text x="8" y="' + (H/2) + '" text-anchor="middle" font-size="9" fill="#94a3b8" transform="rotate(-90 8 ' + (H/2) + ')">% от портфеля</text>';
 
           // Зоны квадрантов по медиане реальных данных
-          const sortX = [...allX].sort((a,b)=>a-b);
-          const sortY = [...allY].sort((a,b)=>a-b);
-          const medX  = sortX[Math.floor(sortX.length/2)] || maxX/2;
-          const medY  = sortY[Math.floor(sortY.length/2)] || maxY/2;
-          const midX  = px(medX), midY = py(medY);
+          // квадранты по смысловым порогам: X=25% риска, Y=25% портфеля
+          const midX  = px(maxX * 0.35), midY = py(maxY * 0.35);
           const zones =
             '<rect x="' + PAD + '" y="' + midY + '" width="' + (midX-PAD) + '" height="' + (H-PAD-midY) + '" fill="#f1f5f9" opacity=".4"/>'
             + '<rect x="' + midX + '" y="' + PAD + '" width="' + (W-PAD-midX) + '" height="' + (midY-PAD) + '" fill="#fee2e2" opacity=".3"/>'
@@ -1973,10 +1970,10 @@ document.getElementById('pf-ai-mode-sw')
             + '<rect x="' + midX + '" y="' + midY + '" width="' + (W-PAD-midX) + '" height="' + (H-PAD-midY) + '" fill="#fef3c7" opacity=".2"/>';
 
           const qLabels =
-            '<text x="' + (midX+4) + '" y="' + (PAD+12) + '" font-size="8" fill="#ef4444" opacity=".7">Критично</text>'
-            + '<text x="' + (PAD+4) + '" y="' + (PAD+12) + '" font-size="8" fill="#f59e0b" opacity=".7">Крупный, умеренный</text>'
-            + '<text x="' + (midX+4) + '" y="' + (H-PAD-6) + '" font-size="8" fill="#f59e0b" opacity=".7">Малый, высокий риск</text>'
-            + '<text x="' + (PAD+4) + '" y="' + (H-PAD-6) + '" font-size="8" fill="#94a3b8" opacity=".7">Наблюдение</text>';
+            '<text x="' + (midX+8) + '" y="' + (PAD+18) + '" font-size="11" font-weight="600" fill="#ef4444" opacity=".8">Критично</text>'
+            + '<text x="' + (PAD+8) + '" y="' + (PAD+18) + '" font-size="11" font-weight="600" fill="#f59e0b" opacity=".8">Крупный, умеренный</text>'
+            + '<text x="' + (midX+8) + '" y="' + (H-PAD-8) + '" font-size="11" font-weight="600" fill="#f59e0b" opacity=".8">Малый, высокий риск</text>'
+            + '<text x="' + (PAD+8) + '" y="' + (H-PAD-8) + '" font-size="11" font-weight="600" fill="#94a3b8" opacity=".8">Наблюдение</text>';
 
           // динамические тики под реальный диапазон
           const mkTicks = mx => {

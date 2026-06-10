@@ -879,6 +879,117 @@ export const PortfolioPage = {
               }
             }
 
+            // AI анализ при раскрытии карточки risk
+            if (card.dataset.card === 'risk') {
+              setTimeout(() => {
+                const svg = document.getElementById('risk-bubble-svg');
+                if (!svg) return;
+                const bubbles = [...svg.querySelectorAll('.risk-bubble')];
+                let tip = document.getElementById('risk-bubble-tip');
+                if (!tip) {
+                  tip = document.createElement('div');
+                  tip.id = 'risk-bubble-tip';
+                  tip.style.cssText = 'position:fixed;display:none;background:#1e293b;color:#f8fafc;'
+                    + 'font-size:11px;padding:6px 10px;border-radius:8px;pointer-events:none;'
+                    + 'z-index:9999;box-shadow:0 4px 12px rgba(0,0,0,.18);line-height:1.5;white-space:nowrap';
+                  document.body.appendChild(tip);
+                }
+                bubbles.forEach(b => {
+                  b.addEventListener('mouseenter', () => {
+                    bubbles.forEach(x => { if (x !== b) x.style.opacity = '0.2'; });
+                    b.setAttribute('r', String(Number(b.getAttribute('r')) + 3));
+                    tip.innerHTML = '<b>' + b.dataset.name + '</b><br>'
+                      + b.dataset.amt + ' &nbsp;·&nbsp; '
+                      + b.dataset.riskpct + '% от MR &nbsp;·&nbsp; '
+                      + b.dataset.pfpct + '% портфеля';
+                    tip.style.display = 'block';
+                  });
+                  b.addEventListener('mousemove', e => {
+                    tip.style.left = (e.clientX + 12) + 'px';
+                    tip.style.top  = (e.clientY - 30) + 'px';
+                  });
+                  b.addEventListener('mouseleave', () => {
+                    bubbles.forEach(x => { x.style.opacity = '.85'; });
+                    b.setAttribute('r', String(Number(b.getAttribute('r')) - 3));
+                    tip.style.display = 'none';
+                  });
+                  b.addEventListener('click', () => {
+                    window.App.navigate('detail', b.dataset.id);
+                  });
+                });
+              }, 80);
+              const insightEl = document.getElementById('risk-ai-insight');
+              if (insightEl && !insightEl.dataset.loaded) {
+                insightEl.dataset.loaded = '1';
+                insightEl.innerHTML = '<div style="display:flex;align-items:center;gap:6px;color:#6366f1;font-size:11px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>AI анализирует риски...</div>';
+                try {
+                  const snap = [...computed]
+                    .filter(r => (r.revenueAtRisk ?? 0) > 0)
+                    .sort((a, b) => (b.revenueAtRisk ?? 0) - (a.revenueAtRisk ?? 0))
+                    .slice(0, 16)
+                    .map(r => ({
+                      name:     r.client.name,
+                      bcg:      r.client.bcg_category,
+                      loyalty:  r.loyalty ?? null,
+                      bchs:     r.bchs ?? null,
+                      mr:       r.client.monthly_revenue ?? 0,
+                      risk:     r.revenueAtRisk ?? 0,
+                      riskPct:  r.riskPct ?? 0,
+                      trend:    r.trend?.direction ?? null,
+                    }));
+                  const result = await API.callAI({
+                    type: 'portfolio_analysis',
+                    summary,
+                    clients_snapshot: snap,
+                  });
+                  const content = result?.choices?.[0]?.message?.content ?? result?.content ?? '';
+                  let riskText = '';
+                  try {
+                    const parsed = JSON.parse(content);
+                    riskText = parsed.risk ?? parsed.loyalty ?? parsed.insight ?? content;
+                  } catch (_) { riskText = content; }
+                  insightEl.innerHTML = '<div style="font-size:12px;color:#374151;line-height:1.7">' + riskText + '</div>';
+                } catch (e) {
+                  insightEl.innerHTML = '<div style="font-size:11px;color:#ef4444">Ошибка: ' + e.message + '</div>';
+                }
+              }
+            }
+
+            // AI анализ при раскрытии карточки loyalty
+            if (card.dataset.card === 'loyalty') {
+              const insightEl = document.getElementById('loyalty-ai-insight');
+              if (insightEl && !insightEl.dataset.loaded) {
+                insightEl.dataset.loaded = '1';
+                insightEl.innerHTML = '<div style="display:flex;align-items:center;gap:6px;color:#6366f1;font-size:11px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>AI анализирует лояльность...</div>';
+                try {
+                  const snap = computed.slice(0, 16).map(r => ({
+                    name:    r.client.name,
+                    bcg:     r.client.bcg_category,
+                    loyalty: r.loyalty ?? null,
+                    bchs:    r.bchs ?? null,
+                    mr:      r.client.monthly_revenue ?? 0,
+                    risk:    r.revenueAtRisk ?? 0,
+                    riskPct: r.riskPct ?? 0,
+                    trend:   r.trend?.direction ?? null,
+                  }));
+                  const result = await API.callAI({
+                    type: 'portfolio_analysis',
+                    summary,
+                    clients_snapshot: snap,
+                  });
+                  const content = result?.choices?.[0]?.message?.content ?? result?.content ?? '';
+                  let loyaltyText = '';
+                  try {
+                    const parsed = JSON.parse(content);
+                    loyaltyText = parsed.loyalty ?? parsed.insight ?? content;
+                  } catch (_) { loyaltyText = content; }
+                  insightEl.innerHTML = '<div style="font-size:12px;color:#374151;line-height:1.7">' + loyaltyText + '</div>';
+                } catch (e) {
+                  insightEl.innerHTML = '<div style="font-size:11px;color:#ef4444">Ошибка: ' + e.message + '</div>';
+                }
+              }
+            }
+
             // AI анализ при раскрытии карточки revenue_bcg
             if (card.dataset.card === 'revenue_bcg') {
               const insightEl = document.getElementById('revenue-bcg-ai-insight');
@@ -1585,9 +1696,45 @@ document.getElementById('pf-ai-mode-sw')
               <span style="font-size:11px;font-weight:700;color:${barClr(r.loyalty)};
                            width:32px;text-align:right;flex-shrink:0">${r.loyalty}%</span>
             </div>`).join('');
-          return `<div class="kpi-det-title">Лояльность клиентов</div>
-            <div style="max-height:300px;overflow-y:auto;scrollbar-width:thin;
-                        scrollbar-color:#e2e8f0 transparent">${rows}</div>`;
+          return `
+            <div style="display:flex;gap:20px;align-items:flex-start">
+              <div style="flex:1;min-width:0">
+                <div style="max-height:300px;overflow-y:auto;
+                            scrollbar-width:thin;scrollbar-color:#e2e8f0 transparent">
+                  ${rows || '<div style="font-size:12px;color:#94a3b8;padding:8px 0">Нет данных</div>'}
+                </div>
+                <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;
+                            padding-top:10px;border-top:1px solid #f1f5f9">
+                  <div style="display:flex;align-items:center;gap:5px;font-size:11px;color:#6b7280">
+                    <div style="width:8px;height:8px;border-radius:2px;background:#10b981"></div>
+                    Высокая <strong style="color:#0f172a;margin-left:2px">60%+</strong>
+                    <span style="color:#94a3b8">(${sorted.filter(r=>r.loyalty>=60).length})</span>
+                  </div>
+                  <div style="display:flex;align-items:center;gap:5px;font-size:11px;color:#6b7280">
+                    <div style="width:8px;height:8px;border-radius:2px;background:#f59e0b"></div>
+                    Средняя <strong style="color:#0f172a;margin-left:2px">40-60%</strong>
+                    <span style="color:#94a3b8">(${sorted.filter(r=>r.loyalty>=40&&r.loyalty<60).length})</span>
+                  </div>
+                  <div style="display:flex;align-items:center;gap:5px;font-size:11px;color:#6b7280">
+                    <div style="width:8px;height:8px;border-radius:2px;background:#ef4444"></div>
+                    Низкая <strong style="color:#0f172a;margin-left:2px">до 40%</strong>
+                    <span style="color:#94a3b8">(${sorted.filter(r=>r.loyalty<40).length})</span>
+                  </div>
+                </div>
+              </div>
+              <div style="flex:1;padding-left:20px;border-left:1px solid #f1f5f9;min-width:0">
+                <div id="loyalty-ai-insight" style="font-size:12px;color:#6b7280;line-height:1.6">
+                  <div style="display:flex;align-items:center;gap:6px;color:#6366f1;font-size:11px">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none"
+                         stroke="currentColor" stroke-width="2">
+                      <circle cx="12" cy="12" r="10"/>
+                      <path d="M12 8v4l3 3"/>
+                    </svg>
+                    AI анализирует...
+                  </div>
+                </div>
+              </div>
+            </div>`;
         })(),
       },
       {
@@ -1599,30 +1746,143 @@ document.getElementById('pf-ai-mode-sw')
         valueColor: riskColor,
         detail: (() => {
           const risky = [...computed].filter(r => r.revenueAtRisk > 0)
-            .sort((a,b) => b.revenueAtRisk - a.revenueAtRisk).slice(0,8);
-          const maxRisk = risky[0]?.revenueAtRisk || 1;
-          const rClr = p => p >= 30 ? '#ef4444' : p >= 15 ? '#f59e0b' : '#10b981';
-          const rows = risky.map((r,i) => `
-            <div data-action="go-detail" data-id="${r.client.id}"
-                 style="display:flex;align-items:center;gap:8px;padding:6px 0;
-                        border-bottom:1px solid #f5f5f8;cursor:pointer"
-                 onmouseover="this.style.background='#f8faff'"
-                 onmouseout="this.style.background='transparent'">
-              <span style="font-size:10px;color:#94a3b8;width:14px;flex-shrink:0">${i+1}</span>
-              <span style="font-size:11px;font-weight:600;width:72px;flex-shrink:0;
-                           overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
-                           color:#0f172a">${r.client.name}</span>
-              <div style="flex:1;height:6px;background:#f1f5f9;border-radius:3px;overflow:hidden">
-                <div style="width:${Math.round(r.revenueAtRisk/maxRisk*100)}%;height:100%;
-                            background:${rClr(r.riskPct)};border-radius:3px"></div>
+            .sort((a,b) => b.revenueAtRisk - a.revenueAtRisk);
+          const totalRiskSum = risky.reduce((s, r) => s + r.revenueAtRisk, 0) || 1;
+          const maxAmt       = risky[0]?.revenueAtRisk || 1;
+          const BCG_COLORS   = { KEY:'#f59e0b', GROWTH:'#6366f1', GROWTH_EARLY:'#8b5cf6', STABLE:'#6b7280', TAIL:'#9ca3af' };
+
+          // Bubble chart SVG
+          const W = 800, H = 420, PAD = 58;
+          // автомасштаб по реальным данным + 20% отступ
+          const allX = risky.map(r => r.riskPct);
+          const allY = risky.map(r => Math.round(r.revenueAtRisk / totalRiskSum * 100));
+          const maxX = Math.min(100, Math.ceil(Math.max(...allX) * 1.25 / 5) * 5);
+          const maxY = Math.min(100, Math.ceil(Math.max(...allY) * 1.35 / 5) * 5);
+          const maxR = maxAmt;
+          const px = v  => Math.round(PAD + (v  / maxX) * (W - PAD*2));
+          const py = v  => Math.round(H - PAD - (v / maxY) * (H - PAD*2));
+          const pr = v  => Math.max(8, Math.min(42, Math.round(Math.sqrt(v / maxR) * 42)));
+
+          const axisX  = '<line x1="' + PAD + '" y1="' + (H-PAD) + '" x2="' + (W-4) + '" y2="' + (H-PAD) + '" stroke="#e2e8f0" stroke-width="1"/>';
+          const axisY  = '<line x1="' + PAD + '" y1="4" x2="' + PAD + '" y2="' + (H-PAD) + '" stroke="#e2e8f0" stroke-width="1"/>';
+          const labelX = '<text x="' + (W/2) + '" y="' + H + '" text-anchor="middle" font-size="9" fill="#94a3b8">% риска от MR клиента</text>';
+          const labelY = '<text x="8" y="' + (H/2) + '" text-anchor="middle" font-size="9" fill="#94a3b8" transform="rotate(-90 8 ' + (H/2) + ')">% от портфеля</text>';
+
+          // Зоны квадрантов по медиане реальных данных
+          const sortX = [...allX].sort((a,b)=>a-b);
+          const sortY = [...allY].sort((a,b)=>a-b);
+          const medX  = sortX[Math.floor(sortX.length/2)] || maxX/2;
+          const medY  = sortY[Math.floor(sortY.length/2)] || maxY/2;
+          const midX  = px(medX), midY = py(medY);
+          const zones =
+            '<rect x="' + PAD + '" y="' + midY + '" width="' + (midX-PAD) + '" height="' + (H-PAD-midY) + '" fill="#f1f5f9" opacity=".4"/>'
+            + '<rect x="' + midX + '" y="' + PAD + '" width="' + (W-PAD-midX) + '" height="' + (midY-PAD) + '" fill="#fee2e2" opacity=".3"/>'
+            + '<rect x="' + PAD + '" y="' + PAD + '" width="' + (midX-PAD) + '" height="' + (midY-PAD) + '" fill="#fef3c7" opacity=".3"/>'
+            + '<rect x="' + midX + '" y="' + midY + '" width="' + (W-PAD-midX) + '" height="' + (H-PAD-midY) + '" fill="#fef3c7" opacity=".2"/>';
+
+          const qLabels =
+            '<text x="' + (midX+4) + '" y="' + (PAD+12) + '" font-size="8" fill="#ef4444" opacity=".7">Критично</text>'
+            + '<text x="' + (PAD+4) + '" y="' + (PAD+12) + '" font-size="8" fill="#f59e0b" opacity=".7">Крупный, умеренный</text>'
+            + '<text x="' + (midX+4) + '" y="' + (H-PAD-6) + '" font-size="8" fill="#f59e0b" opacity=".7">Малый, высокий риск</text>'
+            + '<text x="' + (PAD+4) + '" y="' + (H-PAD-6) + '" font-size="8" fill="#94a3b8" opacity=".7">Наблюдение</text>';
+
+          // динамические тики под реальный диапазон
+          const mkTicks = mx => {
+            const step = mx <= 20 ? 5 : mx <= 50 ? 10 : 25;
+            const arr = [];
+            for (let v = 0; v <= mx; v += step) arr.push(v);
+            return arr;
+          };
+          const xTicks = mkTicks(maxX).map(t => {
+            const xpx = px(t);
+            return '<line x1="' + xpx + '" y1="' + (H-PAD) + '" x2="' + xpx + '" y2="' + (H-PAD+4) + '" stroke="#cbd5e1" stroke-width="1"/>'
+              + '<text x="' + xpx + '" y="' + (H-PAD+14) + '" text-anchor="middle" font-size="10" fill="#64748b">' + t + '%</text>';
+          }).join('');
+
+          const yTicks = mkTicks(maxY).map(t => {
+            const ypx = py(t);
+            return '<line x1="' + (PAD-4) + '" y1="' + ypx + '" x2="' + PAD + '" y2="' + ypx + '" stroke="#cbd5e1" stroke-width="1"/>'
+              + '<text x="' + (PAD-7) + '" y="' + (ypx+4) + '" text-anchor="end" font-size="10" fill="#64748b">' + t + '%</text>';
+          }).join('');
+
+          // пузыри + умные лейблы без перекрытий
+          const placed = [];
+          const bubbles = risky.map(r => {
+            const portfolioPct = Math.round(r.revenueAtRisk / totalRiskSum * 100);
+            const x = px(r.riskPct);
+            const y = py(portfolioPct);
+            const rad = pr(r.revenueAtRisk);
+            const c = BCG_COLORS[r.client.bcg_category] || '#9ca3af';
+            const amt = r.revenueAtRisk >= 1000
+              ? '$' + Math.round(r.revenueAtRisk/1000) + 'k'
+              : '$' + r.revenueAtRisk;
+            const name = r.client.name.length > 10 ? r.client.name.slice(0,9) + '…' : r.client.name;
+
+            // smart label: начинаем над пузырём, смещаем если перекрытие
+            let lx = x, ly = y - rad - 6;
+            const offsets = [[0,0],[0,-14],[14,0],[-14,0],[0,-28],[20,-10],[-20,-10]];
+            for (const [dx,dy] of offsets) {
+              const cx = x + dx, cy = y - rad - 6 + dy;
+              if (!placed.some(p => Math.abs(p.x-cx)<48 && Math.abs(p.y-cy)<13)) {
+                lx = cx; ly = cy; break;
+              }
+            }
+            placed.push({x:lx, y:ly});
+
+            const needLine = Math.abs(lx-x)>6 || Math.abs(ly-(y-rad-6))>6;
+            const connector = needLine
+              ? '<line x1="'+lx+'" y1="'+(ly+3)+'" x2="'+x+'" y2="'+(y-rad)+'"'
+                + ' stroke="#94a3b8" stroke-width="1" stroke-dasharray="3,2"/>'
+              : '';
+
+            return '<circle class="risk-bubble" cx="' + x + '" cy="' + y + '" r="' + rad + '"'
+              + ' fill="' + c + '" opacity=".85" style="cursor:pointer;transition:all .2s"'
+              + ' data-action="go-detail" data-id="' + r.client.id + '"'
+              + ' data-name="' + r.client.name + '" data-riskpct="' + r.riskPct + '"'
+              + ' data-pfpct="' + portfolioPct + '" data-amt="' + amt + '"/>'
+              + connector
+              + '<text x="' + lx + '" y="' + ly + '" text-anchor="middle"'
+              + ' style="font-size:11px;font-weight:600;fill:#1e293b;pointer-events:none">' + name + '</text>';
+          }).join('');
+
+          const bubbleSVG = '<svg id="risk-bubble-svg" viewBox="0 0 ' + W + ' ' + H + '" width="100%" style="display:block;min-height:280px">'
+            + zones + qLabels + axisX + axisY + labelX + labelY + xTicks + yTicks + bubbles
+            + '</svg>';
+
+          return `
+            <div style="display:flex;flex-direction:column;gap:16px">
+
+              <!-- График на всю ширину -->
+              <div>
+                ${bubbleSVG}
+                <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:6px">
+                  ${Object.entries(BCG_COLORS).map(([k,c]) =>
+                    risky.some(r => r.client.bcg_category === k)
+                      ? '<div style="display:flex;align-items:center;gap:4px;font-size:10px;color:#6b7280">'
+                        + '<div style="width:7px;height:7px;border-radius:50%;background:' + c + '"></div>'
+                        + k.replace('_EARLY',' E') + '</div>'
+                      : ''
+                  ).join('')}
+                </div>
               </div>
-              <span style="font-size:11px;font-weight:700;color:${rClr(r.riskPct)};
-                           width:28px;text-align:right;flex-shrink:0">${r.riskPct}%</span>
-            </div>`).join('');
-          return `<div class="kpi-det-title">Revenue at Risk</div>
-            <div style="max-height:300px;overflow-y:auto;scrollbar-width:thin;
-                        scrollbar-color:#e2e8f0 transparent">
-              ${risky.length ? rows : '<div style="font-size:12px;color:#94a3b8;padding:8px 0">Рисков нет</div>'}
+
+              <!-- AI инсайт под графиком -->
+              <div style="padding-top:14px;border-top:1px solid #f1f5f9">
+                <div style="font-size:11px;font-weight:600;color:#ef4444;
+                            text-transform:uppercase;letter-spacing:.06em;
+                            margin-bottom:8px">AI · Revenue at Risk</div>
+                <div id="risk-ai-insight" style="font-size:12px;color:#6b7280;line-height:1.6">
+                  <div style="display:flex;align-items:center;gap:6px;color:#6366f1;font-size:11px">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none"
+                         stroke="currentColor" stroke-width="2">
+                      <circle cx="12" cy="12" r="10"/>
+                      <path d="M12 8v4l3 3"/>
+                    </svg>
+                    AI анализирует...
+                  </div>
+                </div>
+              </div>
+
             </div>`;
         })(),
       },

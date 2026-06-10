@@ -510,9 +510,23 @@ export const PortfolioPage = {
       {
         const kpiGrid = document.querySelector('.pf-kpi-grid-new');
         if (kpiGrid) {
+          // Запоминаем оригинальный порядок карточек один раз
+          const originalOrder = [...kpiGrid.querySelectorAll('.pf-kpi-card')].map(c => c.dataset.card);
           const collapse = () => {
+            kpiGrid.classList.remove('has-active');
             kpiGrid.querySelectorAll('.pf-kpi-card').forEach(c => {
               c.classList.remove('pf-kpi-active', 'pf-kpi-dimmed');
+            });
+            // Возвращаем карточки из сайдбара в оригинальном порядке
+            const sidebar = kpiGrid.querySelector('.pf-kpi-sidebar');
+            if (sidebar) {
+              [...sidebar.querySelectorAll('.pf-kpi-card')].forEach(c => kpiGrid.appendChild(c));
+              sidebar.remove();
+            }
+            // Восстанавливаем оригинальный порядок
+            originalOrder.forEach(id => {
+              const c = kpiGrid.querySelector('.pf-kpi-card[data-card="' + id + '"]');
+              if (c) kpiGrid.appendChild(c);
             });
           };
 
@@ -541,12 +555,27 @@ export const PortfolioPage = {
               return;
             }
 
+            // Сначала сбрасываем предыдущее состояние (если было)
+            collapse();
+
+            // Активируем выбранную карточку
             kpiGrid.querySelectorAll('.pf-kpi-card').forEach(c => {
               c.classList.remove('pf-kpi-active');
               c.classList.add('pf-kpi-dimmed');
             });
             card.classList.remove('pf-kpi-dimmed');
             card.classList.add('pf-kpi-active');
+
+            const sidebar = document.createElement('div');
+            sidebar.className = 'pf-kpi-sidebar';
+            originalOrder
+              .filter(id => id !== card.dataset.card)
+              .forEach(id => {
+                const c = kpiGrid.querySelector('.pf-kpi-card[data-card="' + id + '"]');
+                if (c) sidebar.appendChild(c);
+              });
+            kpiGrid.appendChild(sidebar);
+            kpiGrid.classList.add('has-active');
 
             // AI анализ при раскрытии карточки clients
             if (card.dataset.card === 'clients') {
@@ -1080,6 +1109,7 @@ document.getElementById('pf-ai-mode-sw')
     const cards = [
       {
         id: 'clients',
+        icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#6366f1" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>',
         label: 'Клиентов',
         value: s.total,
         hint: 'в портфеле',
@@ -1148,6 +1178,7 @@ document.getElementById('pf-ai-mode-sw')
       },
       {
         id: 'revenue_bcg',
+        icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>',
         label: 'Revenue by BCG',
         value: '$' + Math.round(computed.reduce((sum, r) => sum + (r.client.monthly_revenue||0), 0) / 1000) + 'K',
         hint: 'суммарный MR',
@@ -1208,6 +1239,7 @@ document.getElementById('pf-ai-mode-sw')
       },
       {
         id: 'hours_revenue',
+        icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#8b5cf6" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>',
         label: 'Часы vs Revenue',
         value: (() => {
           const avgHrs = computed.length
@@ -1296,6 +1328,7 @@ document.getElementById('pf-ai-mode-sw')
       },
       {
         id: 'loyalty',
+        icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>',
         label: 'Лояльность',
         value: s.avgLoyalty !== null ? s.avgLoyalty + '%' : '—',
         hint: 'средняя по портфелю',
@@ -1328,6 +1361,7 @@ document.getElementById('pf-ai-mode-sw')
       },
       {
         id: 'risk',
+        icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>',
         label: 'Revenue at Risk',
         value: '$' + s.totalRisk.toLocaleString('ru-RU'),
         hint: 'суммарно',
@@ -1363,6 +1397,7 @@ document.getElementById('pf-ai-mode-sw')
       },
       {
         id: 'potential',
+        icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#6366f1" stroke-width="2"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>',
         label: 'Реализация',
         value: s.avgPotential !== null ? s.avgPotential + '%' : '—',
         hint: 'от потенциала',
@@ -1400,6 +1435,7 @@ document.getElementById('pf-ai-mode-sw')
     const cardsHTML = cards.map(c => `
       <div class="pf-kpi-card" data-card="${c.id}">
         <div class="pf-kpi-card-collapsed">
+          <div class="pf-kpi-card-icon">${c.icon||''}</div>
           <div class="pf-kpi-card-label">${c.label}</div>
           <div class="pf-kpi-card-value" style="color:${c.valueColor}">${c.value}</div>
           <div class="pf-kpi-card-hint">${c.hint}</div>

@@ -848,24 +848,19 @@ const badgeText    = isPrimary ? 'срочно'  : 'скоро';
   ];
 
   const kpiGridHTML = `
-    <div class="pf-kpi-grid-new" id="dash-kpi-grid"
-         style="display:flex;gap:0;border:1px solid var(--border);
-                border-radius:12px;overflow:hidden;margin-bottom:20px">
+    <div class="pf-kpi-grid-new" id="dash-kpi-grid">
       ${kpiCards.map(c => `
-        <div class="pf-kpi-card" data-kpi="${c.id}"
-             style="border-right:1px solid var(--border);padding:16px 18px;
-                    min-width:0;flex:1">
+        <div class="pf-kpi-card" data-card="${c.id}">
           <div class="pf-kpi-card-collapsed">
-            <div style="display:flex;align-items:center;gap:7px;margin-bottom:8px">
-              <div style="width:22px;height:22px;border-radius:6px;background:${c.iconBg};
+            <div class="pf-kpi-card-icon">
+              <div style="width:28px;height:28px;border-radius:8px;background:${c.iconBg};
                           display:flex;align-items:center;justify-content:center;
                           color:${c.iconColor};flex-shrink:0">${c.icon}</div>
-              <span class="pf-kpi-card-label">${c.label}</span>
             </div>
+            <span class="pf-kpi-card-label">${c.label}</span>
             <div class="pf-kpi-card-value" style="color:${c.valueColor}">${c.value}</div>
             <div class="pf-kpi-card-hint">${c.hint}</div>
           </div>
-
           <div class="pf-kpi-card-detail"
                style="max-height:340px;overflow-y:auto;
                       scrollbar-width:thin;scrollbar-color:#e2e8f0 transparent">
@@ -902,26 +897,79 @@ const badgeText    = isPrimary ? 'срочно'  : 'скоро';
     // ── KPI карточки — раскрытие как в portfolio ──
     const kpiGrid = document.getElementById('dash-kpi-grid');
     if (kpiGrid) {
+      // Запоминаем оригинальный порядок карточек один раз
+      const originalOrder = [...kpiGrid.querySelectorAll('.pf-kpi-card')].map(c => c.dataset.card);
+      // Убираем inline стили с карточек — CSS классы управляют всем
+      kpiGrid.querySelectorAll('.pf-kpi-card').forEach(c => {
+        c.style.removeProperty('border-right');
+        c.style.removeProperty('padding');
+        c.style.removeProperty('min-width');
+        c.style.removeProperty('flex');
+      });
+      kpiGrid.style.removeProperty('border');
+      kpiGrid.style.removeProperty('border-radius');
+      kpiGrid.style.removeProperty('overflow');
+      kpiGrid.style.removeProperty('gap');
+
       const collapse = () => {
+        const sidebar = kpiGrid.querySelector('.pf-kpi-sidebar');
+        if (sidebar) {
+          [...sidebar.querySelectorAll('.pf-kpi-card')].forEach(c => kpiGrid.appendChild(c));
+          sidebar.remove();
+        }
+        kpiGrid.classList.remove('has-active');
+        // Восстанавливаем оригинальный порядок
+        originalOrder.forEach(id => {
+          const c = kpiGrid.querySelector('.pf-kpi-card[data-card="' + id + '"]');
+          if (c) kpiGrid.appendChild(c);
+        });
         kpiGrid.querySelectorAll('.pf-kpi-card').forEach(c => {
           c.classList.remove('pf-kpi-active', 'pf-kpi-dimmed');
         });
       };
+
       document.addEventListener('click', e => {
         if (!kpiGrid.contains(e.target)) collapse();
       });
-      kpiGrid.addEventListener('click', e => {
+
+      kpiGrid.addEventListener('click', async e => {
         e.stopPropagation();
+        const goBtn = e.target.closest('[data-action="go-detail"]');
+        if (goBtn) {
+          window.App.navigate('detail', goBtn.dataset.id);
+          return;
+        }
         const card = e.target.closest('.pf-kpi-card');
         if (!card) return;
         if (e.target.closest('.pf-kpi-card-close')) { collapse(); return; }
-        if (card.classList.contains('pf-kpi-active')) { collapse(); return; }
+        if (card.classList.contains('pf-kpi-active')) {
+          const isInteractive = e.target.closest('button, a, input, select, [data-action]');
+          if (isInteractive) return;
+          collapse();
+          return;
+        }
+
+        // Сбрасываем предыдущее состояние
+        collapse();
+
+        // Активируем карточку
         kpiGrid.querySelectorAll('.pf-kpi-card').forEach(c => {
           c.classList.remove('pf-kpi-active');
           c.classList.add('pf-kpi-dimmed');
         });
         card.classList.remove('pf-kpi-dimmed');
         card.classList.add('pf-kpi-active');
+
+        const sidebar = document.createElement('div');
+        sidebar.className = 'pf-kpi-sidebar';
+        originalOrder
+          .filter(id => id !== card.dataset.card)
+          .forEach(id => {
+            const c = kpiGrid.querySelector('.pf-kpi-card[data-card="' + id + '"]');
+            if (c) sidebar.appendChild(c);
+          });
+        kpiGrid.appendChild(sidebar);
+        kpiGrid.classList.add('has-active');
       });
     }
 

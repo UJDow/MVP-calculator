@@ -5264,6 +5264,21 @@ body {
   align-items: stretch !important;
 }
 
+/* Когда есть активная карточка — dimmed уходят в колонку */
+.pf-kpi-grid-new.has-active .pf-kpi-card.pf-kpi-dimmed {
+  flex: 0 0 76px !important;
+  min-width: 76px !important;
+  max-width: 76px !important;
+}
+
+/* Сайдбар-враппер */
+.pf-kpi-sidebar {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 8px !important;
+  flex-shrink: 0 !important;
+}
+
 .pf-kpi-card {
   flex: 1 !important;
   min-width: 0 !important;
@@ -5273,8 +5288,10 @@ body {
   padding: 20px 18px !important;
   cursor: pointer !important;
   overflow: hidden !important;
-  transition: flex 0.4s cubic-bezier(0.4,0,0.2,1),
-              opacity 0.25s ease,
+  transition: flex 0.45s cubic-bezier(0.4,0,0.2,1),
+              min-width 0.45s cubic-bezier(0.4,0,0.2,1),
+              max-width 0.45s cubic-bezier(0.4,0,0.2,1),
+              opacity 0.3s ease,
               border-color 0.2s ease,
               box-shadow 0.2s ease !important;
   position: relative !important;
@@ -5416,19 +5433,80 @@ body {
   min-width: 0 !important;
 }
 .pf-kpi-card.pf-kpi-dimmed {
-  flex: 1 !important;
-  min-width: 80px !important;
-  opacity: 0.32 !important;
-  pointer-events: none !important;
+  flex: 0 0 68px !important;
+  min-width: 68px !important;
+  max-width: 68px !important;
+  opacity: 1 !important;
+  pointer-events: auto !important;
+  cursor: pointer !important;
+  background: #f8faff !important;
+  border-color: #e2e8f0 !important;
+  padding: 14px 8px !important;
 }
-
-/* KPI — fix text wrapping on dimmed cards */
-.pf-kpi-card.pf-kpi-dimmed .pf-kpi-card-label,
-.pf-kpi-card.pf-kpi-dimmed .pf-kpi-card-value,
-.pf-kpi-card.pf-kpi-dimmed .pf-kpi-card-hint {
+.pf-kpi-card.pf-kpi-dimmed:hover {
+  border-color: #c7d2fe !important;
+  background: #eef2ff !important;
+  transform: translateY(-1px) !important;
+}
+/* Dimmed — иконка по центру */
+.pf-kpi-card.pf-kpi-dimmed .pf-kpi-card-collapsed {
+  align-items: center !important;
+  gap: 4px !important;
+}
+.pf-kpi-card.pf-kpi-dimmed .pf-kpi-card-icon {
+  display: flex !important;
+  justify-content: center !important;
+  margin-bottom: 2px !important;
+}
+.pf-kpi-card.pf-kpi-dimmed .pf-kpi-card-label {
+  font-size: 8px !important;
   white-space: nowrap !important;
   overflow: hidden !important;
   text-overflow: ellipsis !important;
+  color: #94a3b8 !important;
+  text-align: center !important;
+  max-width: 52px !important;
+}
+.pf-kpi-card.pf-kpi-dimmed .pf-kpi-card-value {
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  text-align: center !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  max-width: 52px !important;
+}
+.pf-kpi-card.pf-kpi-dimmed .pf-kpi-card-hint {
+  display: none !important;
+}
+/* Не-active и не-dimmed — иконку скрываем */
+.pf-kpi-card:not(.pf-kpi-active):not(.pf-kpi-dimmed) .pf-kpi-card-icon {
+  display: none !important;
+}
+/* Active — иконку тоже скрываем (не нужна когда открыто) */
+.pf-kpi-card.pf-kpi-active .pf-kpi-card-icon {
+  display: none !important;
+}
+
+/* KPI — fix text wrapping on dimmed cards */
+.pf-kpi-card.pf-kpi-dimmed .pf-kpi-card-label {
+  font-size: 9px !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  color: #94a3b8 !important;
+  text-align: center !important;
+}
+.pf-kpi-card.pf-kpi-dimmed .pf-kpi-card-value {
+  font-size: 13px !important;
+  font-weight: 700 !important;
+  text-align: center !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+}
+.pf-kpi-card.pf-kpi-dimmed .pf-kpi-card-hint {
+  display: none !important;
 }
 
 /* Неактивные но не dimmed — тоже nowrap */
@@ -6137,4 +6215,84 @@ body {
   font-size: 14px;
   flex-shrink: 0;
   margin-top: 1px;
+}
+
+/* === KPI sidebar wrapper === */
+.pf-kpi-sidebar {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 8px !important;
+  flex-shrink: 0 !important;
+}
+
+.pf-kpi-sidebar .pf-kpi-card.pf-kpi-dimmed {
+  flex: 0 0 auto !important;
+  width: 72px !important;
+  min-width: 72px !important;
+  max-width: 72px !important;
+  min-height: 80px !important;
+}
+
+/* === Dashboard KPI sidebar — иконка крупнее === */
+#dash-kpi-grid.has-active {
+  align-items: stretch !important;
+}
+#dash-kpi-grid .pf-kpi-card.pf-kpi-dimmed {
+  flex: 0 0 76px !important;
+  min-width: 76px !important;
+  max-width: 76px !important;
+  padding: 12px 8px !important;
+}
+#dash-kpi-grid .pf-kpi-card.pf-kpi-dimmed .pf-kpi-card-collapsed {
+  align-items: center !important;
+  gap: 4px !important;
+}
+#dash-kpi-grid .pf-kpi-card.pf-kpi-dimmed .pf-kpi-card-icon {
+  display: flex !important;
+  justify-content: center !important;
+  margin-bottom: 2px !important;
+}
+#dash-kpi-grid .pf-kpi-card.pf-kpi-dimmed .pf-kpi-card-icon > div {
+  width: 26px !important;
+  height: 26px !important;
+}
+#dash-kpi-grid .pf-kpi-card.pf-kpi-dimmed .pf-kpi-card-label {
+  font-size: 8px !important;
+  text-align: center !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  max-width: 60px !important;
+  color: #94a3b8 !important;
+}
+#dash-kpi-grid .pf-kpi-card.pf-kpi-dimmed .pf-kpi-card-value {
+  font-size: 13px !important;
+  font-weight: 700 !important;
+  text-align: center !important;
+}
+#dash-kpi-grid .pf-kpi-card.pf-kpi-dimmed .pf-kpi-card-hint {
+  display: none !important;
+}
+/* Неактивные не-dimmed карточки дашборда — иконку показываем */
+#dash-kpi-grid .pf-kpi-card:not(.pf-kpi-active):not(.pf-kpi-dimmed) .pf-kpi-card-icon {
+  display: block !important;
+}
+/* Активная карточка дашборда — иконку скрываем */
+#dash-kpi-grid .pf-kpi-card.pf-kpi-active .pf-kpi-card-icon {
+  display: none !important;
+}
+
+/* View Transitions — KPI cards */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 0.35s;
+  animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Отключаем дефолтный fade View Transitions */
+::view-transition-old(root) {
+  animation: none !important;
+}
+::view-transition-new(root) {
+  animation: none !important;
 }

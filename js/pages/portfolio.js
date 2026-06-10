@@ -917,6 +917,65 @@ export const PortfolioPage = {
                     window.App.navigate('detail', b.dataset.id);
                   });
                 });
+
+                // Пилюли фильтрации risk bubble
+                const rbPillContainer = document.querySelector('.rb-filter-all')?.parentElement;
+                if (rbPillContainer) {
+                  let activeRbBcgs = new Set(['ALL']);
+                  const applyRbFilter = () => {
+                    bubbles.forEach(b => {
+                      const match = activeRbBcgs.has('ALL') || activeRbBcgs.has(b.dataset.bcg);
+                      b.style.opacity = match ? '.85' : '0';
+                      b.style.pointerEvents = match ? 'auto' : 'none';
+                      // коннектор (line) и лейбл (text) — следующие siblings
+                      let el = b.nextElementSibling;
+                      for (let i = 0; i < 2 && el; i++) {
+                        el.style.opacity = match ? '1' : '0';
+                        el = el.nextElementSibling;
+                      }
+                    });
+                    const shown = activeRbBcgs.has('ALL')
+                      ? bubbles.length
+                      : bubbles.filter(b => activeRbBcgs.has(b.dataset.bcg)).length;
+                    const counter = document.getElementById('rb-counter');
+                    if (counter) counter.textContent = 'Показано ' + shown + ' из ' + bubbles.length;
+                  };
+
+                  rbPillContainer.addEventListener('click', e => {
+                    const pill = e.target.closest('.rb-filter-pill');
+                    if (!pill) return;
+                    const bcg = pill.dataset.bcg;
+                    if (bcg === 'ALL') {
+                      activeRbBcgs = new Set(['ALL']);
+                      rbPillContainer.querySelectorAll('.rb-filter-pill').forEach(p => {
+                        const isAll = p.dataset.bcg === 'ALL';
+                        p.style.background = isAll ? '#6366f1' : 'transparent';
+                        p.style.color      = isAll ? '#fff' : p.style.borderColor;
+                      });
+                    } else {
+                      activeRbBcgs.delete('ALL');
+                      const allBtn = rbPillContainer.querySelector('[data-bcg="ALL"]');
+                      allBtn.style.background = 'transparent';
+                      allBtn.style.color = '#6366f1';
+                      if (activeRbBcgs.has(bcg)) {
+                        activeRbBcgs.delete(bcg);
+                        pill.style.background = 'transparent';
+                        pill.style.color = pill.style.borderColor;
+                      } else {
+                        activeRbBcgs.add(bcg);
+                        pill.style.background = pill.style.borderColor;
+                        pill.style.color = '#fff';
+                      }
+                      if (activeRbBcgs.size === 0) {
+                        activeRbBcgs = new Set(['ALL']);
+                        allBtn.style.background = '#6366f1';
+                        allBtn.style.color = '#fff';
+                      }
+                    }
+                    applyRbFilter();
+                  });
+                }
+
               }, 80);
               const insightEl = document.getElementById('risk-ai-insight');
               if (insightEl && !insightEl.dataset.loaded) {
@@ -1484,7 +1543,7 @@ document.getElementById('pf-ai-mode-sw')
           const BCG_COLORS = { KEY:'#f59e0b', GROWTH:'#6366f1', GROWTH_EARLY:'#8b5cf6', STABLE:'#6b7280', TAIL:'#9ca3af' };
           const maxHrs = Math.max(...computed.map(r => r.total_hours||0), 1);
           const maxMR  = Math.max(...computed.map(r => r.client.monthly_revenue||0), 1);
-          const W = 340, H = 220, PAD = 46;
+          const W = 720, H = 320, PAD = 54;
           const px = h  => Math.round(PAD + (h  / maxHrs) * (W - PAD*2));
           const py = mr => Math.round(H - PAD - (mr / maxMR) * (H - PAD*2));
           const sortedByMR = [...computed].sort((a,b) => (b.client.monthly_revenue||0) - (a.client.monthly_revenue||0));
@@ -1497,8 +1556,8 @@ document.getElementById('pf-ai-mode-sw')
             const isTop = top3ids.has(r.client.id);
             const name  = r.client.name.length > 10 ? r.client.name.slice(0,9) + '\u2026' : r.client.name;
             const lbl   = isTop
-              ? '<text class="sc-lbl sc-lbl-' + r.client.id + '" x="' + (x+9) + '" y="' + (y+4) + '" font-size="9" font-weight="600" fill="#374151" pointer-events="none">' + name + '</text>'
-              : '<text class="sc-lbl sc-lbl-' + r.client.id + '" x="' + (x+7) + '" y="' + (y+4) + '" font-size="9" fill="#64748b" pointer-events="none" opacity="0">' + name + '</text>';
+              ? '<text class="sc-lbl sc-lbl-' + r.client.id + '" x="' + (x+10) + '" y="' + (y+4) + '" font-size="11" font-weight="600" fill="#1e293b" pointer-events="none">' + name + '</text>'
+              : '<text class="sc-lbl sc-lbl-' + r.client.id + '" x="' + (x+8) + '" y="' + (y+4) + '" font-size="11" fill="#64748b" pointer-events="none" opacity="0">' + name + '</text>';
             return '<circle class="sc-dot" cx="' + x + '" cy="' + y + '" r="' + (isTop ? 7 : 5) + '" fill="' + c + '" opacity=".85"'
               + ' data-action="go-detail" data-id="' + r.client.id + '" data-bcg="' + (r.client.bcg_category||'') + '"'
               + ' data-name="' + r.client.name + '" data-hrs="' + (r.total_hours||0) + '" data-mr="' + (r.client.monthly_revenue||0) + '"'
@@ -1508,22 +1567,22 @@ document.getElementById('pf-ai-mode-sw')
           // Оси
           const axisX = '<line x1="' + PAD + '" y1="' + (H-PAD) + '" x2="' + (W-4) + '" y2="' + (H-PAD) + '" stroke="#e2e8f0" stroke-width="1"/>';
           const axisY = '<line x1="' + PAD + '" y1="4" x2="' + PAD + '" y2="' + (H-PAD) + '" stroke="#e2e8f0" stroke-width="1"/>';
-          const labelX = '<text x="' + (W/2) + '" y="' + H + '" text-anchor="middle" font-size="9" fill="#94a3b8">Часы / нед</text>';
-          const labelY = '<text x="8" y="' + (H/2) + '" text-anchor="middle" font-size="9" fill="#94a3b8" transform="rotate(-90 8 ' + (H/2) + ')">MR ($)</text>';
+          const labelX = '<text x="' + (W/2) + '" y="' + (H+2) + '" text-anchor="middle" font-size="11" fill="#64748b">Часы / нед</text>';
+          const labelY = '<text x="10" y="' + (H/2) + '" text-anchor="middle" font-size="11" fill="#64748b" transform="rotate(-90 10 ' + (H/2) + ')">MR ($)</text>';
           const xTicks = [0, 0.25, 0.5, 0.75, 1].map(t => {
-            const xv  = Math.round(maxHrs * t);
+            const xv  = Math.round(maxHrs * t * 10) / 10;
             const xpx = px(xv);
             return '<line x1="' + xpx + '" y1="' + (H-PAD) + '" x2="' + xpx + '" y2="' + (H-PAD+4) + '" stroke="#cbd5e1" stroke-width="1"/>'
-              + '<text x="' + xpx + '" y="' + (H-PAD+13) + '" text-anchor="middle" font-size="8" fill="#94a3b8">' + xv + 'h</text>';
+              + '<text x="' + xpx + '" y="' + (H-PAD+15) + '" text-anchor="middle" font-size="10" fill="#64748b">' + xv + 'h</text>';
           }).join('');
           const yTicks = [0, 0.25, 0.5, 0.75, 1].map(t => {
             const yv  = Math.round(maxMR * t);
             const ypx = py(yv);
             const lbl = yv >= 1000 ? '$' + Math.round(yv/1000) + 'K' : '$' + yv;
             return '<line x1="' + (PAD-4) + '" y1="' + ypx + '" x2="' + PAD + '" y2="' + ypx + '" stroke="#cbd5e1" stroke-width="1"/>'
-              + '<text x="' + (PAD-6) + '" y="' + (ypx+3) + '" text-anchor="end" font-size="8" fill="#94a3b8">' + lbl + '</text>';
+              + '<text x="' + (PAD-7) + '" y="' + (ypx+4) + '" text-anchor="end" font-size="10" fill="#64748b">' + lbl + '</text>';
           }).join('');
-          const scatterSVG = '<svg id="scatter-svg" width="' + W + '" height="' + H + '" viewBox="0 0 ' + W + ' ' + H + '">'
+          const scatterSVG = '<svg id="scatter-svg" viewBox="0 0 ' + W + ' ' + H + '" width="100%" style="display:block;min-height:240px">'
             + axisX + axisY + labelX + labelY + xTicks + yTicks + dots
             + '</svg>';
           // Пилюли фильтра
@@ -1537,19 +1596,20 @@ document.getElementById('pf-ai-mode-sw')
             + k.replace('_EARLY',' E').replace('_',' ')
             + '</button>'
           ).join('');
-          return '<div style="display:flex;gap:20px;align-items:flex-start">'
-            + '<div style="flex-shrink:0">'
+          return '<div style="display:flex;flex-direction:column;gap:12px">'
+            + '<div>'
             + scatterSVG
-            + '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;align-items:center">'
+            + '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;align-items:center">'
             + '<button class="sc-filter-pill sc-filter-all sc-active" data-bcg="ALL" style="'
             + 'display:inline-flex;align-items:center;padding:3px 10px;border-radius:20px;'
-            + 'font-size:10px;font-weight:600;cursor:pointer;border:1.5px solid #6366f1;'
+            + 'font-size:11px;font-weight:600;cursor:pointer;border:1.5px solid #6366f1;'
             + 'background:#6366f1;color:#fff;transition:all .18s">Все</button>'
             + pills
             + '</div>'
-            + '<div id="sc-counter" style="font-size:10px;color:#94a3b8;margin-top:5px">Показано ' + computed.length + ' из ' + computed.length + '</div>'
+            + '<div id="sc-counter" style="font-size:11px;color:#94a3b8;margin-top:5px">Показано ' + computed.length + ' из ' + computed.length + '</div>'
             + '</div>'
-            + '<div style="flex:1;padding-left:16px;border-left:1px solid #f1f5f9">'
+            + '<div style="padding-top:12px;border-top:1px solid #f1f5f9">'
+            + '<div style="font-size:11px;font-weight:700;color:#6366f1;letter-spacing:.05em;margin-bottom:6px">AI · ЧАСЫ VS REVENUE</div>'
             + '<div id="hours-rev-ai-insight" style="font-size:12px;color:#6b7280;line-height:1.6">'
             + '<div style="display:flex;align-items:center;gap:6px;color:#6366f1;font-size:11px">'
             + '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>'
@@ -1838,6 +1898,7 @@ document.getElementById('pf-ai-mode-sw')
             return '<circle class="risk-bubble" cx="' + x + '" cy="' + y + '" r="' + rad + '"'
               + ' fill="' + c + '" opacity=".85" style="cursor:pointer;transition:all .2s"'
               + ' data-action="go-detail" data-id="' + r.client.id + '"'
+              + ' data-bcg="' + (r.client.bcg_category||'') + '"'
               + ' data-name="' + r.client.name + '" data-riskpct="' + r.riskPct + '"'
               + ' data-pfpct="' + portfolioPct + '" data-amt="' + amt + '"/>'
               + connector
@@ -1855,15 +1916,22 @@ document.getElementById('pf-ai-mode-sw')
               <!-- График на всю ширину -->
               <div>
                 ${bubbleSVG}
-                <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:6px">
-                  ${Object.entries(BCG_COLORS).map(([k,c]) =>
-                    risky.some(r => r.client.bcg_category === k)
-                      ? '<div style="display:flex;align-items:center;gap:4px;font-size:10px;color:#6b7280">'
-                        + '<div style="width:7px;height:7px;border-radius:50%;background:' + c + '"></div>'
-                        + k.replace('_EARLY',' E') + '</div>'
-                      : ''
+                <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;align-items:center">
+                  <button class="rb-filter-pill rb-filter-all rb-active" data-bcg="ALL" style="
+                    display:inline-flex;align-items:center;padding:3px 10px;border-radius:20px;
+                    font-size:11px;font-weight:600;cursor:pointer;border:1.5px solid #6366f1;
+                    background:#6366f1;color:#fff;transition:all .18s">Все</button>
+                  ${Object.entries(BCG_COLORS).filter(([k]) => risky.some(r => r.client.bcg_category === k)).map(([k,c]) =>
+                    '<button class="rb-filter-pill" data-bcg="' + k + '" style="'
+                    + 'display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:20px;'
+                    + 'font-size:11px;font-weight:600;cursor:pointer;border:1.5px solid ' + c + ';'
+                    + 'background:transparent;color:' + c + ';transition:all .18s">'
+                    + '<span style="width:6px;height:6px;border-radius:50%;background:' + c + ';display:inline-block"></span>'
+                    + k.replace('_EARLY',' E').replace('_',' ')
+                    + '</button>'
                   ).join('')}
                 </div>
+                <div id="rb-counter" style="font-size:11px;color:#94a3b8;margin-top:5px">Показано ${risky.length} из ${risky.length}</div>
               </div>
 
               <!-- AI инсайт под графиком -->

@@ -616,6 +616,74 @@ export const PortfolioPage = {
               }
             }
 
+            // AI анализ при раскрытии карточки priority_revenue
+            if (card.dataset.card === 'priority_revenue') {
+              setTimeout(async () => {
+                const svg = document.getElementById('ps-svg');
+                if (!svg) return;
+                const allDots = [...svg.querySelectorAll('.ps-dot')];
+
+                // Tooltip
+                let tip = document.getElementById('sc-tooltip');
+                if (!tip) {
+                  tip = document.createElement('div');
+                  tip.id = 'sc-tooltip';
+                  tip.style.cssText = 'position:fixed;display:none;background:#1e293b;color:#f8fafc;'
+                    + 'font-size:11px;padding:6px 10px;border-radius:8px;pointer-events:none;'
+                    + 'z-index:9999;box-shadow:0 4px 12px rgba(0,0,0,.18);line-height:1.5;white-space:nowrap';
+                  document.body.appendChild(tip);
+                }
+
+                allDots.forEach(dot => {
+                  dot.addEventListener('mouseenter', () => {
+                    allDots.forEach(d => { if (d !== dot) d.style.opacity = '0.2'; });
+                    dot.setAttribute('r', String(Number(dot.getAttribute('r')) + 2));
+                    tip.innerHTML = '<b>' + dot.dataset.name + '</b><br>'
+                      + 'Priority: ' + dot.dataset.ps + ' &nbsp;·&nbsp; $' + Number(dot.dataset.mr).toLocaleString('ru-RU');
+                    tip.style.display = 'block';
+                  });
+                  dot.addEventListener('mousemove', e => {
+                    tip.style.left = (e.clientX + 12) + 'px';
+                    tip.style.top  = (e.clientY - 30) + 'px';
+                  });
+                  dot.addEventListener('mouseleave', () => {
+                    allDots.forEach(d => { d.style.opacity = '.85'; });
+                    dot.setAttribute('r', String(Number(dot.getAttribute('r')) - 2));
+                    tip.style.display = 'none';
+                  });
+                });
+
+                // AI инсайт
+                const insightEl = document.getElementById('ps-ai-insight');
+                if (insightEl && !insightEl.dataset.loaded) {
+                  insightEl.dataset.loaded = '1';
+                  insightEl.innerHTML = '<div style="display:flex;align-items:center;gap:6px;color:#6366f1;font-size:11px">'
+                    + '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>'
+                    + 'AI анализирует...</div>';
+                  try {
+                    const snap = computed.slice(0,16).map(r => ({
+                      name: r.client.name, bcg: r.client.bcg_category,
+                      priority: Math.round((r.priority||0)*100)/100,
+                      mr: r.client.monthly_revenue||0,
+                      loyalty: r.loyalty, bchs: r.bchs,
+                    }));
+                    const result = await API.callAI({ type: 'portfolio_analysis', summary, clients_snapshot: snap });
+                    const content = result?.choices?.[0]?.message?.content ?? result?.content ?? '';
+                    let display = content;
+                    try {
+                      const parsed = JSON.parse(content);
+                      display = parsed.priority || parsed.insight || parsed.bcg || JSON.stringify(parsed, null, 2);
+                    } catch(_) {}
+                    insightEl.style.cssText = 'font-size:12px;color:#374151;line-height:1.7;white-space:pre-wrap';
+                    insightEl.textContent = display || 'Анализ завершён.';
+                  } catch(e) {
+                    insightEl.style.color = '#ef4444';
+                    insightEl.textContent = 'Ошибка: ' + e.message;
+                  }
+                }
+              }, 80);
+            }
+
             // AI анализ при раскрытии карточки hours_revenue
             if (card.dataset.card === 'hours_revenue') {
               // --- scatter интерактивность ---
@@ -1320,6 +1388,108 @@ document.getElementById('pf-ai-mode-sw')
             + '</div>'
             + '<div style="flex:1;padding-left:16px;border-left:1px solid #f1f5f9">'
             + '<div id="hours-rev-ai-insight" style="font-size:12px;color:#6b7280;line-height:1.6">'
+            + '<div style="display:flex;align-items:center;gap:6px;color:#6366f1;font-size:11px">'
+            + '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>'
+            + 'AI анализирует...'
+            + '</div></div></div></div>';
+        })(),
+      },
+      {
+        id: 'priority_revenue',
+        icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#6366f1" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 8 12 12 14 14"/></svg>',
+        label: 'Приоритет vs MR',
+        value: (() => {
+          const top = [...computed].sort((a,b) => (b.priority||0) - (a.priority||0))[0];
+          return top ? (Math.round((top.priority||0)*100)/100) + '' : '—';
+        })(),
+        hint: 'топ Priority Score',
+        valueColor: '#6366f1',
+        detail: (() => {
+          const BCG_COLORS = { KEY:'#f59e0b', GROWTH:'#6366f1', GROWTH_EARLY:'#8b5cf6', STABLE:'#6b7280', TAIL:'#9ca3af' };
+          const W = 340, H = 220, PAD = 46;
+          const maxPS = Math.max(...computed.map(r => r.priority||0), 1);
+          const maxMR = Math.max(...computed.map(r => r.client.monthly_revenue||0), 1);
+          const px = v  => Math.round(PAD + (v  / maxPS) * (W - PAD*2));
+          const py = mr => Math.round(H - PAD - (mr / maxMR) * (H - PAD*2));
+
+          // Квадранты — фоновые зоны
+          const midX = px(maxPS * 0.5);
+          const midY = py(maxMR * 0.5);
+          const zones =
+            '<rect x="' + PAD + '" y="' + midY + '" width="' + (midX-PAD) + '" height="' + (H-PAD-midY) + '" fill="#fef3c7" opacity=".35"/>'
+            + '<rect x="' + midX + '" y="' + PAD + '" width="' + (W-PAD-midX) + '" height="' + (midY-PAD) + '" fill="#dcfce7" opacity=".35"/>'
+            + '<rect x="' + PAD + '" y="' + PAD + '" width="' + (midX-PAD) + '" height="' + (midY-PAD) + '" fill="#fee2e2" opacity=".25"/>'
+            + '<rect x="' + midX + '" y="' + midY + '" width="' + (W-PAD-midX) + '" height="' + (H-PAD-midY) + '" fill="#f1f5f9" opacity=".5"/>';
+
+          // Подписи квадрантов
+          const qLabels =
+            '<text x="' + (PAD+4) + '" y="' + (midY-6) + '" font-size="8" fill="#ef4444" opacity=".7">Опасно</text>'
+            + '<text x="' + (midX+4) + '" y="' + (PAD+12) + '" font-size="8" fill="#10b981" opacity=".7">Идеально</text>'
+            + '<text x="' + (PAD+4) + '" y="' + (H-PAD-6) + '" font-size="8" fill="#94a3b8" opacity=".7">Слабые</text>'
+            + '<text x="' + (midX+4) + '" y="' + (H-PAD-6) + '" font-size="8" fill="#6366f1" opacity=".7">Потенциал</text>';
+
+          // Оси
+          const axisX = '<line x1="' + PAD + '" y1="' + (H-PAD) + '" x2="' + (W-4) + '" y2="' + (H-PAD) + '" stroke="#e2e8f0" stroke-width="1"/>';
+          const axisY = '<line x1="' + PAD + '" y1="4" x2="' + PAD + '" y2="' + (H-PAD) + '" stroke="#e2e8f0" stroke-width="1"/>';
+          const labelX = '<text x="' + (W/2) + '" y="' + H + '" text-anchor="middle" font-size="9" fill="#94a3b8">Priority Score</text>';
+          const labelY = '<text x="8" y="' + (H/2) + '" text-anchor="middle" font-size="9" fill="#94a3b8" transform="rotate(-90 8 ' + (H/2) + ')">MR ($)</text>';
+
+          // Засечки X
+          const xTicks = [0,0.25,0.5,0.75,1].map(t => {
+            const xv  = Math.round(maxPS * t * 100) / 100;
+            const xpx = px(maxPS * t);
+            return '<line x1="' + xpx + '" y1="' + (H-PAD) + '" x2="' + xpx + '" y2="' + (H-PAD+4) + '" stroke="#cbd5e1" stroke-width="1"/>'
+              + '<text x="' + xpx + '" y="' + (H-PAD+13) + '" text-anchor="middle" font-size="8" fill="#94a3b8">' + xv + '</text>';
+          }).join('');
+
+          // Засечки Y
+          const yTicks = [0,0.25,0.5,0.75,1].map(t => {
+            const yv  = Math.round(maxMR * t);
+            const ypx = py(yv);
+            const lbl = yv >= 1000 ? '$' + Math.round(yv/1000) + 'K' : '$' + yv;
+            return '<line x1="' + (PAD-4) + '" y1="' + ypx + '" x2="' + PAD + '" y2="' + ypx + '" stroke="#cbd5e1" stroke-width="1"/>'
+              + '<text x="' + (PAD-6) + '" y="' + (ypx+3) + '" text-anchor="end" font-size="8" fill="#94a3b8">' + lbl + '</text>';
+          }).join('');
+
+          // Top-3 по MR для подписей
+          const sortedByMR = [...computed].sort((a,b) => (b.client.monthly_revenue||0) - (a.client.monthly_revenue||0));
+          const top3ids = new Set(sortedByMR.slice(0,3).map(r => r.client.id));
+
+          // Точки
+          const dots = computed.map(r => {
+            const x     = px(r.priority||0);
+            const y     = py(r.client.monthly_revenue||0);
+            const c     = BCG_COLORS[r.client.bcg_category] || '#9ca3af';
+            const isTop = top3ids.has(r.client.id);
+            const name  = r.client.name.length > 10 ? r.client.name.slice(0,9) + '…' : r.client.name;
+            const lbl   = isTop
+              ? '<text x="' + (x+9) + '" y="' + (y+4) + '" font-size="9" font-weight="600" fill="#374151" pointer-events="none">' + name + '</text>'
+              : '';
+            return '<circle class="ps-dot" cx="' + x + '" cy="' + y + '" r="' + (isTop ? 8 : 6) + '" fill="' + c + '" opacity=".85"'
+              + ' data-action="go-detail" data-id="' + r.client.id + '" data-bcg="' + (r.client.bcg_category||'') + '"'
+              + ' data-name="' + r.client.name + '" data-ps="' + (Math.round((r.priority||0)*100)/100) + '" data-mr="' + (r.client.monthly_revenue||0) + '"'
+              + ' style="cursor:pointer;transition:opacity .2s"/>'
+              + lbl;
+          }).join('');
+
+          const svgHTML = '<svg id="ps-svg" width="' + W + '" height="' + H + '" viewBox="0 0 ' + W + ' ' + H + '">'
+            + zones + qLabels + axisX + axisY + labelX + labelY + xTicks + yTicks + dots
+            + '</svg>';
+
+          // Легенда
+          const legend = Object.entries(BCG_COLORS).map(([key, color]) =>
+            '<div style="display:flex;align-items:center;gap:4px;font-size:10px;color:#6b7280">'
+            + '<div style="width:8px;height:8px;border-radius:50%;background:' + color + '"></div>'
+            + key.replace('_EARLY',' E') + '</div>'
+          ).join('');
+
+          return '<div style="display:flex;gap:20px;align-items:flex-start">'
+            + '<div style="flex-shrink:0">'
+            + svgHTML
+            + '<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:6px">' + legend + '</div>'
+            + '</div>'
+            + '<div style="flex:1;padding-left:16px;border-left:1px solid #f1f5f9">'
+            + '<div id="ps-ai-insight" style="font-size:12px;color:#6b7280;line-height:1.6">'
             + '<div style="display:flex;align-items:center;gap:6px;color:#6366f1;font-size:11px">'
             + '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>'
             + 'AI анализирует...'

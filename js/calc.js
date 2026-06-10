@@ -486,13 +486,8 @@ export const Calc = {
     const matMult   = { Junior: 1.25, Standard: 1.0, Senior: 0.8 }[client.team_maturity || 'Standard'] || 1.0;
     const total_hours = Math.round((BCG_HOURS[client.bcg_category] || 0.5) * matMult * 100) / 100;
 
-    // Priority score — вычисляем inline как в Calc.compute
-    const _fin   = Number(client.financial_value  || 0);
-    const _strat = Number(client.strategic_value  || 0);
-    const _stab  = Number(client.stability        || 0);
-    const _compl = client.complexity || 'MEDIUM';
-    const _eng   = client.client_engagement || 'Active';
-    const priority_score = ClientCalc.priorityScore(_fin, _strat, _stab, _eng, _compl);
+    // Priority score — берём из ClientCalc.compute() напрямую
+    const priority_score = ClientCalc.compute(client).priority_score;
 
     return {
       bchs, pcScore, loyalty, final, revenueEfficiency,

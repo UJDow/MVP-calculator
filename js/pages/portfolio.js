@@ -1761,14 +1761,17 @@ document.getElementById('pf-ai-mode-sw')
         valueColor: '#6366f1',
         detail: (() => {
           const BCG_COLORS = { KEY:'#f59e0b', GROWTH:'#6366f1', GROWTH_EARLY:'#8b5cf6', STABLE:'#6b7280', TAIL:'#9ca3af' };
-          const W = 340, H = 220, PAD = 46;
-          const maxPS = Math.max(...computed.map(r => r.priority_score||0), 1);
-          const maxMR = Math.max(...computed.map(r => r.client.monthly_revenue||0), 1);
-          const px = v  => Math.round(PAD + (v  / maxPS) * (W - PAD*2));
+          const W = 720, H = 340, PAD = 54;
+          const allPS  = computed.map(r => r.priority_score||0);
+          const allMR  = computed.map(r => r.client.monthly_revenue||0);
+          const minPS  = Math.max(0, Math.min(...allPS) - 0.1);
+          const maxPS  = Math.max(...allPS, 1) + 0.1;
+          const maxMR  = Math.max(...allMR, 1);
+          const px = v  => Math.round(PAD + ((v - minPS) / (maxPS - minPS)) * (W - PAD*2));
           const py = mr => Math.round(H - PAD - (mr / maxMR) * (H - PAD*2));
 
           // Квадранты — фоновые зоны
-          const midX = px(maxPS * 0.5);
+          const midX = px(minPS + (maxPS - minPS) * 0.5);
           const midY = py(maxMR * 0.5);
           const zones =
             '<rect x="' + PAD + '" y="' + midY + '" width="' + (midX-PAD) + '" height="' + (H-PAD-midY) + '" fill="#fef3c7" opacity=".35"/>'
@@ -1778,10 +1781,10 @@ document.getElementById('pf-ai-mode-sw')
 
           // Подписи квадрантов
           const qLabels =
-            '<text x="' + (PAD+4) + '" y="' + (midY-6) + '" font-size="8" fill="#ef4444" opacity=".7">Опасно</text>'
-            + '<text x="' + (midX+4) + '" y="' + (PAD+12) + '" font-size="8" fill="#10b981" opacity=".7">Идеально</text>'
-            + '<text x="' + (PAD+4) + '" y="' + (H-PAD-6) + '" font-size="8" fill="#94a3b8" opacity=".7">Слабые</text>'
-            + '<text x="' + (midX+4) + '" y="' + (H-PAD-6) + '" font-size="8" fill="#6366f1" opacity=".7">Потенциал</text>';
+            '<text x="' + (PAD+8) + '" y="' + (midY-8) + '" font-size="11" font-weight="600" fill="#ef4444" opacity=".8">Опасно</text>'
+            + '<text x="' + (midX+8) + '" y="' + (PAD+18) + '" font-size="11" font-weight="600" fill="#10b981" opacity=".8">Идеально</text>'
+            + '<text x="' + (PAD+8) + '" y="' + (H-PAD-8) + '" font-size="11" font-weight="600" fill="#94a3b8" opacity=".8">Слабые</text>'
+            + '<text x="' + (midX+8) + '" y="' + (H-PAD-8) + '" font-size="11" font-weight="600" fill="#6366f1" opacity=".8">Потенциал</text>';
 
           // Оси
           const axisX = '<line x1="' + PAD + '" y1="' + (H-PAD) + '" x2="' + (W-4) + '" y2="' + (H-PAD) + '" stroke="#e2e8f0" stroke-width="1"/>';
@@ -1791,8 +1794,8 @@ document.getElementById('pf-ai-mode-sw')
 
           // Засечки X
           const xTicks = [0,0.25,0.5,0.75,1].map(t => {
-            const xv  = Math.round(maxPS * t * 100) / 100;
-            const xpx = px(maxPS * t);
+            const xv  = Math.round((minPS + (maxPS - minPS) * t) * 100) / 100;
+            const xpx = px(minPS + (maxPS - minPS) * t);
             return '<line x1="' + xpx + '" y1="' + (H-PAD) + '" x2="' + xpx + '" y2="' + (H-PAD+4) + '" stroke="#cbd5e1" stroke-width="1"/>'
               + '<text x="' + xpx + '" y="' + (H-PAD+13) + '" text-anchor="middle" font-size="8" fill="#94a3b8">' + xv + '</text>';
           }).join('');
@@ -1822,12 +1825,12 @@ document.getElementById('pf-ai-mode-sw')
               : '';
             return '<circle class="ps-dot" cx="' + x + '" cy="' + y + '" r="' + (isTop ? 8 : 6) + '" fill="' + c + '" opacity=".85"'
               + ' data-action="go-detail" data-id="' + r.client.id + '" data-bcg="' + (r.client.bcg_category||'') + '"'
-              + ' data-name="' + r.client.name + '" data-ps="' + (Math.round((r.priority||0)*100)/100) + '" data-mr="' + (r.client.monthly_revenue||0) + '"'
+              + ' data-name="' + r.client.name + '" data-ps="' + (Math.round((r.priority_score||0)*100)/100) + '" data-mr="' + (r.client.monthly_revenue||0) + '"'
               + ' style="cursor:pointer;transition:opacity .2s"/>'
               + lbl;
           }).join('');
 
-          const svgHTML = '<svg id="ps-svg" width="' + W + '" height="' + H + '" viewBox="0 0 ' + W + ' ' + H + '">'
+          const svgHTML = '<svg id="ps-svg" viewBox="0 0 ' + W + ' ' + H + '" width="100%" style="display:block;min-height:280px">'
             + zones + qLabels + axisX + axisY + labelX + labelY + xTicks + yTicks + dots
             + '</svg>';
 
@@ -1845,14 +1848,15 @@ document.getElementById('pf-ai-mode-sw')
             + 'border:1.5px solid #6366f1;background:#6366f1;color:#fff;'
             + 'font-size:10px;font-weight:600;cursor:pointer;transition:all .15s">Все</button>';
 
-          return '<div style="display:flex;gap:20px;align-items:flex-start">'
-            + '<div style="flex-shrink:0">'
+          return '<div style="display:flex;flex-direction:column;gap:12px">'
             + svgHTML
-            + '<div id="ps-pills" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px">'
+            + '<div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center">'
+            + '<div id="ps-pills" style="display:flex;flex-wrap:wrap;gap:6px">'
             + psAllPill + psPills + '</div>'
-            + '<div id="ps-counter" style="font-size:10px;color:#94a3b8;margin-top:4px">Показано ' + computed.length + ' из ' + computed.length + '</div>'
             + '</div>'
-            + '<div style="flex:1;padding-left:16px;border-left:1px solid #f1f5f9">'
+            + '<div id="ps-counter" style="font-size:10px;color:#94a3b8">Показано ' + computed.length + ' из ' + computed.length + '</div>'
+            + '<div style="padding-top:12px;border-top:1px solid #f1f5f9">'
+            + '<div style="font-size:11px;font-weight:700;color:#6366f1;letter-spacing:.05em;margin-bottom:6px">AI · ПРИОРИТЕТ</div>'
             + '<div id="ps-ai-insight" style="font-size:12px;color:#6b7280;line-height:1.6">'
             + '<div style="display:flex;align-items:center;gap:6px;color:#6366f1;font-size:11px">'
             + '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/>' + '</svg>'

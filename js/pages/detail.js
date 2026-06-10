@@ -49,7 +49,7 @@ export const DetailPage = {
       console.error('[DetailPage.render]', err);
       main.innerHTML = `
         <div class="empty-state">
-          <div class="empty-state-icon">⚠️</div>
+          <div class="empty-state-icon"></div>
           <div class="empty-state-title">Ошибка загрузки</div>
         </div>`;
     }
@@ -92,104 +92,93 @@ export const DetailPage = {
     `).join('');
 
     const main = document.getElementById('main-content');
+    // Инжект стилей шапки
+    if (!document.getElementById('cd-styles')) {
+      const st = document.createElement('style');
+      st.id = 'cd-styles';
+      st.textContent = `
+/* ── Client Detail Header ── */
+.cd-header {
+  display:flex;align-items:flex-start;gap:12px;
+  padding:16px 20px;background:#fff;
+  border:1px solid var(--border);border-radius:12px;
+  margin-bottom:16px;
+}
+.cd-back {
+  width:32px;height:32px;border-radius:8px;flex-shrink:0;margin-top:2px;
+  border:1px solid var(--border);background:var(--surface);
+  display:flex;align-items:center;justify-content:center;
+  cursor:pointer;color:var(--text-muted);transition:all .15s;
+}
+.cd-back:hover { background:var(--surface-hover);color:var(--text-primary); }
+.cd-header-main { flex:1;min-width:0; }
+.cd-header-top {
+  display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px;
+}
+.cd-name {
+  font-size:18px;font-weight:700;color:var(--text-primary);
+  letter-spacing:-.02em;line-height:1;
+}
+.cd-badges { display:flex;gap:5px;flex-wrap:wrap;align-items:center; }
+.cd-badge {
+  font-size:11px;font-weight:600;padding:2px 8px;border-radius:5px;
+  background:#f1f5f9;color:#475569;border:1px solid #e2e8f0;
+}
+.cd-focus {
+  font-size:13px;color:var(--text-secondary);margin-bottom:4px;
+  line-height:1.4;
+}
+.cd-meta { font-size:12px;color:var(--text-muted); }
+.cd-actions-btn {
+  display:flex;align-items:center;gap:6px;
+  padding:8px 14px;border-radius:8px;flex-shrink:0;
+  border:1px solid var(--border);background:var(--surface);
+  font-size:13px;font-weight:600;color:var(--text-secondary);
+  cursor:pointer;transition:all .15s;white-space:nowrap;margin-top:2px;
+}
+.cd-actions-btn:hover {
+  border-color:#6366f1;color:#6366f1;background:#f8f7ff;
+}
+`;
+      document.head.appendChild(st);
+    }
+
     main.innerHTML = `
-      <div style="margin-bottom:16px">
-        <button class="btn btn-secondary btn-sm" id="btn-back-dash">← Назад</button>
-      </div>
-
-      <div class="detail-header">
-        <div class="detail-header-top">
-          <div>
-            <div class="detail-client-name">${c.name}</div>
-            <div class="detail-badges">
-              <span class="badge ${r.badge.cls}">${r.badge.label}</span>
-              <span class="bcg-badge">${bcg ? bcg.label : c.bcg_category}</span>
-              <span class="bcg-badge">${c.key_account_priority}</span>
-              <span class="bcg-badge">${c.status}</span>
-            </div>
-            <div class="detail-meta">
-              Ответственный: <strong>${c.sales_owner || '—'}</strong>
+      <div class="cd-header">
+        <button class="cd-back" id="btn-back-dash">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+               stroke="currentColor" stroke-width="2" stroke-linecap="round">
+            <polyline points="15 18 9 12 15 6"/>
+          </svg>
+        </button>
+        <div class="cd-header-main">
+          <div class="cd-header-top">
+            <span class="cd-name">${c.name}</span>
+            <div class="cd-badges">
+              <span class="cd-badge cd-badge--health ${r.badge.cls}">${r.badge.label}</span>
+              <span class="cd-badge">${bcg ? bcg.label : c.bcg_category}</span>
+              <span class="cd-badge">${c.key_account_priority}</span>
+              <span class="cd-badge">${c.status}</span>
             </div>
           </div>
-          <div style="display:flex;gap:8px;align-items:center">
-            <button class="btn btn-secondary btn-sm" id="btn-actions-panel"
-                    style="display:flex;align-items:center;gap:6px;font-weight:600">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
-                   stroke="currentColor" stroke-width="2" stroke-linecap="round">
-                <circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/>
-              </svg>
-              Действия
-            </button>
-          </div>
+          <div class="cd-focus">${r.focus}</div>
+          <div class="cd-meta">Ответственный: <strong>${c.sales_owner || '—'}</strong></div>
         </div>
+        <button class="cd-actions-btn" id="btn-actions-panel">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none"
+               stroke="currentColor" stroke-width="2" stroke-linecap="round">
+            <circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/>
+          </svg>
+          Действия
+        </button>
       </div>
 
-      <div class="focus-box">
-        <div class="focus-box-label">Фокус сейчас</div>
-        <div class="focus-box-text">${r.focus}</div>
+      <!-- KPI карточки -->
+      <div class="pf-kpi-grid-new" id="cd-kpi-grid">
+        ${this._renderKPICards(r, curMonth)}
       </div>
 
-      <!-- KPI строка -->
-      <div style="display:grid;
-                  grid-template-columns:repeat(auto-fit,minmax(130px,1fr));
-                  gap:10px;margin-bottom:16px">
-        ${this._renderKPI(
-          'bCHS (' + curMonth + ')',
-          r.bchs !== null ? r.bchs : '—',
-          r.health.label,
-          r.bchs !== null ? this._bchsColor(r.bchs) : 'var(--text-muted)'
-        )}
-        ${this._renderKPI(
-          'Лояльность',
-          r.loyalty !== null ? r.loyalty + '%' : '—',
-          'нормализация [-81,+81]'
-        )}
-        ${this._renderKPI(
-          'PC Score',
-          r.pcScore !== null ? r.pcScore.toFixed(1) : '—',
-          r.load.label
-        )}
-        ${this._renderKPI(
-          'Final Score',
-          r.final !== null ? r.final.toFixed(1) : '—',
-          `Идеал: ${r.ideal}`
-        )}
-        ${this._renderKPI(
-          '% Потенциала',
-          r.pctPot !== null ? r.pctPot + '%' : '—',
-          r.pctPot !== null
-            ? (r.pctPot >= 100 ? 'Выше идеала' : 'от идеала')
-            : '—'
-        )}
-        ${this._renderKPI(
-          'Тренд 3М',
-          r.trend ? r.trend.label : '—',
-          r.trend
-            ? `Δ ${r.trend.delta > 0 ? '+' : ''}${r.trend.delta}`
-            : 'нет данных',
-          r.trend ? this._trendColor(r.trend.cls) : 'var(--text-muted)'
-        )}
-        ${this._renderKPI(
-          '💰 Revenue Efficiency',
-          r.revenueEfficiency !== null
-            ? Math.round(r.revenueEfficiency * 100) + '%'
-            : '—',
-          r.revenueEfficiency !== null
-            ? (r.revenueEfficiency >= 0.95 ? '✅ Отлично'
-              : r.revenueEfficiency >= 0.80 ? '⚠️ Внимание'
-              : '🔴 Критично')
-            : 'нет FTE данных',
-          r.revenueEfficiency !== null
-            ? (r.revenueEfficiency >= 0.95 ? 'var(--green)'
-              : r.revenueEfficiency >= 0.80 ? 'var(--yellow)'
-              : 'var(--red)')
-            : 'var(--text-muted)'
-        )}
-      </div>
-
-      <!-- Табы -->
-      <div class="detail-tabs-nav">${tabsHTML}</div>
-      <div class="detail-tab-content" id="detail-tab-content"></div>
+            <div id="detail-tab-content"></div>
     `;
 
     this._bindDetailEvents();
@@ -234,7 +223,7 @@ case 'notes':
         } else {
           document.getElementById('delivery-tab-root').innerHTML = `
             <div class="empty-state">
-              <div class="empty-state-icon">⚠️</div>
+              <div class="empty-state-icon"></div>
               <div class="empty-state-title">DeliveryTab не загружен</div>
             </div>`;
         }
@@ -257,7 +246,7 @@ case 'notes':
         } else {
           contentEl.innerHTML = `
             <div class="empty-state">
-              <div class="empty-state-icon">⚠️</div>
+              <div class="empty-state-icon"></div>
               <div class="empty-state-title">MCPage не загружен</div>
             </div>`;
         }
@@ -277,7 +266,7 @@ case 'notes':
       <div class="overview-layout">
         <div class="overview-main">
           <div class="chart-container">
-            <div class="chart-title">📈 История лояльности (bCHS)</div>
+            <div class="chart-title">История лояльности (bCHS)</div>
             <div style="height:200px;position:relative">
               <canvas id="loyalty-chart"></canvas>
             </div>
@@ -289,7 +278,7 @@ case 'notes':
               : ''}
           </div>
           <div class="form-section" style="margin-top:16px">
-            <div class="form-section-title">📋 Последние 3 месяца</div>
+            <div class="form-section-title"> Последние 3 месяца</div>
             ${this._renderHistoryTable(3)}
           </div>
         </div>
@@ -303,7 +292,7 @@ case 'notes':
   _renderHistorySection() {
     return `
       <div class="form-section">
-        <div class="form-section-title">📋 История по месяцам</div>
+        <div class="form-section-title">История по месяцам</div>
         ${this._renderHistoryTable()}
       </div>`;
   },
@@ -312,12 +301,12 @@ case 'notes':
   _renderNotesSection() {
     return `
       <div class="form-section">
-        <div class="form-section-title">📝 Заметки о стратегии</div>
+        <div class="form-section-title">Заметки о стратегии</div>
         <textarea class="form-textarea" id="strategy-notes"
                   style="min-height:160px">${this.client.strategy_notes || ''}</textarea>
         <div style="margin-top:8px">
           <button class="btn btn-primary btn-sm" id="btn-save-notes">
-            💾 Сохранить заметки
+             Сохранить заметки
           </button>
         </div>
       </div>`;
@@ -333,9 +322,9 @@ case 'notes':
             strategy_notes: notes,
           });
           this.client.strategy_notes = notes;
-          window.App.toast('✅ Заметки сохранены', 'success');
+          window.App.toast(' Заметки сохранены', 'success');
         } catch {
-          window.App.toast('❌ Ошибка сохранения', 'error');
+          window.App.toast(' Ошибка сохранения', 'error');
         }
       });
   },
@@ -441,7 +430,7 @@ case 'notes':
                   <button class="btn btn-secondary btn-sm"
                           data-action="edit-month"
                           data-month="${row.be.month}"
-                          data-year="${row.be.year}">✎</button>
+                          data-year="${row.be.year}"></button>
                 </td>
               </tr>`).join('')}
           </tbody>
@@ -575,17 +564,17 @@ async _loadTouches() {
     this._bindTouchesEvents(clientTPs);
   } catch (e) {
     const contentEl = document.getElementById('detail-tab-content');
-    if (contentEl) contentEl.innerHTML = `<div style="padding:32px;text-align:center;color:var(--md-red)">❌ ${e.message}</div>`;
+    if (contentEl) contentEl.innerHTML = `<div style="padding:32px;text-align:center;color:var(--md-red)"> ${e.message}</div>`;
   }
 },
 
 _renderTouchesTab(touchPoints) {
   const TYPE_LABELS = {
-    checkin:  { icon: '💬', label: 'Check-in'  },
-    call:     { icon: '📞', label: 'Звонок'    },
-    meeting:  { icon: '🤝', label: 'Встреча'   },
-    qbr:      { icon: '📊', label: 'QBR'       },
-    email:    { icon: '📧', label: 'Email'      },
+    checkin:  { icon: '', label: 'Check-in'  },
+    call:     { icon: '', label: 'Звонок'    },
+    meeting:  { icon: '', label: 'Встреча'   },
+    qbr:      { icon: '', label: 'QBR'       },
+    email:    { icon: '', label: 'Email'      },
   };
 
   // Группировка по месяцам
@@ -620,17 +609,17 @@ _renderTouchesTab(touchPoints) {
         const agoStr  = daysAgo === 0 ? 'сегодня' : daysAgo === 1 ? 'вчера' : `${daysAgo} дн. назад`;
 
         const notes = tp.notes || '';
-        const contextMatch = notes.match(/📋 Контекст:\n([\s\S]*?)(?:\n\n|$)/);
-        const tasksMatch   = notes.match(/✅ Задачи:\n([\s\S]*?)(?:\n\n|$)/);
-        const nextMatch    = notes.match(/👣 Дальнейшие шаги:\n([\s\S]*?)(?:\n\n|$)/);
+        const contextMatch = notes.match(/ Контекст:\n([\s\S]*?)(?:\n\n|$)/);
+        const tasksMatch   = notes.match(/ Задачи:\n([\s\S]*?)(?:\n\n|$)/);
+        const nextMatch    = notes.match(/ Дальнейшие шаги:\n([\s\S]*?)(?:\n\n|$)/);
 
         const isStructured = contextMatch || tasksMatch || nextMatch;
 
         const notesPreview = isStructured ? `
           <div style="margin-top:6px;display:flex;flex-direction:column;gap:3px">
-            ${contextMatch ? `<div style="font-size:12px;color:var(--text-secondary)"><span style="opacity:.6">📋</span> ${contextMatch[1].trim().slice(0,80)}${contextMatch[1].trim().length > 80 ? '…' : ''}</div>` : ''}
-            ${tasksMatch   ? `<div style="font-size:12px;color:var(--text-secondary)"><span style="opacity:.6">✅</span> ${tasksMatch[1].trim().slice(0,80)}${tasksMatch[1].trim().length > 80 ? '…' : ''}</div>` : ''}
-            ${nextMatch    ? `<div style="font-size:12px;color:var(--text-secondary)"><span style="opacity:.6">👣</span> ${nextMatch[1].trim().slice(0,80)}${nextMatch[1].trim().length > 80 ? '…' : ''}</div>` : ''}
+            ${contextMatch ? `<div style="font-size:12px;color:var(--text-secondary)"><span style="opacity:.6"></span> ${contextMatch[1].trim().slice(0,80)}${contextMatch[1].trim().length > 80 ? '…' : ''}</div>` : ''}
+            ${tasksMatch   ? `<div style="font-size:12px;color:var(--text-secondary)"><span style="opacity:.6"></span> ${tasksMatch[1].trim().slice(0,80)}${tasksMatch[1].trim().length > 80 ? '…' : ''}</div>` : ''}
+            ${nextMatch    ? `<div style="font-size:12px;color:var(--text-secondary)"><span style="opacity:.6"></span> ${nextMatch[1].trim().slice(0,80)}${nextMatch[1].trim().length > 80 ? '…' : ''}</div>` : ''}
           </div>` : notes ? `
           <div style="font-size:12px;color:var(--text-secondary);margin-top:5px">
             ${notes.slice(0,120)}${notes.length > 120 ? '…' : ''}
@@ -653,7 +642,7 @@ _renderTouchesTab(touchPoints) {
                       data-id="${tp.id}"
                       style="opacity:0;transition:opacity .15s"
                       onmouseover="this.style.opacity='1'"
-                      onmouseout="this.style.opacity='0'">✕</button>
+                      onmouseout="this.style.opacity='0'"></button>
             </div>
             ${notesPreview}
           </div>`;
@@ -692,7 +681,7 @@ _renderTouchesTab(touchPoints) {
   return `
     <div class="form-section">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
-        <div class="form-section-title" style="margin:0">📍 История касаний</div>
+        <div class="form-section-title" style="margin:0"> История касаний</div>
         <button class="btn btn-primary btn-sm" id="btn-new-touch">+ Касание</button>
       </div>
       ${touchPoints.length === 0 ? `
@@ -748,12 +737,12 @@ _bindTouchesEvents(touchPoints) {
 
       const notes = tp.notes;
       const blocks = [
-        { re: /📋 Контекст:\n([\s\S]*?)(?:\n\n|$)/,          icon: '📋', label: 'Контекст' },
-        { re: /✅ Задачи:\n([\s\S]*?)(?:\n\n|$)/,             icon: '✅', label: 'Задачи' },
-        { re: /👣 Дальнейшие шаги:\n([\s\S]*?)(?:\n\n|$)/,   icon: '👣', label: 'Дальнейшие шаги' },
-        { re: /🎯 Стратегия:\n([\s\S]*?)(?:\n\n|$)/,          icon: '🎯', label: 'Стратегия' },
-        { re: /🏁 Ожидаемый результат:\n([\s\S]*?)(?:\n\n|$)/,icon: '🏁', label: 'Результат' },
-        { re: /🚧 Блокеры:\n([\s\S]*?)(?:\n\n|$)/,            icon: '🚧', label: 'Блокеры' },
+        { re: / Контекст:\n([\s\S]*?)(?:\n\n|$)/,          icon: '', label: 'Контекст' },
+        { re: / Задачи:\n([\s\S]*?)(?:\n\n|$)/,             icon: '', label: 'Задачи' },
+        { re: / Дальнейшие шаги:\n([\s\S]*?)(?:\n\n|$)/,   icon: '', label: 'Дальнейшие шаги' },
+        { re: / Стратегия:\n([\s\S]*?)(?:\n\n|$)/,          icon: '', label: 'Стратегия' },
+        { re: / Ожидаемый результат:\n([\s\S]*?)(?:\n\n|$)/,icon: '', label: 'Результат' },
+        { re: / Блокеры:\n([\s\S]*?)(?:\n\n|$)/,            icon: '', label: 'Блокеры' },
       ];
 
       const isStructured = blocks.some(b => b.re.test(notes));
@@ -784,6 +773,116 @@ _bindTouchesEvents(touchPoints) {
     });
   });
 },
+
+  /* ─── KPI CARDS ──────────────────────────────────────────── */
+  _renderKPICards(r, curMonth) {
+    const bchsColor = r.bchs !== null ? this._bchsColor(r.bchs) : 'var(--text-muted)';
+    const trendColor = r.trend ? this._trendColor(r.trend.cls) : 'var(--text-muted)';
+    const loyaltyColor = r.loyalty === null ? '#6b7280'
+      : r.loyalty >= 70 ? '#10b981'
+      : r.loyalty >= 50 ? '#f59e0b' : '#ef4444';
+    const revColor = r.revenueEfficiency === null ? '#6b7280'
+      : r.revenueEfficiency >= 0.95 ? '#10b981'
+      : r.revenueEfficiency >= 0.80 ? '#f59e0b' : '#ef4444';
+
+    const cards = [
+      {
+        id: 'bchs',
+        label: 'Лояльность · ' + curMonth,
+        value: r.loyalty !== null ? r.loyalty + '%' : '—',
+        hint: r.health.label.replace(/[^\w\s%А-яЁё—+\-.,:()/]/gu, '').trim(),
+        valueColor: loyaltyColor,
+        detail: `
+          <div class="kpi-det-title">Здоровье аккаунта</div>
+          <div class="kpi-det-row">
+            <span class="kpi-det-label">Лояльность</span>
+            <span class="kpi-det-risk" style="color:${loyaltyColor}">${r.loyalty !== null ? r.loyalty + '%' : '—'}</span>
+          </div>
+          <div class="kpi-det-row">
+            <span class="kpi-det-label">bCHS (сырой балл)</span>
+            <span class="kpi-det-risk" style="color:${bchsColor}">${r.bchs !== null ? r.bchs + ' из 81' : '—'}</span>
+          </div>
+          <div class="kpi-det-row">
+            <span class="kpi-det-label">Шкала</span>
+            <span class="kpi-det-risk" style="color:#9ca3af">−81 ... +81 → 0–100%</span>
+          </div>`,
+      },
+      {
+        id: 'score',
+        label: '% Потенциала',
+        value: r.pctPot !== null ? r.pctPot + '%' : '—',
+        hint: r.final !== null ? r.final.toFixed(1) + ' из ' + r.ideal : 'нет данных',
+        valueColor: r.pctPot === null ? '#6b7280' : r.pctPot >= 85 ? '#10b981' : r.pctPot >= 65 ? '#f59e0b' : '#ef4444',
+        detail: `
+          <div class="kpi-det-title">Реализация потенциала</div>
+          <div class="kpi-det-row">
+            <span class="kpi-det-label">Реализовано</span>
+            <span class="kpi-det-risk">${r.pctPot !== null ? r.pctPot + '%' : '—'}</span>
+          </div>
+          <div class="kpi-det-row">
+            <span class="kpi-det-label">Final Score</span>
+            <span class="kpi-det-risk">${r.final !== null ? r.final.toFixed(1) : '—'}</span>
+          </div>
+          <div class="kpi-det-row">
+            <span class="kpi-det-label">Идеал для ${r.client?.bcg_category ?? 'сегмента'}</span>
+            <span class="kpi-det-risk">${r.ideal} (100%)</span>
+          </div>
+          <div class="kpi-det-row">
+            <span class="kpi-det-label">PC Score / нагрузка</span>
+            <span class="kpi-det-risk">${r.pcScore !== null ? r.pcScore.toFixed(1) : '—'} · ${r.load.label.replace(/[^\w\s%А-яЁё—+\-.,:()/]/gu, '').trim()}</span>
+          </div>`,
+      },
+
+      {
+        id: 'trend',
+        label: 'Тренд 3М',
+        value: r.trend ? r.trend.label : '—',
+        hint: r.trend ? 'Δ ' + (r.trend.delta > 0 ? '+' : '') + r.trend.delta : 'нет данных',
+        valueColor: trendColor,
+        detail: `
+          <div class="kpi-det-title">Динамика bCHS</div>
+          <div class="kpi-det-row">
+            <span class="kpi-det-label">Направление</span>
+            <span class="kpi-det-risk" style="color:${trendColor}">${r.trend ? r.trend.label : '—'}</span>
+          </div>
+          <div class="kpi-det-row">
+            <span class="kpi-det-label">Изменение</span>
+            <span class="kpi-det-risk">${r.trend ? (r.trend.delta > 0 ? '+' : '') + r.trend.delta : '—'}</span>
+          </div>`,
+      },
+      {
+        id: 'revenue',
+        label: 'Revenue Efficiency',
+        value: r.revenueEfficiency !== null ? Math.round(r.revenueEfficiency * 100) + '%' : '—',
+        hint: r.revenueEfficiency !== null
+          ? (r.revenueEfficiency >= 0.95 ? 'Отлично' : r.revenueEfficiency >= 0.80 ? 'Внимание' : 'Критично')
+          : 'нет FTE данных',
+        valueColor: revColor,
+        detail: `
+          <div class="kpi-det-title">Эффективность дохода</div>
+          <div class="kpi-det-row">
+            <span class="kpi-det-label">Показатель</span>
+            <span class="kpi-det-risk" style="color:${revColor}">${r.revenueEfficiency !== null ? Math.round(r.revenueEfficiency * 100) + '%' : '—'}</span>
+          </div>
+          <div class="kpi-det-row">
+            <span class="kpi-det-label">Статус</span>
+            <span class="kpi-det-risk">${r.revenueEfficiency !== null
+              ? (r.revenueEfficiency >= 0.95 ? 'Отлично' : r.revenueEfficiency >= 0.80 ? 'Внимание' : 'Критично')
+              : 'нет FTE данных'}</span>
+          </div>`,
+      },
+    ];
+
+    return cards.map(c => `
+      <div class="pf-kpi-card" data-card="${c.id}">
+        <div class="pf-kpi-card-collapsed">
+          <div class="pf-kpi-card-label">${c.label}</div>
+          <div class="pf-kpi-card-value" style="color:${c.valueColor}">${c.value}</div>
+          <div class="pf-kpi-card-hint">${c.hint}</div>
+        </div>
+        <div class="pf-kpi-card-detail" style="display:none">${c.detail}</div>
+      </div>`).join('');
+  },
 
   /* ─── ACTIONS PANEL ──────────────────────────────────────── */
   _openActionsPanel() {
@@ -967,6 +1066,38 @@ _bindTouchesEvents(touchPoints) {
 
   /* ─── PAGE EVENTS  ─────────────────────────────────────────── */
   _bindDetailEvents() {
+    // KPI карточки — раскрытие как в портфеле
+    const kpiGrid = document.getElementById('cd-kpi-grid');
+    if (kpiGrid) {
+      const collapseKpi = () => {
+        kpiGrid.querySelectorAll('.pf-kpi-card').forEach(c => {
+          c.classList.remove('pf-kpi-active', 'pf-kpi-dimmed');
+          const det = c.querySelector('.pf-kpi-card-detail');
+          if (det) det.style.display = 'none';
+        });
+      };
+      document.addEventListener('click', e => {
+        if (!kpiGrid.contains(e.target)) collapseKpi();
+      });
+      kpiGrid.addEventListener('click', e => {
+        e.stopPropagation();
+        const card = e.target.closest('.pf-kpi-card');
+        if (!card) return;
+        if (e.target.closest('.pf-kpi-card-close')) { collapseKpi(); return; }
+        if (card.classList.contains('pf-kpi-active')) { collapseKpi(); return; }
+        kpiGrid.querySelectorAll('.pf-kpi-card').forEach(c => {
+          c.classList.remove('pf-kpi-active');
+          c.classList.add('pf-kpi-dimmed');
+          const det = c.querySelector('.pf-kpi-card-detail');
+          if (det) det.style.display = 'none';
+        });
+        card.classList.remove('pf-kpi-dimmed');
+        card.classList.add('pf-kpi-active');
+        const det = card.querySelector('.pf-kpi-card-detail');
+        if (det) det.style.display = 'block';
+      });
+    }
+
     document.getElementById('btn-actions-panel')
       ?.addEventListener('click', () => this._openActionsPanel());
 

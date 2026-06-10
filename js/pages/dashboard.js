@@ -30,7 +30,7 @@ export const DashboardPage = {
       <div style="display:flex;gap:8px;align-items:center;
                   flex-wrap:wrap;margin-bottom:16px">
         <input type="text" class="search-input" id="dash-search"
-               placeholder="🔍 Поиск..." style="flex:1;min-width:160px"/>
+               placeholder=" Поиск..." style="flex:1;min-width:160px"/>
         <div style="display:flex;gap:6px" id="dash-tabs"></div>
       </div>
 
@@ -71,7 +71,7 @@ export const DashboardPage = {
       console.error('[DashboardPage.load]', err);
       document.getElementById('dash-body').innerHTML = `
         <div class="empty-state">
-          <div class="empty-state-icon">⚠️</div>
+          <div class="empty-state-icon"></div>
           <div class="empty-state-title">Ошибка загрузки данных</div>
         </div>`;
     }
@@ -112,9 +112,9 @@ export const DashboardPage = {
     const urgency = this._touchUrgency(clientId, bcgCategory, row);
     if (urgency === 'ok') return '';
     const cfg = {
-      immediate: { bg:'#fef2f2', color:'#ef4444', border:'#fecaca', text:'📍 срочно'    },
-      overdue:   { bg:'#fef2f2', color:'#ef4444', border:'#fecaca', text:'📍 просрочено'},
-      due:       { bg:'#fffbeb', color:'#f59e0b', border:'#fde68a', text:'📍 скоро'     },
+      immediate: { bg:'#fef2f2', color:'#ef4444', border:'#fecaca', text:' срочно'    },
+      overdue:   { bg:'#fef2f2', color:'#ef4444', border:'#fecaca', text:' просрочено'},
+      due:       { bg:'#fffbeb', color:'#f59e0b', border:'#fde68a', text:' скоро'     },
     }[urgency];
     return `<span style="font-size:10px;background:${cfg.bg};color:${cfg.color};
       border:1px solid ${cfg.border};border-radius:4px;padding:1px 6px;
@@ -124,16 +124,16 @@ export const DashboardPage = {
   /* ── Человекочитаемое действие ── */
   _actionText(badge) {
     const map = {
-      'badge-intervene':     '⚠️ Нужно вмешаться',
-      'badge-protect-crit':  '🔴 Под угрозой — защитить',
-      'badge-protect':       '🛡️ Держать и защищать',
-      'badge-invest':        '📈 Развивать',
-      'badge-monitor':       '🔵 Наблюдать',
-      'badge-nurture':       '🌱 Взращивать',
-      'badge-evaluate':      '🔍 Оценить',
-      'badge-reconsider':    '🔄 Пересмотреть',
-      'badge-minimal-alert': '⚠️ Есть сигналы',
-      'badge-autopilot':     '⚪ Автопилот',
+      'badge-intervene':     ' Нужно вмешаться',
+      'badge-protect-crit':  ' Под угрозой — защитить',
+      'badge-protect':       ' Держать и защищать',
+      'badge-invest':        ' Развивать',
+      'badge-monitor':       ' Наблюдать',
+      'badge-nurture':       ' Взращивать',
+      'badge-evaluate':      ' Оценить',
+      'badge-reconsider':    ' Пересмотреть',
+      'badge-minimal-alert': ' Есть сигналы',
+      'badge-autopilot':     ' Автопилот',
     };
     return map[badge.cls] ?? badge.label;
   },
@@ -245,7 +245,7 @@ export const DashboardPage = {
   if (rows.length === 0) {
       document.getElementById('dash-body').innerHTML = `
         <div class="empty-state">
-          <div class="empty-state-icon">✅</div>
+          <div class="empty-state-icon"></div>
           <div class="empty-state-title">
             ${this.activeTab === 'urgent' ? 'Нет срочных клиентов' :
               this.activeTab === 'touch'  ? 'Все касания в порядке' :
@@ -264,9 +264,9 @@ export const DashboardPage = {
     });
 
     const sections = [
-      { key: 'alert', title: '🔴 Действуй сейчас' },
-      { key: 'work',  title: '🟡 Держи под контролем' },
-      { key: 'auto',  title: '⚪ Стабильные' },
+      { key: 'alert', title: ' Действуй сейчас' },
+      { key: 'work',  title: ' Держи под контролем' },
+      { key: 'auto',  title: ' Стабильные' },
     ];
 
     let html = '';
@@ -305,61 +305,105 @@ export const DashboardPage = {
     const c        = row.client;
     const expanded = this.expandedId === c.id;
 
-    /* Цвет полоски слева */
-    const stripColor = {
-      alert: '#ef4444',
-      work:  '#f59e0b',
-      auto:  '#9ca3af',
-    }[row.section] ?? '#9ca3af';
-
-    const loyaltyStr = row.loyalty !== null
-      ? `${row.loyalty}%${row.trend ? ' ' + (row.trend.delta > 0 ? '↗' : row.trend.delta < 0 ? '↘' : '→') : ''}`
-      : '—';
-
-    const riskStr = row.revenueAtRisk > 0
-      ? `$${row.revenueAtRisk.toLocaleString('ru-RU')} риск`
-      : '';
-
-    const actionText = this._actionText(row.badge);
     const nextAction = this._nextAction(row);
     const touchBadge = this._touchBadgeHTML(c.id, c.bcg_category, row);
+    const loyaltyVal = row.loyalty;
 
-    const loyaltyColor = row.loyalty === null ? '#6b7280'
-      : row.loyalty >= 60 ? '#10b981'
-      : row.loyalty >= 40 ? '#f59e0b' : '#ef4444';
+    const cardBg     = 'var(--surface)';
+    const cardBorder  = 'var(--border)';
+
+    const trendArrow = row.trend
+      ? (row.trend.delta > 0 ? ' ↗' : row.trend.delta < 0 ? ' ↘' : '') : '';
+    const loyaltyBg  = loyaltyVal === null ? '#f1f5f9'
+      : loyaltyVal >= 60 ? '#dcfce7' : loyaltyVal >= 40 ? '#fef9c3' : '#fee2e2';
+    const loyaltyClr = loyaltyVal === null ? '#94a3b8'
+      : loyaltyVal >= 60 ? '#15803d' : loyaltyVal >= 40 ? '#b45309' : '#b91c1c';
+    const loyaltyChip = `<span style="background:${loyaltyBg};color:${loyaltyClr};
+      border-radius:6px;padding:3px 10px;font-size:12px;font-weight:700;white-space:nowrap">
+      ${loyaltyVal !== null ? loyaltyVal + '%' + trendArrow : '—'}
+    </span>`;
+
+    const healthTxt = (row.health?.label ?? '').replace(/\p{Emoji}/gu, '').trim();
+    const healthKey = row.health?.key ?? '';
+    const healthClr = healthKey === 'Healthy' ? '#16a34a'
+      : healthKey === 'Neutral' ? '#94a3b8' : '#ea580c';
+    const healthChip = healthTxt && healthKey !== 'Healthy' && healthKey !== 'Neutral' ? `
+      <span style="color:${healthClr};font-size:11px;font-weight:500;white-space:nowrap">
+        ${healthTxt}
+      </span>` : '';
+
+    const riskChip = row.revenueAtRisk > 0 ? `
+      <span style="background:#fee2e2;color:#b91c1c;
+        border-radius:6px;padding:3px 10px;font-size:11px;font-weight:600;white-space:nowrap">
+
+        $${row.revenueAtRisk.toLocaleString('ru-RU')} риск
+      </span>` : '';
+
+    const bcgLabels = { KEY:'KEY', GROWTH:'GROWTH', GROWTH_EARLY:'GROWTH early',
+                        STABLE:'Stable', TAIL:'Tail' };
+    const bcgLabel = bcgLabels[c.bcg_category] ?? c.bcg_category ?? '';
+    const mrStr    = c.monthly_revenue
+      ? '$' + Number(c.monthly_revenue).toLocaleString('ru-RU') + '/мес' : '';
+
+    // Иконка руки (pointer/touch)
+    const handSVG = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none"
+      stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M18 11V7a2 2 0 00-2-2 2 2 0 00-2 2"/>
+      <path d="M14 10V5a2 2 0 00-2-2 2 2 0 00-2 2v3"/>
+      <path d="M10 9.5V4a2 2 0 00-2-2 2 2 0 00-2 2v8"/>
+      <path d="M6 14v-3a2 2 0 00-2-2 2 2 0 00-2 2v3c0 4 3 7 8 7s8-3 8-7v-1a2 2 0 00-2-2 2 2 0 00-2 2"/>
+    </svg>`;
 
     return `
       <div class="client-row${expanded ? ' expanded' : ''}" data-id="${c.id}"
-           style="border-left:3px solid ${stripColor};padding-left:12px">
-        <div class="row-main" style="flex-direction:column;align-items:flex-start;gap:4px">
+           style="background:${cardBg};border:1px solid ${cardBorder};
+                  border-radius:10px;margin-bottom:6px;overflow:hidden;
+                  display:flex;align-items:stretch;position:relative">
 
-          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;width:100%">
-            <span class="client-name" style="font-size:14px;font-weight:600">${c.name}</span>
-            ${touchBadge}
-            <span style="flex:1"></span>
-            <span style="font-size:13px;font-weight:600;color:${loyaltyColor}">
-              ${loyaltyStr}
-            </span>
-            ${riskStr ? `<span style="font-size:12px;color:#ef4444">${riskStr}</span>` : ''}
-          </div>
-
+        <!-- Левые 70% — инфо -->
+        <div style="flex:1;padding:10px 14px;min-width:0">
           <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-            <span style="font-size:12px;font-weight:600;color:var(--text-secondary)">
-              ${actionText}
-            </span>
-            ${nextAction ? `
-              <span style="font-size:11px;color:var(--text-muted)">·</span>
-              <span style="font-size:11px;color:var(--text-muted)">${nextAction}</span>
-            ` : ''}
+            <button data-action="go-detail" data-id="${c.id}"
+                    onclick="event.stopPropagation()"
+                    style="background:rgba(255,255,255,0.8);border:1px solid ${cardBorder};
+                           border-radius:7px;padding:3px 10px;font-size:14px;font-weight:700;
+                           color:#0f172a;cursor:pointer;transition:all .15s;
+                           line-height:1.5;white-space:nowrap"
+                    onmouseover="this.style.background='#fff'"
+                    onmouseout="this.style.background='rgba(255,255,255,0.8)'">
+              ${c.name}
+            </button>
+            ${bcgLabel ? `<span style="font-size:11px;color:#b0bac6">${bcgLabel}</span>` : ''}
+            ${mrStr    ? `<span style="font-size:11px;color:#94a3b8">${mrStr}</span>` : ''}
+            ${touchBadge}
+            ${loyaltyChip}
+            ${healthChip}
+            ${riskChip}
           </div>
-
+          ${nextAction ? `
+          <div style="font-size:11px;color:#94a3b8;margin-top:5px">${nextAction}</div>
+          ` : ''}
         </div>
+
+        <!-- Правые 30% — зона касания, визуально часть карточки -->
+        <button data-action="touch" data-id="${c.id}" data-name="${c.name}"
+                onclick="event.stopPropagation()"
+                style="width:28%;max-width:110px;flex-shrink:0;
+                       background:transparent;border:none;
+                       border-left:1px solid rgba(0,0,0,0.06);
+                       cursor:pointer;display:flex;flex-direction:column;
+                       align-items:center;justify-content:center;gap:5px;
+                       color:#94a3b8;transition:all .2s;padding:8px"
+                onmouseover="this.style.background='rgba(0,0,0,0.03)';this.style.color='#6366f1'"
+                onmouseout="this.style.background='transparent';this.style.color='#94a3b8'">
+          ${handSVG}
+        </button>
+
       </div>
       ${expanded ? this._renderExpanded(row) : ''}`;
   },
 
-  /* ── Раскрытая карточка ── */
-  _renderExpanded(row) {
+    _renderExpanded(row) {
     const c   = row.client;
     const bcg = BCG_CATEGORIES[c.bcg_category];
 
@@ -425,21 +469,8 @@ export const DashboardPage = {
 
         </div>
 
-        <div class="detail-actions">
-  <button class="btn btn-primary btn-sm"
-          data-action="go-detail" data-id="${c.id}">
-    📊 Карточка
-  </button>
-  <button class="btn btn-secondary btn-sm"
-          data-action="go-entry" data-id="${c.id}">
-    ✎ Данные
-  </button>
-  <button class="btn btn-secondary btn-sm"
-          data-action="touch"
-          data-id="${c.id}" data-name="${c.name}">
-    📍 Касание
-  </button>
-</div>
+
+
       </div>`;
   },
 
@@ -514,37 +545,67 @@ export const DashboardPage = {
 
     const firstLine = (tp.notes || '')
       .split('\n')
-      .map(l => l.replace(/^[📋✅👣🎯🏁🚧]\s[\w\s]+:\n?/, '').trim())
+      .map(l => l.replace(/^[]\s[\w\s]+:\n?/, '').trim())
       .find(l => l.length > 3) ?? '';
     const preview = firstLine.slice(0, 72) + (firstLine.length > 72 ? '…' : '');
 
+    const handSVG = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none"
+      stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M18 11V7a2 2 0 00-2-2 2 2 0 00-2 2"/>
+      <path d="M14 10V5a2 2 0 00-2-2 2 2 0 00-2 2v3"/>
+      <path d="M10 9.5V4a2 2 0 00-2-2 2 2 0 00-2 2v3"/>
+      <path d="M6 14v-3a2 2 0 00-2-2 2 2 0 00-2 2v3c0 4 3 7 8 7s8-3 8-7v-1a2 2 0 00-2-2 2 2 0 00-2 2"/>
+    </svg>`;
+    const bcgLabels = { KEY:'KEY', GROWTH:'GROWTH', GROWTH_EARLY:'GROWTH early',
+                        STABLE:'Stable', TAIL:'Tail' };
+    const bcgLabel  = bcgLabels[row.client.bcg_category] ?? row.client.bcg_category ?? '';
+    const mrStr     = row.client.monthly_revenue
+      ? '$' + Number(row.client.monthly_revenue).toLocaleString('ru-RU') + '/мес' : '';
+    const loyaltyVal = row.loyalty;
+    const loyaltyBg  = loyaltyVal === null ? '#f1f5f9'
+      : loyaltyVal >= 60 ? '#dcfce7' : loyaltyVal >= 40 ? '#fef9c3' : '#fee2e2';
+    const loyaltyClr = loyaltyVal === null ? '#94a3b8'
+      : loyaltyVal >= 60 ? '#15803d' : loyaltyVal >= 40 ? '#b45309' : '#b91c1c';
+    const loyaltyChip = loyaltyVal !== null ? `
+      <span style="background:${loyaltyBg};color:${loyaltyClr};
+        border-radius:6px;padding:3px 10px;font-size:12px;font-weight:700">
+        ${loyaltyVal}%
+      </span>` : '';
+
     return `
-      <div style="display:flex;align-items:flex-start;gap:12px;
-                  padding:11px 14px;border-radius:10px;
-                  background:var(--surface);border:1px solid var(--border);
-                  margin-bottom:7px;cursor:pointer;transition:background .12s"
-           onmouseover="this.style.background='#f8fafc'"
-           onmouseout="this.style.background='var(--surface)'"
-           data-action="go-detail" data-id="${row.client.id}">
-        <div style="width:32px;height:32px;border-radius:8px;background:#f1f5f9;
-                    display:flex;align-items:center;justify-content:center;flex-shrink:0">
-          ${icon}
-        </div>
-        <div style="flex:1;min-width:0">
-          <div style="display:flex;justify-content:space-between;
-                      align-items:center;gap:8px">
-            <span style="font-size:13px;font-weight:600;
-                         color:var(--text-primary)">${row.client.name}</span>
-            <span style="font-size:11px;color:var(--text-muted);
-                         white-space:nowrap;flex-shrink:0">${timeStr}</span>
+      <div style="background:var(--surface);border:1px solid var(--border);
+                  border-radius:12px;margin-bottom:6px;overflow:hidden;
+                  display:flex;align-items:stretch;min-height:56px">
+        <div data-action="go-detail" data-id="${row.client.id}"
+             style="flex:1;padding:10px 14px;min-width:0;cursor:pointer;
+                    display:flex;flex-direction:column;justify-content:center;gap:5px">
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+            <span style="font-size:14px;font-weight:700;color:#0f172a;line-height:1.5">
+              ${row.client.name}
+            </span>
+            ${bcgLabel ? `<span style="font-size:11px;color:#b0bac6">${bcgLabel}</span>` : ''}
+            ${mrStr    ? `<span style="font-size:11px;color:#94a3b8">${mrStr}</span>` : ''}
+            ${loyaltyChip}
+            <span style="flex:1"></span>
+            <span style="font-size:11px;color:#94a3b8">${timeStr}</span>
           </div>
           ${preview ? `
-            <div style="font-size:12px;color:var(--text-muted);margin-top:3px;
-                        overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
-              ${preview}
-            </div>` : ''}
+          <div style="font-size:11px;color:#94a3b8;
+                      overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
+            ${preview}
+          </div>` : ''}
         </div>
-        <div style="color:#cbd5e1;flex-shrink:0;margin-top:2px">${svg.arrow}</div>
+        <button data-action="touch"
+                data-id="${row.client.id}" data-name="${row.client.name}"
+                style="width:28%;max-width:100px;flex-shrink:0;
+                       background:#f8fafc;border:none;
+                       border-left:1px solid var(--border);
+                       cursor:pointer;display:flex;align-items:center;
+                       justify-content:center;color:#94a3b8;transition:all .2s"
+                onmouseover="this.style.background='#f1f5f9';this.style.color='#6366f1'"
+                onmouseout="this.style.background='#f8fafc';this.style.color='#94a3b8'">
+          ${handSVG}
+        </button>
       </div>`;
   }).join('');
 
@@ -566,101 +627,136 @@ const badgeText    = isPrimary ? 'срочно'  : 'скоро';
       : row.loyalty >= 60 ? '#4ade80'
       : row.loyalty >= 40 ? '#fbbf24' : '#f87171';
 
+    const handSVG = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none"
+      stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M18 11V7a2 2 0 00-2-2 2 2 0 00-2 2"/>
+      <path d="M14 10V5a2 2 0 00-2-2 2 2 0 00-2 2v3"/>
+      <path d="M10 9.5V4a2 2 0 00-2-2 2 2 0 00-2 2v3"/>
+      <path d="M6 14v-3a2 2 0 00-2-2 2 2 0 00-2 2v3c0 4 3 7 8 7s8-3 8-7v-1a2 2 0 00-2-2 2 2 0 00-2 2"/>
+    </svg>`;
+
+    const loyaltyBg  = row.loyalty === null ? '#f1f5f9'
+      : row.loyalty >= 60 ? '#dcfce7' : row.loyalty >= 40 ? '#fef9c3' : '#fee2e2';
+    const loyaltyClr2 = row.loyalty === null ? '#94a3b8'
+      : row.loyalty >= 60 ? '#15803d' : row.loyalty >= 40 ? '#b45309' : '#b91c1c';
+    const trendArrow = row.trend
+      ? (row.trend.delta > 0 ? ' ↗' : row.trend.delta < 0 ? ' ↘' : '') : '';
+    const loyaltyChip = `<span style="background:${loyaltyBg};color:${loyaltyClr2};
+      border-radius:6px;padding:3px 10px;font-size:12px;font-weight:700;white-space:nowrap">
+      ${row.loyalty !== null ? row.loyalty + '%' + trendArrow : '—'}
+    </span>`;
+
+    const bcgLabels = { KEY:'KEY', GROWTH:'GROWTH', GROWTH_EARLY:'GROWTH early',
+                        STABLE:'Stable', TAIL:'Tail' };
+    const bcgLabel = bcgLabels[c.bcg_category] ?? c.bcg_category ?? '';
+    const mrStr    = c.monthly_revenue
+      ? '$' + Number(c.monthly_revenue).toLocaleString('ru-RU') + '/мес' : '';
+
     return `
       <div style="background:${bgColor};border:1px solid ${borderColor};
-                  border-radius:14px;padding:16px 18px;margin-bottom:10px;
-                  position:relative">
-        <div style="display:flex;align-items:flex-start;
-                    justify-content:space-between;gap:12px;margin-bottom:10px">
-          <div>
-            <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
-              <span style="font-size:11px;font-weight:600;
-                           color:${accentColor};background:${badgeColor}40;
-                           border-radius:6px;padding:2px 8px;letter-spacing:.03em">
-                #${rank} · ${badgeText}
-              </span>
-            </div>
-            <div style="font-size:15px;font-weight:700;
-                        color:#0f172a;line-height:1.3">${c.name}</div>
-            <div style="font-size:12px;color:#64748b;margin-top:3px">${nextAct}</div>
+                  border-radius:12px;margin-bottom:8px;overflow:hidden;
+                  display:flex;align-items:stretch">
+
+        <!-- Левая часть — весь клик = карточка -->
+        <div data-action="go-detail" data-id="${c.id}"
+             style="flex:1;padding:12px 14px;min-width:0;cursor:pointer">
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;flex-wrap:wrap">
+            <span style="font-size:10px;font-weight:600;color:${accentColor};
+                         background:${badgeColor}60;border-radius:5px;
+                         padding:2px 7px;letter-spacing:.03em">
+              #${rank} · ${badgeText}
+            </span>
+            ${bcgLabel ? `<span style="font-size:11px;color:#b0bac6">${bcgLabel}</span>` : ''}
+            ${mrStr ? `<span style="font-size:11px;color:#94a3b8">${mrStr}</span>` : ''}
           </div>
-          <div style="text-align:right;flex-shrink:0">
-            <div style="font-size:16px;font-weight:700;color:${loyaltyColor}">
-              ${loyaltyStr}
-            </div>
-            <div style="font-size:10px;color:#94a3b8;margin-top:1px">лояльность</div>
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+            <span style="font-size:14px;font-weight:700;color:#0f172a;line-height:1.5">
+              ${c.name}
+            </span>
+            ${loyaltyChip}
           </div>
+          ${nextAct ? `
+          <div style="font-size:11px;color:#94a3b8;margin-top:5px">${nextAct}</div>
+          ` : ''}
         </div>
-        <div style="display:flex;gap:8px">
-          <button class="btn btn-sm"
-                  data-action="touch"
-                  data-id="${c.id}" data-name="${c.name}"
-                  style="display:flex;align-items:center;gap:6px;
-                         background:${accentColor}22;border:1px solid ${accentColor}55;color:${accentColor};
-                         border-radius:8px;padding:7px 14px;font-size:12px;
-                         font-weight:600;cursor:pointer;transition:opacity .15s"
-                  onmouseover="this.style.opacity='.85'"
-                  onmouseout="this.style.opacity='1'">
-            ${svg.touch} Касание
-          </button>
-          <button class="btn btn-sm"
-                  data-action="go-detail" data-id="${c.id}"
-                  style="display:flex;align-items:center;gap:6px;
-                         background:#fff;border:1px solid ${borderColor};
-                         color:#475569;border-radius:8px;padding:7px 14px;
-                         font-size:12px;font-weight:500;cursor:pointer;
-                         transition:background .12s"
-                  onmouseover="this.style.background='#f8fafc'"
-                  onmouseout="this.style.background='#fff'">
-            ${svg.card} Карточка
-          </button>
-        </div>
+
+        <!-- Правая зона — касание -->
+        <button data-action="touch" data-id="${c.id}" data-name="${c.name}"
+                style="width:28%;max-width:100px;flex-shrink:0;background:${accentColor}15;
+                       border:none;border-left:1px solid ${borderColor};
+                       cursor:pointer;display:flex;flex-direction:column;
+                       align-items:center;justify-content:center;
+                       color:${accentColor};transition:all .2s;padding:8px"
+                onmouseover="this.style.background='${accentColor}28'"
+                onmouseout="this.style.background='${accentColor}15'">
+          ${handSVG}
+        </button>
+
       </div>`;
   };
 
   // ── Карточка риска ──
   const riskCard = (row) => {
     const c = row.client;
-    const isHigh = row.riskPct > 30;
-    const accentColor = isHigh ? '#e89090' : '#d4a843';
-const bgColor     = isHigh ? '#fdf4f4' : '#fdfaf0';
-const borderColor = isHigh ? '#f0dada' : '#f0e8c0';
+    const isHigh     = row.riskPct > 30;
+    const accentColor = isHigh ? '#e07070' : '#d4a843';
+    const bgColor     = isHigh ? '#fdf4f4' : '#fdfaf0';
+    const borderColor = isHigh ? '#f0dada' : '#f0e8c0';
+    const bcgLabels   = { KEY:'KEY', GROWTH:'GROWTH', GROWTH_EARLY:'GROWTH early',
+                          STABLE:'Stable', TAIL:'Tail' };
+    const bcgLabel    = bcgLabels[c.bcg_category] ?? c.bcg_category ?? '';
+    const mrStr       = c.monthly_revenue
+      ? '$' + Number(c.monthly_revenue).toLocaleString('ru-RU') + '/мес' : '';
+    const loyaltyVal  = row.loyalty;
+    const loyaltyBg   = loyaltyVal === null ? '#f1f5f9'
+      : loyaltyVal >= 60 ? '#dcfce7' : loyaltyVal >= 40 ? '#fef9c3' : '#fee2e2';
+    const loyaltyClr  = loyaltyVal === null ? '#94a3b8'
+      : loyaltyVal >= 60 ? '#15803d' : loyaltyVal >= 40 ? '#b45309' : '#b91c1c';
+    const handSVG = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none"
+      stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M18 11V7a2 2 0 00-2-2 2 2 0 00-2 2"/>
+      <path d="M14 10V5a2 2 0 00-2-2 2 2 0 00-2 2v3"/>
+      <path d="M10 9.5V4a2 2 0 00-2-2 2 2 0 00-2 2v3"/>
+      <path d="M6 14v-3a2 2 0 00-2-2 2 2 0 00-2 2v3c0 4 3 7 8 7s8-3 8-7v-1a2 2 0 00-2-2 2 2 0 00-2 2"/>
+    </svg>`;
 
     return `
-      <div style="display:flex;align-items:center;gap:12px;
-                  padding:12px 14px;border-radius:10px;
-                  background:${bgColor};border:1px solid ${borderColor};
-                  margin-bottom:8px">
-        <div style="width:34px;height:34px;border-radius:9px;
-                    background:${accentColor}25;flex-shrink:0;
-                    display:flex;align-items:center;justify-content:center;
-                    color:${accentColor}">
-          ${svg.alert}
-        </div>
-        <div style="flex:1;min-width:0">
-          <div style="font-size:13px;font-weight:600;color:#0f172a">${c.name}</div>
-          <div style="font-size:11px;color:#64748b;margin-top:2px">
-            ${row.riskPct}% риск выручки
+      <div style="background:${bgColor};border:1px solid ${borderColor};
+                  border-radius:12px;margin-bottom:6px;overflow:hidden;
+                  display:flex;align-items:stretch;min-height:56px">
+
+        <div data-action="go-detail" data-id="${c.id}"
+             style="flex:1;padding:10px 14px;min-width:0;cursor:pointer;
+                    display:flex;flex-direction:column;justify-content:center;gap:5px"
+             onmouseover="this.style.opacity='.85'"
+             onmouseout="this.style.opacity='1'">
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+            <span style="font-size:14px;font-weight:700;color:#0f172a">${c.name}</span>
+            ${bcgLabel ? `<span style="font-size:11px;color:#b0bac6">${bcgLabel}</span>` : ''}
+            ${mrStr    ? `<span style="font-size:11px;color:#94a3b8">${mrStr}</span>` : ''}
+            ${loyaltyVal !== null ? `
+              <span style="background:${loyaltyBg};color:${loyaltyClr};
+                border-radius:6px;padding:3px 10px;font-size:12px;font-weight:700">
+                ${loyaltyVal}%
+              </span>` : ''}
+            <span style="background:#fee2e2;color:#b91c1c;
+              border-radius:6px;padding:3px 10px;font-size:11px;font-weight:600">
+              ${row.riskPct}% риск
+            </span>
             ${row.trend?.direction === 'down'
-              ? `<span style="color:#f87171;margin-left:6px;
-                              display:inline-flex;align-items:center;gap:3px;
-                              vertical-align:middle">
-                   ${svg.trendDown} тренд падает
-                 </span>`
-              : ''}
+              ? `<span style="font-size:11px;color:#f87171">тренд ↘</span>` : ''}
           </div>
         </div>
-        <button class="btn btn-sm"
-                data-action="touch"
-                data-id="${c.id}" data-name="${c.name}"
-                style="display:flex;align-items:center;gap:6px;
-                       background:#fff;border:1px solid ${borderColor};
-                       color:#475569;border-radius:8px;padding:7px 12px;
-                       font-size:12px;font-weight:500;cursor:pointer;
-                       white-space:nowrap;flex-shrink:0;transition:background .12s"
-                onmouseover="this.style.background='#f8fafc'"
-                onmouseout="this.style.background='#fff'">
-          ${svg.touch} Касание
+
+        <button data-action="touch" data-id="${c.id}" data-name="${c.name}"
+                style="width:28%;max-width:100px;flex-shrink:0;
+                       background:${accentColor}15;border:none;
+                       border-left:1px solid ${borderColor};
+                       cursor:pointer;display:flex;align-items:center;
+                       justify-content:center;color:${accentColor};transition:all .2s"
+                onmouseover="this.style.background='${accentColor}28'"
+                onmouseout="this.style.background='${accentColor}15'">
+          ${handSVG}
         </button>
       </div>`;
   };
@@ -673,102 +769,125 @@ const borderColor = isHigh ? '#f0dada' : '#f0e8c0';
     weekday: 'long', day: 'numeric', month: 'long'
   });
 
+  // ── KPI снепшот (оперативный) ──
+  // Просроченные касания
+  const overdueCount = this.computed.filter(r => {
+    const u = this._touchUrgency(r.client.id, r.client.bcg_category, r);
+    return u === 'overdue' || u === 'immediate';
+  }).length;
+
+  // Касания за 7 дней
+  const week7 = Date.now() - 7 * 86400000;
+  const touches7d = (this.touchPoints || []).filter(tp =>
+    tp.completed_at && new Date(tp.completed_at).getTime() > week7
+  ).length;
+
+  const kpiCards = [
+    {
+      id: 'kpi-calls',
+      icon: svg.phone,
+      iconBg: '#ede9fe', iconColor: '#7c3aed',
+      label: 'Позвони сегодня',
+      value: callNow.length,
+      valueColor: callNow.length > 0 ? '#7c3aed' : '#10b981',
+      hint: callNow.length > 0 ? 'срочных касаний' : 'всё под контролем',
+      detailTitle: 'Срочные касания',
+      detail: callNow.length
+        ? callNow.map((r, i) => quickCard(r, i + 1)).join('')
+        : '<div style="font-size:12px;color:#94a3b8;padding:8px 0">Срочных нет</div>',
+    },
+    {
+      id: 'kpi-risk',
+      icon: svg.alert,
+      iconBg: '#fef3c7', iconColor: '#d97706',
+      label: 'В риске',
+      value: atRisk.length,
+      valueColor: atRisk.length > 0 ? '#ef4444' : '#10b981',
+      hint: atRisk.length > 0 ? 'клиентов требуют внимания' : 'рисков нет',
+      detailTitle: 'Клиенты в риске',
+      detail: atRisk.length
+        ? atRisk.map(r => riskCard(r)).join('')
+        : '<div style="font-size:12px;color:#94a3b8;padding:8px 0">Рисков нет</div>',
+    },
+    {
+      id: 'kpi-overdue',
+      icon: svg.touch,
+      iconBg: '#fff7ed', iconColor: '#ea580c',
+      label: 'Просрочено',
+      value: overdueCount,
+      valueColor: overdueCount > 0 ? '#ea580c' : '#10b981',
+      hint: overdueCount > 0 ? 'касаний просрочено' : 'касания в порядке',
+      detailTitle: 'Просроченные касания',
+      detail: (() => {
+        const overdue = this.computed.filter(r => {
+          const u = this._touchUrgency(r.client.id, r.client.bcg_category, r);
+          return u === 'overdue' || u === 'immediate';
+        }).slice(0, 5);
+        return overdue.length
+          ? overdue.map((r, i) => quickCard(r, i + 1)).join('')
+          : '<div style="font-size:12px;color:#94a3b8;padding:8px 0">Всё в порядке</div>';
+      })(),
+    },
+    {
+      id: 'kpi-touches',
+      icon: svg.refresh,
+      iconBg: '#e0f2fe', iconColor: '#0284c7',
+      label: 'Касания за 7 дней',
+      value: touches7d,
+      valueColor: touches7d > 0 ? '#0284c7' : '#94a3b8',
+      hint: recentTouches.length > 0 ? `${recentTouches.length} за последние 48ч` : 'активность низкая',
+      detailTitle: 'Последние касания',
+      detail: recentTouches.length
+        ? recentTouches.slice(0, 5).map(tp => {
+            const cl = this.computed.find(r => String(r.client.id) === String(tp.client_id));
+            if (!cl) return '';
+            return riskCard(cl);
+          }).join('')
+        : '<div style="font-size:12px;color:#94a3b8;padding:8px 0">Касаний не было</div>',
+    },
+  ];
+
+  const kpiGridHTML = `
+    <div class="pf-kpi-grid-new" id="dash-kpi-grid"
+         style="display:flex;gap:0;border:1px solid var(--border);
+                border-radius:12px;overflow:hidden;margin-bottom:20px">
+      ${kpiCards.map(c => `
+        <div class="pf-kpi-card" data-kpi="${c.id}"
+             style="border-right:1px solid var(--border);padding:16px 18px;
+                    min-width:0;flex:1">
+          <div class="pf-kpi-card-collapsed">
+            <div style="display:flex;align-items:center;gap:7px;margin-bottom:8px">
+              <div style="width:22px;height:22px;border-radius:6px;background:${c.iconBg};
+                          display:flex;align-items:center;justify-content:center;
+                          color:${c.iconColor};flex-shrink:0">${c.icon}</div>
+              <span class="pf-kpi-card-label">${c.label}</span>
+            </div>
+            <div class="pf-kpi-card-value" style="color:${c.valueColor}">${c.value}</div>
+            <div class="pf-kpi-card-hint">${c.hint}</div>
+          </div>
+
+          <div class="pf-kpi-card-detail"
+               style="max-height:340px;overflow-y:auto;
+                      scrollbar-width:thin;scrollbar-color:#e2e8f0 transparent">
+            <div class="kpi-det-title">${c.detailTitle}</div>
+            ${c.detail}
+          </div>
+        </div>`).join('')}
+    </div>`;
+
   document.getElementById('dash-body').innerHTML = `
 
-    <div style="margin-bottom:24px">
+    <div style="margin-bottom:20px">
       <div style="font-size:20px;font-weight:700;
                   color:var(--text-primary);letter-spacing:-.02em">${greet}</div>
       <div style="font-size:13px;color:var(--text-muted);
                   margin-top:3px;text-transform:capitalize">${dateStr}</div>
     </div>
 
-    <div style="margin-bottom:28px">
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px">
-        <div style="width:28px;height:28px;border-radius:8px;background:#ede9fe;
-                    display:flex;align-items:center;justify-content:center;
-                    color:#7c3aed">
-          ${svg.phone}
-        </div>
-        <span style="font-size:13px;font-weight:700;
-                     color:var(--text-primary);letter-spacing:-.01em">
-          Позвони сегодня
-        </span>
-        <span style="font-size:11px;color:#94a3b8;
-                     background:#f1f5f9;border-radius:10px;
-                     padding:1px 8px">${callNow.length}</span>
-      </div>
-      ${callNow.length
-        ? callNow.map((r, i) => quickCard(r, i + 1)).join('')
-        : `<div style="padding:20px;text-align:center;color:#94a3b8;
-                        font-size:13px;background:#f8fafc;border-radius:10px;
-                        border:1px dashed #e2e8f0;
-                        display:flex;align-items:center;justify-content:center;gap:8px">
-             <span style="color:#86efac">${svg.check}</span>
-             Срочных нет — всё под контролем
-           </div>`}
-    </div>
-
-    ${atRisk.length ? `
-      <div style="margin-bottom:28px">
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px">
-          <div style="width:28px;height:28px;border-radius:8px;background:#fef3c7;
-                      display:flex;align-items:center;justify-content:center;
-                      color:#d97706">
-            ${svg.alert}
-          </div>
-          <span style="font-size:13px;font-weight:700;
-                       color:var(--text-primary);letter-spacing:-.01em">
-            В риске
-          </span>
-          <span style="font-size:11px;color:#94a3b8;
-                       background:#f1f5f9;border-radius:10px;
-                       padding:1px 8px">${atRisk.length}</span>
-        </div>
-        ${atRisk.map(r => riskCard(r)).join('')}
-      </div>` : ''}
-
-    ${recentTouches.length ? `
-      <div style="margin-bottom:28px">
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px">
-          <div style="width:28px;height:28px;border-radius:8px;background:#e0f2fe;
-                      display:flex;align-items:center;justify-content:center;
-                      color:#0284c7">
-            ${svg.refresh}
-          </div>
-          <span style="font-size:13px;font-weight:700;
-                       color:var(--text-primary);letter-spacing:-.01em">
-            Что изменилось
-          </span>
-          <span style="font-size:11px;color:#94a3b8;
-                       background:#f1f5f9;border-radius:10px;
-                       padding:1px 8px">${recentTouches.length}</span>
-        </div>
-        ${recentRows}
-      </div>` : ''}
-
-    ${!callNow.length && !atRisk.length && !recentTouches.length ? `
-      <div style="text-align:center;padding:56px 20px">
-        <div style="width:56px;height:56px;border-radius:16px;background:#f0fdf4;
-                    display:flex;align-items:center;justify-content:center;
-                    margin:0 auto 16px;color:#4ade80">
-          <svg width="28" height="28" viewBox="0 0 24 24" fill="none"
-               stroke="currentColor" stroke-width="1.6"
-               stroke-linecap="round" stroke-linejoin="round">
-            <path d="M22 11.08V12a10 10 0 11-5.93-9.14"/>
-            <polyline points="22 4 12 14.01 9 11.01"/>
-          </svg>
-        </div>
-        <div style="font-size:16px;font-weight:700;
-                    color:var(--text-primary);margin-bottom:6px">
-          Всё под контролем
-        </div>
-        <div style="font-size:13px;color:#94a3b8;line-height:1.6">
-          Нет срочных задач · Портфель в хорошем состоянии
-        </div>
-      </div>` : ''}`;
+    ${kpiGridHTML}`;
 
   this._bindRowClicks();
-},
+  },
 
   _daysAgo(date) {
     const days = Math.round((Date.now() - date.getTime()) / 86400000);
@@ -780,6 +899,32 @@ const borderColor = isHigh ? '#f0dada' : '#f0e8c0';
   },
 
   _bindRowClicks() {
+    // ── KPI карточки — раскрытие как в portfolio ──
+    const kpiGrid = document.getElementById('dash-kpi-grid');
+    if (kpiGrid) {
+      const collapse = () => {
+        kpiGrid.querySelectorAll('.pf-kpi-card').forEach(c => {
+          c.classList.remove('pf-kpi-active', 'pf-kpi-dimmed');
+        });
+      };
+      document.addEventListener('click', e => {
+        if (!kpiGrid.contains(e.target)) collapse();
+      });
+      kpiGrid.addEventListener('click', e => {
+        e.stopPropagation();
+        const card = e.target.closest('.pf-kpi-card');
+        if (!card) return;
+        if (e.target.closest('.pf-kpi-card-close')) { collapse(); return; }
+        if (card.classList.contains('pf-kpi-active')) { collapse(); return; }
+        kpiGrid.querySelectorAll('.pf-kpi-card').forEach(c => {
+          c.classList.remove('pf-kpi-active');
+          c.classList.add('pf-kpi-dimmed');
+        });
+        card.classList.remove('pf-kpi-dimmed');
+        card.classList.add('pf-kpi-active');
+      });
+    }
+
     document.querySelectorAll('.client-row').forEach(el => {
       el.addEventListener('click', e => {
         if (e.target.closest('[data-action]')) return;
@@ -824,7 +969,7 @@ const borderColor = isHigh ? '#f0dada' : '#f0e8c0';
 
     window.App.openModal(`
       <div style="padding:4px 0 16px">
-        <div style="font-size:16px;font-weight:600;margin-bottom:4px">📝 Статус клиента</div>
+        <div style="font-size:16px;font-weight:600;margin-bottom:4px"> Статус клиента</div>
         <div style="font-size:13px;color:var(--text-muted);margin-bottom:16px">${clientName}</div>
       </div>
       <div style="display:flex;gap:8px;margin-bottom:14px">
@@ -835,7 +980,7 @@ const borderColor = isHigh ? '#f0dada' : '#f0e8c0';
         placeholder="Опишите что происходило с клиентом в этом месяце..."
         style="width:100%;resize:vertical;min-height:100px;margin-bottom:10px"></textarea>
       <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap">
-        <button class="btn btn-primary btn-sm" id="status-ai-btn">🤖 Распознать сигналы</button>
+        <button class="btn btn-primary btn-sm" id="status-ai-btn"> Распознать сигналы</button>
         <span id="status-ai-status" style="font-size:12px;color:var(--text-muted)"></span>
       </div>
       <div id="status-ai-result" class="hidden"
@@ -844,7 +989,7 @@ const borderColor = isHigh ? '#f0dada' : '#f0e8c0';
                   color:var(--text-secondary);line-height:1.6"></div>
       <div style="display:flex;gap:8px;justify-content:flex-end">
         <button class="btn btn-secondary btn-sm" id="status-cancel-btn">Отмена</button>
-        <button class="btn btn-primary btn-sm"   id="status-save-btn">💾 Сохранить</button>
+        <button class="btn btn-primary btn-sm"   id="status-save-btn"> Сохранить</button>
       </div>`);
 
     document.getElementById('status-cancel-btn')
@@ -872,20 +1017,20 @@ const borderColor = isHigh ? '#f0dada' : '#f0e8c0';
       const count = Object.values(parsed.signals || {}).filter(Boolean).length;
       result.classList.remove('hidden');
       result.innerHTML = `
-        <strong>✅ Найдено сигналов: ${count}</strong>
+        <strong> Найдено сигналов: ${count}</strong>
         ${parsed.explanation
-          ? `<div style="margin-top:4px;color:var(--text-muted);font-style:italic">💡 ${parsed.explanation}</div>`
+          ? `<div style="margin-top:4px;color:var(--text-muted);font-style:italic"> ${parsed.explanation}</div>`
           : ''}
         <div style="margin-top:4px;font-size:11px;color:var(--text-muted)">
           Нажмите «Сохранить» чтобы применить
         </div>`;
-      status.textContent = `✅ ${count} сигналов`;
-      window.App.toast(`🤖 AI нашёл ${count} сигналов`, 'success');
+      status.textContent = ` ${count} сигналов`;
+      window.App.toast(` AI нашёл ${count} сигналов`, 'success');
     } catch (e) {
-      status.textContent = '❌ Ошибка';
+      status.textContent = ' Ошибка';
       window.App.toast('Ошибка AI: ' + e.message, 'error');
     } finally {
-      btn.disabled = false; btn.textContent = '🤖 Распознать сигналы';
+      btn.disabled = false; btn.textContent = ' Распознать сигналы';
     }
   },
 
@@ -914,12 +1059,12 @@ const borderColor = isHigh ? '#f0dada' : '#f0e8c0';
       ]);
       API.clearCache();
       window.App.closeModal();
-      window.App.toast('✅ Статус сохранён!', 'success');
+      window.App.toast(' Статус сохранён!', 'success');
       await this.load();
     } catch (err) {
-      window.App.toast('❌ Ошибка сохранения', 'error');
+      window.App.toast(' Ошибка сохранения', 'error');
     } finally {
-      saveBtn.disabled = false; saveBtn.textContent = '💾 Сохранить';
+      saveBtn.disabled = false; saveBtn.textContent = ' Сохранить';
     }
   },
 
@@ -933,8 +1078,8 @@ const borderColor = isHigh ? '#f0dada' : '#f0e8c0';
     .map(y => `<option value="${y}" ${y===now.getFullYear()?'selected':''}>${y}</option>`)
     .join('');
   const typeOpts = [
-    ['call','📞 Звонок'],['meeting','🤝 Встреча'],
-    ['qbr','📊 QBR'],['email','📧 Email'],['checkin','💬 Check-in'],
+    ['call',' Звонок'],['meeting',' Встреча'],
+    ['qbr',' QBR'],['email',' Email'],['checkin',' Check-in'],
   ].map(([k,v]) => `<option value="${k}">${v}</option>`).join('');
 
   // ── состояние wizard ──
@@ -942,9 +1087,9 @@ const borderColor = isHigh ? '#f0dada' : '#f0e8c0';
   let parsedAI    = null;
 
   const steps = [
-    { emoji:'📋', title:'Транскрипт',  hint:'Вставь запись звонка или заметки — AI заполнит всё сам' },
-    { emoji:'📝', title:'Основное',    hint:'Проверь и дополни главное'                               },
-    { emoji:'🎯', title:'Детали',      hint:'Стратегия, результат, блокеры — если нужно'              },
+    { emoji:'', title:'Транскрипт',  hint:'Вставь запись звонка или заметки — AI заполнит всё сам' },
+    { emoji:'', title:'Основное',    hint:'Проверь и дополни главное'                               },
+    { emoji:'', title:'Детали',      hint:'Стратегия, результат, блокеры — если нужно'              },
   ];
 
   // ── инжектим стили один раз ──
@@ -988,7 +1133,7 @@ const borderColor = isHigh ? '#f0dada' : '#f0e8c0';
           : i === currentStep
             ? 'background:#6366f1;color:#fff;box-shadow:0 2px 10px #c7d2fe'
             : 'background:#f1f5f9;color:#94a3b8'}
-      ">${i < currentStep ? '✓' : s.emoji}</div>
+      ">${i < currentStep ? '' : s.emoji}</div>
       <div style="font-size:10px;font-weight:${i===currentStep?'700':'500'};
         color:${i===currentStep?'#6366f1':i<currentStep?'#22c55e':'#94a3b8'}">
         ${s.title}
@@ -1031,7 +1176,7 @@ AI сам разберёт структуру, выделит задачи, ша
       <div style="display:flex;gap:10px;align-items:center;margin-top:14px">
         <button id="touch-ai-btn" class="btn btn-primary"
                 style="background:#6366f1;border-color:#6366f1;min-width:130px">
-          🤖 Разобрать
+           Разобрать
         </button>
         <span id="touch-ai-status" style="font-size:12px;color:var(--text-muted)"></span>
       </div>
@@ -1047,19 +1192,19 @@ AI сам разберёт структуру, выделит задачи, ша
       <div style="display:flex;flex-direction:column;gap:18px">
 
         <div class="tw-field">
-          <label class="tw-label">📋 Контекст</label>
+          <label class="tw-label"> Контекст</label>
           <textarea id="touch-context" class="tw-textarea"
             placeholder="Что обсудили, общая ситуация по клиенту...">${_saved('touch-context')}</textarea>
         </div>
 
         <div class="tw-field">
-          <label class="tw-label">✅ Задачи</label>
+          <label class="tw-label"> Задачи</label>
           <textarea id="touch-tasks" class="tw-textarea"
             placeholder="Что нужно сделать по итогам встречи...">${_saved('touch-tasks')}</textarea>
         </div>
 
         <div class="tw-field">
-          <label class="tw-label">👣 Дальнейшие шаги</label>
+          <label class="tw-label"> Дальнейшие шаги</label>
           <textarea id="touch-next" class="tw-textarea"
             placeholder="Следующие действия и договорённости...">${_saved('touch-next')}</textarea>
         </div>
@@ -1070,19 +1215,19 @@ AI сам разберёт структуру, выделит задачи, ша
       <div style="display:flex;flex-direction:column;gap:18px">
 
         <div class="tw-field">
-          <label class="tw-label">🎯 Стратегия</label>
+          <label class="tw-label"> Стратегия</label>
           <textarea id="touch-strategy" class="tw-textarea"
             placeholder="Стратегические заметки по этому клиенту...">${_saved('touch-strategy')}</textarea>
         </div>
 
         <div class="tw-field">
-          <label class="tw-label">🏁 Ожидаемый результат</label>
+          <label class="tw-label"> Ожидаемый результат</label>
           <textarea id="touch-outcome" class="tw-textarea"
             placeholder="Чего ожидаем достичь в ближайшее время...">${_saved('touch-outcome')}</textarea>
         </div>
 
         <div class="tw-field">
-          <label class="tw-label">🚧 Блокеры</label>
+          <label class="tw-label"> Блокеры</label>
           <textarea id="touch-blockers" class="tw-textarea"
             placeholder="Что может помешать или замедлить работу...">${_saved('touch-blockers')}</textarea>
         </div>
@@ -1175,7 +1320,7 @@ AI сам разберёт структуру, выделит задачи, ша
     <div style="padding:24px 28px;width:100%;max-width:520px;box-sizing:border-box">
 
       <div style="margin-bottom:6px">
-        <div style="font-size:17px;font-weight:700;color:#0f172a">📍 Касание</div>
+        <div style="font-size:17px;font-weight:700;color:#0f172a">Касание</div>
         <div style="font-size:13px;color:var(--text-muted);margin-top:2px">${clientName}</div>
       </div>
 
@@ -1196,7 +1341,7 @@ AI сам разберёт структуру, выделит задачи, ша
         <button id="tw-cancel" class="btn btn-secondary">Отмена</button>
         ${currentStep < steps.length-1
           ? `<button id="tw-next" class="btn btn-primary" style="min-width:110px">Далее →</button>`
-          : `<button id="tw-save" class="btn btn-primary" style="min-width:150px">✓ Сохранить касание</button>`
+          : `<button id="tw-save" class="btn btn-primary" style="min-width:150px"> Сохранить касание</button>`
         }
       </div>
 
@@ -1276,10 +1421,10 @@ AI сам разберёт структуру, выделит задачи, ша
         aiRes.classList.remove('hidden');
         aiRes.innerHTML = `
           <div style="margin-bottom:10px">
-            <strong>✅ Структура заполнена · ${signalCount} сигналов</strong>
+            <strong> Структура заполнена · ${signalCount} сигналов</strong>
             ${parsedAI.explanation
               ? `<div style="margin-top:4px;color:var(--text-muted);font-style:italic;font-size:12px">
-                   💡 ${parsedAI.explanation}
+                    ${parsedAI.explanation}
                  </div>`
               : ''}
           </div>
@@ -1287,13 +1432,13 @@ AI сам разберёт структуру, выделит задачи, ша
           <div style="margin-top:8px;font-size:11px;color:var(--text-muted)">
             Сними галочку если AI ошибся — остальные сохранятся
           </div>`;
-        aiSt.textContent = '✅ готово';
+        aiSt.textContent = ' готово';
 
       } catch (e) {
-        aiSt.textContent = '❌ Ошибка';
+        aiSt.textContent = ' Ошибка';
         window.App.toast?.('Ошибка: ' + e.message, 'error');
       } finally {
-        btn.disabled = false; btn.textContent = '🤖 Разобрать';
+        btn.disabled = false; btn.textContent = ' Разобрать';
       }
     });
 
@@ -1319,12 +1464,12 @@ AI сам разберёт структуру, выделит задачи, ша
     const year  = parseInt(saved['touch-year']  ?? now.getFullYear());
 
     const parts = [
-      g('touch-context')  && `📋 Контекст:\n${g('touch-context')}`,
-      g('touch-tasks')    && `✅ Задачи:\n${g('touch-tasks')}`,
-      g('touch-next')     && `👣 Дальнейшие шаги:\n${g('touch-next')}`,
-      g('touch-strategy') && `🎯 Стратегия:\n${g('touch-strategy')}`,
-      g('touch-outcome')  && `🏁 Ожидаемый результат:\n${g('touch-outcome')}`,
-      g('touch-blockers') && `🚧 Блокеры:\n${g('touch-blockers')}`,
+      g('touch-context')  && ` Контекст:\n${g('touch-context')}`,
+      g('touch-tasks')    && ` Задачи:\n${g('touch-tasks')}`,
+      g('touch-next')     && ` Дальнейшие шаги:\n${g('touch-next')}`,
+      g('touch-strategy') && ` Стратегия:\n${g('touch-strategy')}`,
+      g('touch-outcome')  && ` Ожидаемый результат:\n${g('touch-outcome')}`,
+      g('touch-blockers') && ` Блокеры:\n${g('touch-blockers')}`,
     ].filter(Boolean);
 
     if (!parts.length) {
@@ -1375,15 +1520,15 @@ AI сам разберёт структуру, выделит задачи, ша
 
       window.App.closeModal?.();
       window.App.toast(
-        parsedAI?.signals ? '✅ Касание сохранено, сигналы записаны' : '✅ Касание сохранено',
+        parsedAI?.signals ? ' Касание сохранено, сигналы записаны' : ' Касание сохранено',
         'success'
       );
       API.clearCache();
       await this.load();
 
     } catch (e) {
-      window.App.toast?.('❌ Ошибка: ' + e.message, 'error');
-      if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = '✓ Сохранить касание'; }
+      window.App.toast?.(' Ошибка: ' + e.message, 'error');
+      if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = ' Сохранить касание'; }
     }
   };
 

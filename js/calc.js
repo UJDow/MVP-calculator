@@ -235,17 +235,17 @@ export const Calc = {
 
   healthSignal(bchs) {
     if (bchs === null || bchs === undefined) return { label: '—',             key: 'none',    cls: 'no-data'       };
-    if (bchs >= 20)  return { label: '🟢 Здоров',      key: 'Healthy', cls: 'health-healthy' };
-    if (bchs >= -10) return { label: '😐 Нейтрально',  key: 'Neutral', cls: 'health-neutral' };
-    if (bchs >= -30) return { label: '⚠️ Осторожно',   key: 'Caution', cls: 'health-caution' };
-    return               { label: '🔴 Риск',         key: 'AtRisk',  cls: 'health-risk'    };
+    if (bchs >= 20)  return { label: 'Здоров',      key: 'Healthy', cls: 'health-healthy' };
+    if (bchs >= -10) return { label: 'Нейтрально',  key: 'Neutral', cls: 'health-neutral' };
+    if (bchs >= -30) return { label: 'Осторожно',   key: 'Caution', cls: 'health-caution' };
+    return               { label: 'Риск',         key: 'AtRisk',  cls: 'health-risk'    };
   },
 
   loadSignal(pcScore) {
     if (pcScore === null || pcScore === undefined) return { label: '—',            key: 'none'    };
-    if (pcScore >= 3.5) return { label: '🔴 High Load', key: 'High'    };
+    if (pcScore >= 3.5) return { label: 'High Load', key: 'High'    };
     if (pcScore >= 2.5) return { label: '🟡 Med Load',  key: 'Med'     };
-    if (pcScore >= 1.5) return { label: '🟢 Low Load',  key: 'Low'     };
+    if (pcScore >= 1.5) return { label: 'Low Load',  key: 'Low'     };
     return                  { label: '⚪ Minimal',    key: 'Minimal' };
   },
 
@@ -255,13 +255,13 @@ export const Calc = {
     const atRisk = healthKey === 'Caution' || healthKey === 'AtRisk';
     switch (priority) {
       case 'PROTECT':    return atRisk
-        ? { label: '🔴 PROTECT — критично', cls: 'badge-protect-crit' }
+        ? { label: 'PROTECT — критично', cls: 'badge-protect-crit' }
         : { label: '🟡 PROTECT — держать',  cls: 'badge-protect'      };
       case 'STRENGTHEN': return atRisk
         ? { label: '🚨 INTERVENE — срочно', cls: 'badge-intervene' }
         : { label: '🟡 STRENGTHEN',         cls: 'badge-protect'   };
       case 'RESCUE':     return { label: '🚨 RESCUE — срочно',  cls: 'badge-intervene' };
-      case 'MAINTAIN':   return { label: '🟢 MAINTAIN',          cls: 'badge-invest'    };
+      case 'MAINTAIN':   return { label: 'MAINTAIN',          cls: 'badge-invest'    };
       case 'MONITOR':    return { label: '🔵 MONITOR',           cls: 'badge-monitor'   };
       case 'REVIEW':     return { label: '🔄 REVIEW',            cls: 'badge-reconsider'};
       case 'INVEST':     return healthKey === 'Healthy'
@@ -277,7 +277,7 @@ export const Calc = {
         : { label: '🔍 EVALUATE — осторожно', cls: 'badge-evaluate' };
       case 'RECONSIDER': return { label: '🔄 RECONSIDER — пересмотреть', cls: 'badge-reconsider' };
       case 'MINIMAL':    return atRisk
-        ? { label: '⚠️ MINIMAL — но есть сигналы', cls: 'badge-minimal-alert' }
+        ? { label: '️ MINIMAL — но есть сигналы', cls: 'badge-minimal-alert' }
         : { label: '⚪ AUTOPILOT — минимум',        cls: 'badge-autopilot'     };
       default:           return { label: '— —', cls: 'badge-autopilot' };
     }

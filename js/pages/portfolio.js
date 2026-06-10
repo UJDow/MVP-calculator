@@ -1015,6 +1015,138 @@ export const PortfolioPage = {
             }
 
             // AI анализ при раскрытии карточки loyalty
+            // AI + tooltip + фильтр для карточки potential
+            if (card.dataset.card === 'potential') {
+              setTimeout(() => {
+                const svg = document.getElementById('pot-bubble-svg');
+                if (!svg) return;
+                const bubbles = [...svg.querySelectorAll('.pot-bubble')];
+
+                // tooltip
+                let tip = document.getElementById('pot-bubble-tip');
+                if (!tip) {
+                  tip = document.createElement('div');
+                  tip.id = 'pot-bubble-tip';
+                  tip.style.cssText = 'position:fixed;display:none;background:#1e293b;color:#f8fafc;'
+                    + 'font-size:11px;padding:6px 10px;border-radius:8px;pointer-events:none;'
+                    + 'z-index:9999;box-shadow:0 4px 12px rgba(0,0,0,.18);line-height:1.5;white-space:nowrap';
+                  document.body.appendChild(tip);
+                }
+                bubbles.forEach(b => {
+                  b.addEventListener('mouseenter', () => {
+                    bubbles.forEach(x => { if (x !== b) x.style.opacity = '0.15'; });
+                    b.setAttribute('r', String(Number(b.getAttribute('r')) + 3));
+                    tip.innerHTML = '<b>' + b.dataset.name + '</b><br>'
+                      + 'BCHS: ' + b.dataset.bchs
+                      + ' &nbsp;·&nbsp; Реализация: ' + b.dataset.pct + '%'
+                      + ' &nbsp;·&nbsp; MR: ' + b.dataset.mr;
+                    tip.style.display = 'block';
+                  });
+                  b.addEventListener('mousemove', e => {
+                    tip.style.left = (e.clientX + 12) + 'px';
+                    tip.style.top  = (e.clientY - 30) + 'px';
+                  });
+                  b.addEventListener('mouseleave', () => {
+                    bubbles.forEach(x => { x.style.opacity = '.82'; });
+                    b.setAttribute('r', String(Number(b.getAttribute('r')) - 3));
+                    tip.style.display = 'none';
+                  });
+                  b.addEventListener('click', () => window.App.navigate('detail', b.dataset.id));
+                });
+
+                // фильтр пилюли
+                const BCG_COLORS = { KEY:'#f59e0b', GROWTH:'#6366f1', GROWTH_EARLY:'#8b5cf6', STABLE:'#6b7280', TAIL:'#9ca3af' };
+                const potPillContainer = document.querySelector('.pot-filter-all')?.parentElement;
+                if (potPillContainer) {
+                  let activePotBcgs = new Set(['ALL']);
+                  const applyPotFilter = () => {
+                    let shown = 0;
+                    bubbles.forEach(b => {
+                      const match = activePotBcgs.has('ALL') || activePotBcgs.has(b.dataset.bcg);
+                      b.style.opacity = match ? '.82' : '0';
+                      b.style.pointerEvents = match ? 'auto' : 'none';
+                      let el = b.nextElementSibling;
+                      for (let i = 0; i < 2 && el; i++) {
+                        el.style.opacity = match ? '1' : '0';
+                        el = el.nextElementSibling;
+                      }
+                      if (match) shown++;
+                    });
+                    const counter = document.getElementById('pot-counter');
+                    if (counter) counter.textContent = 'Показано ' + shown + ' из ' + bubbles.length;
+                  };
+                  potPillContainer.addEventListener('click', e => {
+                    const pill = e.target.closest('.pot-filter-pill');
+                    if (!pill) return;
+                    const bcg = pill.dataset.bcg;
+                    if (bcg === 'ALL') {
+                      activePotBcgs = new Set(['ALL']);
+                      potPillContainer.querySelectorAll('.pot-filter-pill').forEach(p => {
+                        const isAll = p.dataset.bcg === 'ALL';
+                        p.style.background = isAll ? '#6366f1' : 'transparent';
+                        p.style.color = isAll ? '#fff' : p.style.borderColor;
+                      });
+                    } else {
+                      activePotBcgs.delete('ALL');
+                      const allBtn = potPillContainer.querySelector('[data-bcg="ALL"]');
+                      allBtn.style.background = 'transparent';
+                      allBtn.style.color = '#6366f1';
+                      if (activePotBcgs.has(bcg)) {
+                        activePotBcgs.delete(bcg);
+                        pill.style.background = 'transparent';
+                        pill.style.color = pill.style.borderColor;
+                      } else {
+                        activePotBcgs.add(bcg);
+                        pill.style.background = pill.style.borderColor;
+                        pill.style.color = '#fff';
+                      }
+                      if (activePotBcgs.size === 0) {
+                        activePotBcgs = new Set(['ALL']);
+                        allBtn.style.background = '#6366f1';
+                        allBtn.style.color = '#fff';
+                      }
+                    }
+                    applyPotFilter();
+                  });
+                }
+              }, 80);
+
+              // AI инсайт
+              const insightEl = document.getElementById('pot-ai-insight');
+              if (insightEl && !insightEl.dataset.loaded) {
+                insightEl.dataset.loaded = '1';
+                insightEl.innerHTML = '<div style="display:flex;align-items:center;gap:6px;color:#6366f1;font-size:11px">'
+                  + '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>'
+                  + 'AI анализирует потенциал...</div>';
+                try {
+                  const snap = computed.filter(r => r.potential > 0).slice(0, 16).map(r => ({
+                    name:      r.client.name,
+                    bcg:       r.client.bcg_category,
+                    mr:        r.client.monthly_revenue ?? 0,
+                    potential: r.potential ?? 0,
+                    pctPot:    r.pctPot ?? null,
+                    loyalty:   r.loyalty ?? null,
+                    bchs:      r.bchs ?? null,
+                    trend:     r.trend?.direction ?? null,
+                  }));
+                  const result = await API.callAI({
+                    type: 'portfolio_analysis',
+                    summary,
+                    clients_snapshot: snap,
+                  });
+                  const content = result?.choices?.[0]?.message?.content ?? result?.content ?? '';
+                  let potText = '';
+                  try {
+                    const parsed = JSON.parse(content);
+                    potText = parsed.potential ?? parsed.insight ?? content;
+                  } catch (_) { potText = content; }
+                  insightEl.innerHTML = '<div style="font-size:12px;color:#374151;line-height:1.7">' + potText + '</div>';
+                } catch (e) {
+                  insightEl.innerHTML = '<div style="font-size:11px;color:#ef4444">Ошибка: ' + e.message + '</div>';
+                }
+              }
+            }
+
             if (card.dataset.card === 'loyalty') {
               const insightEl = document.getElementById('loyalty-ai-insight');
               if (insightEl && !insightEl.dataset.loaded) {
@@ -1962,31 +2094,137 @@ document.getElementById('pf-ai-mode-sw')
         hint: 'от потенциала',
         valueColor: potColor,
         detail: (() => {
-          const withPot = [...computed].filter(r => r.pctPot !== null && r.pctPot !== undefined)
-            .sort((a,b) => b.pctPot - a.pctPot);
+          const withPot = [...computed].filter(r => r.pctPot !== null && r.pctPot !== undefined && r.potential > 0);
+          if (!withPot.length) return '<div style="font-size:12px;color:#94a3b8;padding:8px 0">Нет данных</div>';
+
+          const BCG_COLORS = { KEY:'#f59e0b', GROWTH:'#6366f1', GROWTH_EARLY:'#8b5cf6', STABLE:'#6b7280', TAIL:'#9ca3af' };
           const pClr = v => v >= 85 ? '#10b981' : v >= 65 ? '#f59e0b' : '#ef4444';
-          const rows = withPot.map(r => `
-            <div data-action="go-detail" data-id="${r.client.id}"
-                 style="display:flex;align-items:center;gap:8px;padding:6px 0;
-                        border-bottom:1px solid #f5f5f8;cursor:pointer"
-                 onmouseover="this.style.background='#f8faff'"
-                 onmouseout="this.style.background='transparent'">
-              <span style="font-size:11px;font-weight:600;width:80px;flex-shrink:0;
-                           overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
-                           color:#0f172a">${r.client.name}</span>
-              <div style="flex:1;height:6px;background:#f1f5f9;border-radius:3px;overflow:hidden">
-                <div style="width:${Math.min(r.pctPot,100)}%;height:100%;
-                            background:${pClr(r.pctPot)};border-radius:3px;
-                            transition:width .3s"></div>
-              </div>
-              <span style="font-size:11px;font-weight:700;color:${pClr(r.pctPot)};
-                           width:32px;text-align:right;flex-shrink:0">${r.pctPot}%</span>
-            </div>`).join('');
-          return `<div class="kpi-det-title">Реализация потенциала</div>
-            <div style="max-height:300px;overflow-y:auto;scrollbar-width:thin;
-                        scrollbar-color:#e2e8f0 transparent">
-              ${withPot.length ? rows : '<div style="font-size:12px;color:#94a3b8;padding:8px 0">Нет данных</div>'}
-            </div>`;
+
+          // X = bchs балл, Y = реализация (%), размер = MR
+          const W = 800, H = 400, PAD = 62;
+          const allBchs = withPot.map(r => r.bchs || 0);
+          const maxBchs = Math.max(...allBchs, 1);
+          const minBchs = Math.min(...allBchs);
+          const maxMR   = Math.max(...withPot.map(r => r.client.monthly_revenue || 0), 1);
+
+          const px = v => Math.round(PAD + ((v - minBchs) / (maxBchs - minBchs || 1)) * (W - PAD * 2));
+          const py = v => Math.round(H - PAD - (v / 100) * (H - PAD * 2));
+          const pr = v => Math.max(7, Math.min(40, Math.round(Math.sqrt(v / maxMR) * 40)));
+
+          // оси
+          const axisX = '<line x1="' + PAD + '" y1="' + (H-PAD) + '" x2="' + (W-4) + '" y2="' + (H-PAD) + '" stroke="#e2e8f0" stroke-width="1"/>';
+          const axisY = '<line x1="' + PAD + '" y1="4" x2="' + PAD + '" y2="' + (H-PAD) + '" stroke="#e2e8f0" stroke-width="1"/>';
+          const labelX = '<text x="' + (W/2) + '" y="' + (H-4) + '" text-anchor="middle" font-size="11" fill="#64748b">BCHS балл</text>';
+          const labelY = '<text x="10" y="' + (H/2) + '" text-anchor="middle" font-size="11" fill="#64748b" transform="rotate(-90 10 ' + (H/2) + ')">Реализация (%)</text>';
+
+          // зоны по Y (реализация)
+          const y85 = py(85), y65 = py(65);
+          const zones =
+            '<rect x="' + PAD + '" y="' + PAD + '" width="' + (W-PAD*2) + '" height="' + (y85-PAD) + '" fill="#d1fae5" opacity=".2"/>'
+            + '<rect x="' + PAD + '" y="' + y85 + '" width="' + (W-PAD*2) + '" height="' + (y65-y85) + '" fill="#fef3c7" opacity=".25"/>'
+            + '<rect x="' + PAD + '" y="' + y65 + '" width="' + (W-PAD*2) + '" height="' + (H-PAD-y65) + '" fill="#fee2e2" opacity=".2"/>'
+            + '<line x1="' + PAD + '" y1="' + y85 + '" x2="' + (W-PAD) + '" y2="' + y85 + '" stroke="#10b981" stroke-width="1" stroke-dasharray="4,3" opacity=".4"/>'
+            + '<line x1="' + PAD + '" y1="' + y65 + '" x2="' + (W-PAD) + '" y2="' + y65 + '" stroke="#f59e0b" stroke-width="1" stroke-dasharray="4,3" opacity=".4"/>'
+            + '<text x="' + (W-PAD+4) + '" y="' + (y85+4) + '" font-size="9" fill="#10b981" opacity=".7">85%</text>'
+            + '<text x="' + (W-PAD+4) + '" y="' + (y65+4) + '" font-size="9" fill="#f59e0b" opacity=".7">65%</text>';
+
+          // тики X
+          const xTicks = [0, 0.25, 0.5, 0.75, 1].map(t => {
+            const v = Math.round(minBchs + (maxBchs - minBchs) * t);
+            const xpx = px(v);
+            return '<line x1="' + xpx + '" y1="' + (H-PAD) + '" x2="' + xpx + '" y2="' + (H-PAD+4) + '" stroke="#cbd5e1" stroke-width="1"/>'
+              + '<text x="' + xpx + '" y="' + (H-PAD+15) + '" text-anchor="middle" font-size="10" fill="#64748b">' + v + '</text>';
+          }).join('');
+
+          // тики Y
+          const yTicks = [0, 25, 50, 65, 85, 100].map(t => {
+            const ypx = py(t);
+            return '<line x1="' + (PAD-4) + '" y1="' + ypx + '" x2="' + PAD + '" y2="' + ypx + '" stroke="#cbd5e1" stroke-width="1"/>'
+              + '<text x="' + (PAD-7) + '" y="' + (ypx+4) + '" text-anchor="end" font-size="10" fill="#64748b">' + t + '%</text>';
+          }).join('');
+
+          // пузыри + умные лейблы
+          const placed = [];
+          const bubbles = withPot.map(r => {
+            const x = px(r.bchs || 0);
+            const y = py(r.pctPot);
+            const rad = pr(r.client.monthly_revenue || 0);
+            const c = pClr(r.pctPot);
+            const name = r.client.name.length > 10 ? r.client.name.slice(0,9) + '…' : r.client.name;
+            const mr = r.client.monthly_revenue >= 1000
+              ? '$' + Math.round(r.client.monthly_revenue/1000) + 'k'
+              : '$' + (r.client.monthly_revenue || 0);
+
+            let lx = x, ly = y - rad - 6;
+            const offsets = [[0,0],[0,-14],[16,0],[-16,0],[0,-28],[22,-10],[-22,-10],[0,rad+16]];
+            for (const [dx,dy] of offsets) {
+              const cx = x + dx, cy = y - rad - 6 + dy;
+              if (!placed.some(p => Math.abs(p.x-cx)<52 && Math.abs(p.y-cy)<14)) {
+                lx = cx; ly = cy; break;
+              }
+            }
+            placed.push({x:lx, y:ly});
+
+            const needLine = Math.abs(lx-x)>6 || Math.abs(ly-(y-rad-6))>6;
+            const connector = needLine
+              ? '<line x1="'+lx+'" y1="'+(ly+3)+'" x2="'+x+'" y2="'+(y-rad)+'" stroke="#94a3b8" stroke-width="1" stroke-dasharray="3,2"/>'
+              : '';
+
+            return '<circle class="pot-bubble" cx="' + x + '" cy="' + y + '" r="' + rad + '"'
+              + ' fill="' + c + '" opacity=".82" style="cursor:pointer;transition:all .2s"'
+              + ' data-action="go-detail" data-id="' + r.client.id + '"'
+              + ' data-bcg="' + (r.client.bcg_category||'') + '"'
+              + ' data-name="' + r.client.name + '" data-pct="' + r.pctPot + '"'
+              + ' data-bchs="' + (r.bchs || 0) + '" data-mr="' + mr + '"/>'
+              + connector
+              + '<text x="' + lx + '" y="' + ly + '" text-anchor="middle"'
+              + ' style="font-size:11px;font-weight:600;fill:#1e293b;pointer-events:none">' + name + '</text>';
+          }).join('');
+
+          const potSVG = '<svg id="pot-bubble-svg" viewBox="0 0 ' + W + ' ' + H + '" width="100%" style="display:block;min-height:280px">'
+            + zones + axisX + axisY + labelX + labelY + xTicks + yTicks + bubbles
+            + '</svg>';
+
+          // пилюли BCG
+          const allBcgs = [...new Set(withPot.map(r => r.client.bcg_category).filter(Boolean))];
+          const pills = allBcgs.map(k =>
+            '<button class="pot-filter-pill" data-bcg="' + k + '" style="'
+            + 'display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:20px;'
+            + 'font-size:11px;font-weight:600;cursor:pointer;border:1.5px solid ' + (BCG_COLORS[k]||'#9ca3af') + ';'
+            + 'background:transparent;color:' + (BCG_COLORS[k]||'#9ca3af') + ';transition:all .18s">'
+            + '<span style="width:6px;height:6px;border-radius:50%;background:' + (BCG_COLORS[k]||'#9ca3af') + ';display:inline-block"></span>'
+            + k.replace('_EARLY',' E').replace('_',' ')
+            + '</button>'
+          ).join('');
+
+          // легенда зон
+          const zoneLegend =
+            '<div style="display:flex;gap:12px;margin-top:4px;flex-wrap:wrap">'
+            + '<div style="display:flex;align-items:center;gap:4px;font-size:10px;color:#10b981"><div style="width:8px;height:8px;border-radius:2px;background:#10b981;opacity:.5"></div>≥85% отлично</div>'
+            + '<div style="display:flex;align-items:center;gap:4px;font-size:10px;color:#f59e0b"><div style="width:8px;height:8px;border-radius:2px;background:#f59e0b;opacity:.5"></div>65–84% норма</div>'
+            + '<div style="display:flex;align-items:center;gap:4px;font-size:10px;color:#ef4444"><div style="width:8px;height:8px;border-radius:2px;background:#ef4444;opacity:.5"></div><65% риск</div>'
+            + '</div>';
+
+          return '<div style="display:flex;flex-direction:column;gap:12px">'
+            + '<div>'
+            + potSVG
+            + '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;align-items:center">'
+            + '<button class="pot-filter-pill pot-filter-all pot-active" data-bcg="ALL" style="'
+            + 'display:inline-flex;align-items:center;padding:3px 10px;border-radius:20px;'
+            + 'font-size:11px;font-weight:600;cursor:pointer;border:1.5px solid #6366f1;'
+            + 'background:#6366f1;color:#fff;transition:all .18s">Все</button>'
+            + pills
+            + '</div>'
+            + zoneLegend
+            + '<div id="pot-counter" style="font-size:11px;color:#94a3b8;margin-top:4px">Показано ' + withPot.length + ' из ' + withPot.length + '</div>'
+            + '</div>'
+            + '<div style="padding-top:12px;border-top:1px solid #f1f5f9">'
+            + '<div style="font-size:11px;font-weight:700;color:#6366f1;letter-spacing:.05em;margin-bottom:6px">AI · РЕАЛИЗАЦИЯ ПОТЕНЦИАЛА</div>'
+            + '<div id="pot-ai-insight" style="font-size:12px;color:#6b7280;line-height:1.6">'
+            + '<div style="display:flex;align-items:center;gap:6px;color:#6366f1;font-size:11px">'
+            + '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>'
+            + 'AI анализирует...'
+            + '</div></div></div></div>';
         })(),
       },
     ];

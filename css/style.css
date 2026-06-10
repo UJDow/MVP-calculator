@@ -5407,12 +5407,13 @@ body {
 .pf-kpi-expand-panel { display: none !important; }
 #kpi-fs-overlay { display: none !important; }
 
-/* KPI active card — занимает ~75% ширины */
+/* KPI active card — на всю ширину */
 .pf-kpi-card.pf-kpi-active {
-  flex: 10 !important;
+  flex: 999 !important;
   border-color: #6366f1 !important;
   box-shadow: 0 0 0 3px #e0e7ff !important;
   cursor: default !important;
+  min-width: 0 !important;
 }
 .pf-kpi-card.pf-kpi-dimmed {
   flex: 1 !important;

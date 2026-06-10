@@ -533,7 +533,13 @@ export const PortfolioPage = {
             const card = e.target.closest('.pf-kpi-card');
             if (!card) return;
             if (e.target.closest('.pf-kpi-card-close')) { collapse(); return; }
-            if (card.classList.contains('pf-kpi-active')) { collapse(); return; }
+            // Клик внутри активной карточки по интерактивным элементам — не сворачиваем
+            if (card.classList.contains('pf-kpi-active')) {
+              const isInteractive = e.target.closest('.sc-filter-pill, button, a, input, select, [data-action]');
+              if (isInteractive) return;
+              collapse();
+              return;
+            }
 
             kpiGrid.querySelectorAll('.pf-kpi-card').forEach(c => {
               c.classList.remove('pf-kpi-active');
@@ -583,6 +589,111 @@ export const PortfolioPage = {
 
             // AI анализ при раскрытии карточки hours_revenue
             if (card.dataset.card === 'hours_revenue') {
+              // --- scatter интерактивность ---
+              setTimeout(() => {
+                const svg      = document.getElementById('scatter-svg');
+                const counter  = document.getElementById('sc-counter');
+                if (!svg) return;
+                const allDots  = [...svg.querySelectorAll('.sc-dot')];
+                const allLabels = [...svg.querySelectorAll('.sc-lbl')];
+                const total    = allDots.length;
+                let activeBcgs = new Set(['ALL']);
+
+                // Tooltip
+                let tip = document.getElementById('sc-tooltip');
+                if (!tip) {
+                  tip = document.createElement('div');
+                  tip.id = 'sc-tooltip';
+                  tip.style.cssText = 'position:fixed;display:none;background:#1e293b;color:#f8fafc;'
+                    + 'font-size:11px;padding:6px 10px;border-radius:8px;pointer-events:none;'
+                    + 'z-index:9999;box-shadow:0 4px 12px rgba(0,0,0,.18);line-height:1.5;white-space:nowrap';
+                  document.body.appendChild(tip);
+                }
+
+                // Обновить видимость точек
+                function applyFilter() {
+                  const showAll = activeBcgs.has('ALL');
+                  let visible = 0;
+                  allDots.forEach(dot => {
+                    const show = showAll || activeBcgs.has(dot.dataset.bcg);
+                    dot.style.opacity = show ? '.85' : '0';
+                    dot.style.pointerEvents = show ? 'auto' : 'none';
+                    if (show) visible++;
+                  });
+                  // Подписи: всегда для top3 если видимых <= 10, иначе скрыть
+                  allLabels.forEach(lbl => {
+                    const dotId = lbl.className.baseVal.replace('sc-lbl sc-lbl-','');
+                    const dot = svg.querySelector('.sc-dot[data-id="' + dotId + '"]');
+                    const isVisible = dot && dot.style.opacity !== '0';
+                    if (!isVisible) { lbl.setAttribute('opacity','0'); return; }
+                    // top3 — определяем по r=7
+                    const isTop = dot && dot.getAttribute('r') === '7';
+                    lbl.setAttribute('opacity', (visible <= 10 || isTop) ? '1' : '0');
+                  });
+                  if (counter) counter.textContent = 'Показано ' + visible + ' из ' + total;
+                }
+
+                // Пилюли
+                const pillContainer = svg.closest('div').querySelector('.sc-filter-all')?.parentElement;
+                if (pillContainer) {
+                  pillContainer.addEventListener('click', e => {
+                    const pill = e.target.closest('.sc-filter-pill');
+                    if (!pill) return;
+                    const bcg = pill.dataset.bcg;
+                    if (bcg === 'ALL') {
+                      activeBcgs = new Set(['ALL']);
+                      pillContainer.querySelectorAll('.sc-filter-pill').forEach(p => {
+                        const isAll = p.dataset.bcg === 'ALL';
+                        p.style.background = isAll ? '#6366f1' : 'transparent';
+                        p.style.color = isAll ? '#fff' : (p.style.borderColor || '#6b7280');
+                      });
+                    } else {
+                      activeBcgs.delete('ALL');
+                      pillContainer.querySelector('[data-bcg="ALL"]').style.background = 'transparent';
+                      pillContainer.querySelector('[data-bcg="ALL"]').style.color = '#6366f1';
+                      if (activeBcgs.has(bcg)) {
+                        activeBcgs.delete(bcg);
+                        pill.style.background = 'transparent';
+                        pill.style.color = pill.style.borderColor;
+                      } else {
+                        activeBcgs.add(bcg);
+                        pill.style.background = pill.style.borderColor;
+                        pill.style.color = '#fff';
+                      }
+                      if (activeBcgs.size === 0) {
+                        activeBcgs.add('ALL');
+                        pillContainer.querySelector('[data-bcg="ALL"]').style.background = '#6366f1';
+                        pillContainer.querySelector('[data-bcg="ALL"]').style.color = '#fff';
+                      }
+                    }
+                    applyFilter();
+                  });
+                }
+
+                // Hover — highlight + tooltip
+                allDots.forEach(dot => {
+                  dot.addEventListener('mouseenter', e => {
+                    allDots.forEach(d => {
+                      if (d !== dot) { d.style.opacity = '0.2'; }
+                    });
+                    dot.setAttribute('r', String(Number(dot.getAttribute('r')) + 2));
+                    tip.innerHTML = '<b>' + dot.dataset.name + '</b><br>'
+                      + dot.dataset.hrs + 'h / нед &nbsp;·&nbsp; $' + Number(dot.dataset.mr).toLocaleString('ru-RU');
+                    tip.style.display = 'block';
+                  });
+                  dot.addEventListener('mousemove', e => {
+                    tip.style.left = (e.clientX + 12) + 'px';
+                    tip.style.top  = (e.clientY - 30) + 'px';
+                  });
+                  dot.addEventListener('mouseleave', () => {
+                    applyFilter(); // восстанавливает opacity
+                    dot.setAttribute('r', String(Number(dot.getAttribute('r')) - 2));
+                    tip.style.display = 'none';
+                  });
+                });
+
+                applyFilter();
+              }, 80);
               const insightEl = document.getElementById('hours-rev-ai-insight');
               if (insightEl && !insightEl.dataset.loaded) {
                 insightEl.dataset.loaded = '1';
@@ -1052,24 +1163,24 @@ document.getElementById('pf-ai-mode-sw')
           });
           const maxMR   = Math.max(...Object.values(mrByBcg), 1);
           const totalMR = Object.values(mrByBcg).reduce((a,b) => a+b, 0) || 1;
-          const barW = 40, barGap = 12, chartH = 120, labelH = 28;
+          const barW = 44, barGap = 14, chartH = 140, labelH = 28, topPad = 20;
           const svgW = BCG_ORDER.length * (barW + barGap);
           const bars = BCG_ORDER.map((key, i) => {
             const val = mrByBcg[key] || 0;
             const bh  = Math.round((val / maxMR) * chartH);
             const x   = i * (barW + barGap);
-            const y   = chartH - bh;
+            const y   = topPad + (chartH - bh);
             const lbl = val >= 1000 ? '$' + Math.round(val/1000) + 'K' : '$' + val;
             return `
               <rect x="${x}" y="${y}" width="${barW}" height="${bh}"
                     fill="${BCG_COLORS[key]||'#9ca3af'}" rx="4" opacity=".9"/>
-              <text x="${x + barW/2}" y="${y - 4}" text-anchor="middle"
-                    font-size="9" fill="#6b7280">${val > 0 ? lbl : ''}</text>
-              <text x="${x + barW/2}" y="${chartH + 14}" text-anchor="middle"
-                    font-size="9" fill="#6b7280">${key.replace('_EARLY','\nE').replace('_',' ')}</text>`;
+              <text x="${x + barW/2}" y="${y - 5}" text-anchor="middle"
+                    font-size="9" font-weight="600" fill="#374151">${val > 0 ? lbl : ''}</text>
+              <text x="${x + barW/2}" y="${topPad + chartH + 14}" text-anchor="middle"
+                    font-size="9" fill="#6b7280">${key.replace('_EARLY',' E').replace('_',' ')}</text>`;
           }).join('');
-          const chartSVG = `<svg width="${svgW}" height="${chartH + labelH}" viewBox="0 0 ${svgW} ${chartH + labelH}">
-            <line x1="0" y1="${chartH}" x2="${svgW}" y2="${chartH}" stroke="#e2e8f0" stroke-width="1"/>
+          const chartSVG = `<svg width="${svgW}" height="${topPad + chartH + labelH}" viewBox="0 0 ${svgW} ${topPad + chartH + labelH}">
+            <line x1="0" y1="${topPad + chartH}" x2="${svgW}" y2="${topPad + chartH}" stroke="#e2e8f0" stroke-width="1"/>
             ${bars}
           </svg>`;
           return `
@@ -1110,46 +1221,77 @@ document.getElementById('pf-ai-mode-sw')
           const BCG_COLORS = { KEY:'#f59e0b', GROWTH:'#6366f1', GROWTH_EARLY:'#8b5cf6', STABLE:'#6b7280', TAIL:'#9ca3af' };
           const maxHrs = Math.max(...computed.map(r => r.total_hours||0), 1);
           const maxMR  = Math.max(...computed.map(r => r.client.monthly_revenue||0), 1);
-          const W = 220, H = 160, PAD = 24;
+          const W = 340, H = 220, PAD = 46;
           const px = h  => Math.round(PAD + (h  / maxHrs) * (W - PAD*2));
           const py = mr => Math.round(H - PAD - (mr / maxMR) * (H - PAD*2));
+          const sortedByMR = [...computed].sort((a,b) => (b.client.monthly_revenue||0) - (a.client.monthly_revenue||0));
+          const top3ids = new Set(sortedByMR.slice(0,3).map(r => r.client.id));
+          // dots с data-bcg для фильтрации
           const dots = computed.map(r => {
-            const x = px(r.total_hours||0);
-            const y = py(r.client.monthly_revenue||0);
-            const c = BCG_COLORS[r.client.bcg_category]||'#9ca3af';
-            return `<circle cx="${x}" cy="${y}" r="5" fill="${c}" opacity=".85"
-              data-action="go-detail" data-id="${r.client.id}" style="cursor:pointer">
-              <title>${r.client.name} | ${r.total_hours}h | $${r.client.monthly_revenue}</title>
-            </circle>`;
+            const x     = px(r.total_hours||0);
+            const y     = py(r.client.monthly_revenue||0);
+            const c     = BCG_COLORS[r.client.bcg_category]||'#9ca3af';
+            const isTop = top3ids.has(r.client.id);
+            const name  = r.client.name.length > 10 ? r.client.name.slice(0,9) + '\u2026' : r.client.name;
+            const lbl   = isTop
+              ? '<text class="sc-lbl sc-lbl-' + r.client.id + '" x="' + (x+9) + '" y="' + (y+4) + '" font-size="9" font-weight="600" fill="#374151" pointer-events="none">' + name + '</text>'
+              : '<text class="sc-lbl sc-lbl-' + r.client.id + '" x="' + (x+7) + '" y="' + (y+4) + '" font-size="9" fill="#64748b" pointer-events="none" opacity="0">' + name + '</text>';
+            return '<circle class="sc-dot" cx="' + x + '" cy="' + y + '" r="' + (isTop ? 7 : 5) + '" fill="' + c + '" opacity=".85"'
+              + ' data-action="go-detail" data-id="' + r.client.id + '" data-bcg="' + (r.client.bcg_category||'') + '"'
+              + ' data-name="' + r.client.name + '" data-hrs="' + (r.total_hours||0) + '" data-mr="' + (r.client.monthly_revenue||0) + '"'
+              + ' style="cursor:pointer;transition:opacity .2s,r .15s"/>'
+              + lbl;
           }).join('');
           // Оси
-          const axisX = `<line x1="${PAD}" y1="${H-PAD}" x2="${W-4}" y2="${H-PAD}" stroke="#e2e8f0" stroke-width="1"/>`;
-          const axisY = `<line x1="${PAD}" y1="4" x2="${PAD}" y2="${H-PAD}" stroke="#e2e8f0" stroke-width="1"/>`;
-          const labelX = `<text x="${W/2}" y="${H}" text-anchor="middle" font-size="9" fill="#94a3b8">Часы / нед</text>`;
-          const labelY = `<text x="8" y="${H/2}" text-anchor="middle" font-size="9" fill="#94a3b8" transform="rotate(-90 8 ${H/2})">MR ($)</text>`;
-          const scatterSVG = `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
-            ${axisX}${axisY}${labelX}${labelY}${dots}
-          </svg>`;
-          const legend = Object.entries(BCG_COLORS).map(([key, color]) => `
-            <div style="display:flex;align-items:center;gap:4px;font-size:10px;color:#6b7280">
-              <div style="width:8px;height:8px;border-radius:50%;background:${color}"></div>
-              ${key.replace('_EARLY',' E')}
-            </div>`).join('');
-          return `
-            <div style="display:flex;gap:20px;align-items:flex-start">
-              <div style="flex-shrink:0">
-                ${scatterSVG}
-                <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:6px">${legend}</div>
-              </div>
-              <div style="flex:1;padding-left:16px;border-left:1px solid #f1f5f9">
-                <div id="hours-rev-ai-insight" style="font-size:12px;color:#6b7280;line-height:1.6">
-                  <div style="display:flex;align-items:center;gap:6px;color:#6366f1;font-size:11px">
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>
-                    AI анализирует...
-                  </div>
-                </div>
-              </div>
-            </div>`;
+          const axisX = '<line x1="' + PAD + '" y1="' + (H-PAD) + '" x2="' + (W-4) + '" y2="' + (H-PAD) + '" stroke="#e2e8f0" stroke-width="1"/>';
+          const axisY = '<line x1="' + PAD + '" y1="4" x2="' + PAD + '" y2="' + (H-PAD) + '" stroke="#e2e8f0" stroke-width="1"/>';
+          const labelX = '<text x="' + (W/2) + '" y="' + H + '" text-anchor="middle" font-size="9" fill="#94a3b8">Часы / нед</text>';
+          const labelY = '<text x="8" y="' + (H/2) + '" text-anchor="middle" font-size="9" fill="#94a3b8" transform="rotate(-90 8 ' + (H/2) + ')">MR ($)</text>';
+          const xTicks = [0, 0.25, 0.5, 0.75, 1].map(t => {
+            const xv  = Math.round(maxHrs * t);
+            const xpx = px(xv);
+            return '<line x1="' + xpx + '" y1="' + (H-PAD) + '" x2="' + xpx + '" y2="' + (H-PAD+4) + '" stroke="#cbd5e1" stroke-width="1"/>'
+              + '<text x="' + xpx + '" y="' + (H-PAD+13) + '" text-anchor="middle" font-size="8" fill="#94a3b8">' + xv + 'h</text>';
+          }).join('');
+          const yTicks = [0, 0.25, 0.5, 0.75, 1].map(t => {
+            const yv  = Math.round(maxMR * t);
+            const ypx = py(yv);
+            const lbl = yv >= 1000 ? '$' + Math.round(yv/1000) + 'K' : '$' + yv;
+            return '<line x1="' + (PAD-4) + '" y1="' + ypx + '" x2="' + PAD + '" y2="' + ypx + '" stroke="#cbd5e1" stroke-width="1"/>'
+              + '<text x="' + (PAD-6) + '" y="' + (ypx+3) + '" text-anchor="end" font-size="8" fill="#94a3b8">' + lbl + '</text>';
+          }).join('');
+          const scatterSVG = '<svg id="scatter-svg" width="' + W + '" height="' + H + '" viewBox="0 0 ' + W + ' ' + H + '">'
+            + axisX + axisY + labelX + labelY + xTicks + yTicks + dots
+            + '</svg>';
+          // Пилюли фильтра
+          const allBcgs = [...new Set(computed.map(r => r.client.bcg_category).filter(Boolean))];
+          const pills = allBcgs.map(k =>
+            '<button class="sc-filter-pill" data-bcg="' + k + '" style="'
+            + 'display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:20px;'
+            + 'font-size:10px;font-weight:600;cursor:pointer;border:1.5px solid ' + (BCG_COLORS[k]||'#9ca3af') + ';'
+            + 'background:transparent;color:' + (BCG_COLORS[k]||'#9ca3af') + ';transition:all .18s">'
+            + '<span style="width:6px;height:6px;border-radius:50%;background:' + (BCG_COLORS[k]||'#9ca3af') + ';display:inline-block"></span>'
+            + k.replace('_EARLY',' E').replace('_',' ')
+            + '</button>'
+          ).join('');
+          return '<div style="display:flex;gap:20px;align-items:flex-start">'
+            + '<div style="flex-shrink:0">'
+            + scatterSVG
+            + '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;align-items:center">'
+            + '<button class="sc-filter-pill sc-filter-all sc-active" data-bcg="ALL" style="'
+            + 'display:inline-flex;align-items:center;padding:3px 10px;border-radius:20px;'
+            + 'font-size:10px;font-weight:600;cursor:pointer;border:1.5px solid #6366f1;'
+            + 'background:#6366f1;color:#fff;transition:all .18s">Все</button>'
+            + pills
+            + '</div>'
+            + '<div id="sc-counter" style="font-size:10px;color:#94a3b8;margin-top:5px">Показано ' + computed.length + ' из ' + computed.length + '</div>'
+            + '</div>'
+            + '<div style="flex:1;padding-left:16px;border-left:1px solid #f1f5f9">'
+            + '<div id="hours-rev-ai-insight" style="font-size:12px;color:#6b7280;line-height:1.6">'
+            + '<div style="display:flex;align-items:center;gap:6px;color:#6366f1;font-size:11px">'
+            + '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>'
+            + 'AI анализирует...'
+            + '</div></div></div></div>';
         })(),
       },
       {

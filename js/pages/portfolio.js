@@ -353,7 +353,7 @@ export const PortfolioPage = {
       });
 
       el.innerHTML = `
-  ${this._summaryHTML(summary)}
+  ${this._summaryHTML(summary, computed)}
 
   <div class="pf-section-head" style="margin-top:28px">
     <div class="pf-section-title">Стратегические горизонты</div>
@@ -376,11 +376,135 @@ export const PortfolioPage = {
       ${ic.save} Сохранить
     </button>
   </div>
+
+  <!-- Аналитика портфеля -->
+  <div style="margin-top:32px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+      <div style="font-size:15px;font-weight:700;color:var(--text-primary)">Аналитика портфеля</div>
+      <button id="pf-ai-analyze-btn"
+              style="display:flex;align-items:center;gap:6px;padding:7px 14px;
+                     border:1px solid #6366f1;border-radius:8px;background:#fff;
+                     color:#6366f1;font-size:12px;font-weight:600;cursor:pointer">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/>
+        </svg>
+        AI-анализ портфеля
+      </button>
+    </div>
+
+    <!-- AI инсайт панель -->
+    <div id="pf-ai-insight-panel" style="display:none;background:#f8f7ff;border:1px solid #e0e7ff;
+         border-radius:12px;padding:16px;margin-bottom:20px;position:relative">
+      <div style="font-size:11px;font-weight:600;color:#6366f1;text-transform:uppercase;
+                  letter-spacing:.06em;margin-bottom:8px">AI · Анализ портфеля</div>
+      <div id="pf-ai-insight-text" style="font-size:13px;color:var(--text-primary);
+           line-height:1.6;white-space:pre-wrap"></div>
+    </div>
+
+    <!-- Графики: 2 колонки -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+
+      <!-- Клиенты по BCG -->
+      <div style="background:var(--surface);border:1px solid var(--border);
+                  border-radius:12px;padding:16px">
+        <div style="font-size:12px;font-weight:600;color:var(--text-muted);
+                    text-transform:uppercase;letter-spacing:.05em;margin-bottom:14px">
+          Распределение по BCG
+        </div>
+        <div id="pf-chart-bcg" style="display:flex;align-items:center;gap:20px"></div>
+      </div>
+
+      <!-- Лояльность -->
+      <div style="background:var(--surface);border:1px solid var(--border);
+                  border-radius:12px;padding:16px">
+        <div style="font-size:12px;font-weight:600;color:var(--text-muted);
+                    text-transform:uppercase;letter-spacing:.05em;margin-bottom:14px">
+          Лояльность клиентов
+        </div>
+        <div id="pf-chart-loyalty" style="display:flex;flex-direction:column;gap:6px"></div>
+      </div>
+
+      <!-- Revenue at Risk -->
+      <div style="background:var(--surface);border:1px solid var(--border);
+                  border-radius:12px;padding:16px">
+        <div style="font-size:12px;font-weight:600;color:var(--text-muted);
+                    text-transform:uppercase;letter-spacing:.05em;margin-bottom:14px">
+          Revenue at Risk (топ клиенты)
+        </div>
+        <div id="pf-chart-risk" style="display:flex;flex-direction:column;gap:6px"></div>
+      </div>
+
+      <!-- Реализация потенциала -->
+      <div style="background:var(--surface);border:1px solid var(--border);
+                  border-radius:12px;padding:16px">
+        <div style="font-size:12px;font-weight:600;color:var(--text-muted);
+                    text-transform:uppercase;letter-spacing:.05em;margin-bottom:14px">
+          Реализация потенциала
+        </div>
+        <div id="pf-chart-potential" style="display:flex;flex-direction:column;gap:6px"></div>
+      </div>
+
+    </div>
+  </div>
 `;
 
 
       document.getElementById('pf-save-btn')
         ?.addEventListener('click', () => this._savePortfolioStrats());
+
+      // Рендерим графики
+      this._renderPortfolioCharts(computed);
+
+      // AI анализ портфеля
+      document.getElementById('pf-ai-analyze-btn')?.addEventListener('click', async () => {
+        const btn = document.getElementById('pf-ai-analyze-btn');
+        const panel = document.getElementById('pf-ai-insight-panel');
+        const text  = document.getElementById('pf-ai-insight-text');
+        btn.disabled = true;
+        btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/></svg> Анализирую...';
+        panel.style.display = 'block';
+        text.textContent = 'Запрашиваю данные Monte Carlo и анализирую портфель...';
+        try {
+          const snap = computed.slice(0, 15).map(r => ({
+            name:  r.client.name,
+            bcg:   r.client.bcg_category,
+            bchs:  r.bchs ?? null,
+            mr:    r.client.monthly_revenue ?? 0,
+            trend: r.trend?.direction ?? '—',
+            risk:  r.riskAmt ?? 0,
+            churn: null,
+          }));
+          const result = await API.callAI({
+            type: 'horizon',
+            horizon: 'short',
+            summary,
+            clients_snapshot: snap,
+            direction: 'Дай общий анализ состояния портфеля: риски, сильные стороны, приоритеты на ближайший месяц',
+          });
+          const content = result?.choices?.[0]?.message?.content ?? result?.content ?? '';
+          // Парсим JSON или показываем текст
+          let display = content;
+          try {
+            const parsed = JSON.parse(content);
+            // Если вернулся JSON со стратегиями — форматируем
+            if (parsed.short || parsed.outcome || parsed.strategies) {
+              const parts = [];
+              if (parsed.outcome)     parts.push('Итог: ' + parsed.outcome);
+              if (parsed.actions)     parts.push('Действия:\n' + (Array.isArray(parsed.actions) ? parsed.actions.map(a => '  - ' + a).join('\n') : parsed.actions));
+              if (parsed.risks)       parts.push('Риски:\n' + (Array.isArray(parsed.risks) ? parsed.risks.map(r => '  - ' + r).join('\n') : parsed.risks));
+              if (parsed.priorities)  parts.push('Приоритеты:\n' + (Array.isArray(parsed.priorities) ? parsed.priorities.map(p => '  - ' + p).join('\n') : parsed.priorities));
+              display = parts.join('\n\n') || JSON.stringify(parsed, null, 2);
+            }
+          } catch (_) { /* не JSON — показываем как текст */ }
+          text.textContent = display || 'Анализ завершён, но ответ пуст.';
+        } catch (e) {
+          text.textContent = 'Ошибка: ' + e.message;
+        } finally {
+          btn.disabled = false;
+          btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg> AI-анализ портфеля';
+        }
+      });
 
       // KPI expandable cards — clean expand panel
       {
@@ -398,8 +522,14 @@ export const PortfolioPage = {
           });
 
           // Один обработчик на весь грид — ловим любую карточку
-          kpiGrid.addEventListener('click', e => {
+          kpiGrid.addEventListener('click', async e => {
             e.stopPropagation();
+            // go-detail — переход на клиента, не закрываем карточку
+            const goBtn = e.target.closest('[data-action="go-detail"]');
+            if (goBtn) {
+              window.App.navigate('detail', goBtn.dataset.id);
+              return;
+            }
             const card = e.target.closest('.pf-kpi-card');
             if (!card) return;
             if (e.target.closest('.pf-kpi-card-close')) { collapse(); return; }
@@ -411,6 +541,120 @@ export const PortfolioPage = {
             });
             card.classList.remove('pf-kpi-dimmed');
             card.classList.add('pf-kpi-active');
+
+            // AI анализ при раскрытии карточки clients
+            if (card.dataset.card === 'clients') {
+              const insightEl = document.getElementById('bcg-ai-insight');
+              if (insightEl && !insightEl.dataset.loaded) {
+                insightEl.dataset.loaded = '1';
+                insightEl.innerHTML = `<div style="display:flex;align-items:center;gap:6px;color:#6366f1;font-size:11px">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>
+                  Анализирую портфель...
+                </div>`;
+                try {
+                  console.log('[BCG AI] summary:', summary);
+                  console.log('[BCG AI] computed length:', computed?.length);
+                  const snap = computed.slice(0, 16).map(r => ({
+                    name:    r.client.name,
+                    bcg:     r.client.bcg_category,
+                    loyalty: r.loyalty ?? null,
+                    bchs:    r.bchs ?? null,
+                    mr:      r.client.monthly_revenue ?? 0,
+                    risk:    r.riskAmt ?? 0,
+                    trend:   r.trend?.direction ?? null,
+                  }));
+                  const result = await API.callAI({
+                    type: 'portfolio_analysis',
+                    summary,
+                    clients_snapshot: snap,
+                  });
+                  const content = result?.choices?.[0]?.message?.content ?? result?.content ?? '';
+                  let bcgText = '';
+                  try {
+                    const parsed = JSON.parse(content);
+                    bcgText = parsed.bcg ?? parsed.insight ?? content;
+                  } catch (_) { bcgText = content; }
+                  insightEl.innerHTML = `<div style="font-size:12px;color:#374151;line-height:1.7">${bcgText}</div>`;
+                } catch (e) {
+                  insightEl.innerHTML = `<div style="font-size:11px;color:#ef4444">Ошибка: ${e.message}</div>`;
+                }
+              }
+            }
+
+            // AI анализ при раскрытии карточки hours_revenue
+            if (card.dataset.card === 'hours_revenue') {
+              const insightEl = document.getElementById('hours-rev-ai-insight');
+              if (insightEl && !insightEl.dataset.loaded) {
+                insightEl.dataset.loaded = '1';
+                insightEl.innerHTML = `<div style="display:flex;align-items:center;gap:6px;color:#6366f1;font-size:11px">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>
+                  AI анализирует...
+                </div>`;
+                try {
+                  const snap = computed.slice(0, 16).map(r => ({
+                    name:    r.client.name,
+                    bcg:     r.client.bcg_category,
+                    hours:   r.total_hours ?? 0,
+                    mr:      r.client.monthly_revenue ?? 0,
+                    loyalty: r.loyalty ?? null,
+                    bchs:    r.bchs ?? null,
+                    risk:    r.riskAmt ?? 0,
+                    trend:   r.trend?.direction ?? null,
+                  }));
+                  const result = await API.callAI({
+                    type: 'portfolio_analysis',
+                    summary,
+                    clients_snapshot: snap,
+                  });
+                  const content = result?.choices?.[0]?.message?.content ?? result?.content ?? '';
+                  let text = '';
+                  try {
+                    const parsed = JSON.parse(content);
+                    text = parsed.hours ?? parsed.efficiency ?? parsed.bcg ?? parsed.insight ?? content;
+                  } catch (_) { text = content; }
+                  insightEl.innerHTML = `<div style="font-size:12px;color:#374151;line-height:1.7">${text}</div>`;
+                } catch (e) {
+                  insightEl.innerHTML = `<div style="font-size:11px;color:#ef4444">Ошибка: ${e.message}</div>`;
+                }
+              }
+            }
+
+            // AI анализ при раскрытии карточки revenue_bcg
+            if (card.dataset.card === 'revenue_bcg') {
+              const insightEl = document.getElementById('revenue-bcg-ai-insight');
+              if (insightEl && !insightEl.dataset.loaded) {
+                insightEl.dataset.loaded = '1';
+                insightEl.innerHTML = `<div style="display:flex;align-items:center;gap:6px;color:#6366f1;font-size:11px">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>
+                  AI анализирует...
+                </div>`;
+                try {
+                  const snap = computed.slice(0, 16).map(r => ({
+                    name:    r.client.name,
+                    bcg:     r.client.bcg_category,
+                    loyalty: r.loyalty ?? null,
+                    bchs:    r.bchs ?? null,
+                    mr:      r.client.monthly_revenue ?? 0,
+                    risk:    r.riskAmt ?? 0,
+                    trend:   r.trend?.direction ?? null,
+                  }));
+                  const result = await API.callAI({
+                    type: 'portfolio_analysis',
+                    summary,
+                    clients_snapshot: snap,
+                  });
+                  const content = result?.choices?.[0]?.message?.content ?? result?.content ?? '';
+                  let revenueText = '';
+                  try {
+                    const parsed = JSON.parse(content);
+                    revenueText = parsed.revenue ?? parsed.insight ?? content;
+                  } catch (_) { revenueText = content; }
+                  insightEl.innerHTML = `<div style="font-size:12px;color:#374151;line-height:1.7">${revenueText}</div>`;
+                } catch (e) {
+                  insightEl.innerHTML = `<div style="font-size:11px;color:#ef4444">Ошибка: ${e.message}</div>`;
+                }
+              }
+            }
           });
         }
       }
@@ -500,6 +744,170 @@ document.getElementById('pf-ai-mode-sw')
     }
   },
 
+  _renderPortfolioCharts(computed) {
+
+    // ── Donut: BCG распределение ──
+    const bcgEl = document.getElementById('pf-chart-bcg');
+    if (bcgEl) {
+      const BCG_CFG = {
+        KEY:          { label: 'KEY',          color: '#f59e0b' },
+        GROWTH:       { label: 'GROWTH',       color: '#6366f1' },
+        GROWTH_EARLY: { label: 'GROWTH Early', color: '#8b5cf6' },
+        STABLE:       { label: 'STABLE',       color: '#6b7280' },
+        TAIL:         { label: 'TAIL',         color: '#9ca3af' },
+      };
+      const counts = { KEY:0, GROWTH:0, GROWTH_EARLY:0, STABLE:0, TAIL:0 };
+      computed.forEach(r => { if (counts[r.client.bcg_category] != null) counts[r.client.bcg_category]++; });
+      const total = computed.length || 1;
+
+      // SVG donut
+      const cx = 52, cy = 52, R = 40, r2 = 24;
+      let startAngle = -Math.PI / 2;
+      let paths = '';
+      Object.entries(counts).forEach(([key, cnt]) => {
+        if (!cnt) return;
+        const angle = (cnt / total) * 2 * Math.PI;
+        const x1 = cx + R * Math.cos(startAngle);
+        const y1 = cy + R * Math.sin(startAngle);
+        const x2 = cx + R * Math.cos(startAngle + angle);
+        const y2 = cy + R * Math.sin(startAngle + angle);
+        const ix1 = cx + r2 * Math.cos(startAngle);
+        const iy1 = cy + r2 * Math.sin(startAngle);
+        const ix2 = cx + r2 * Math.cos(startAngle + angle);
+        const iy2 = cy + r2 * Math.sin(startAngle + angle);
+        const large = angle > Math.PI ? 1 : 0;
+        const color = BCG_CFG[key]?.color ?? '#ccc';
+        paths += `<path d="M${ix1},${iy1} L${x1},${y1} A${R},${R} 0 ${large},1 ${x2},${y2} L${ix2},${iy2} A${r2},${r2} 0 ${large},0 ${ix1},${iy1}" fill="${color}" opacity=".9"/>`;
+        startAngle += angle;
+      });
+
+      const donutSVG = `<svg width="104" height="104" viewBox="0 0 104 104">
+        ${paths}
+        <text x="52" y="56" text-anchor="middle" font-size="18" font-weight="700"
+              fill="var(--text-primary)">${total}</text>
+      </svg>`;
+
+      const legend = Object.entries(counts)
+        .filter(([,v]) => v > 0)
+        .map(([key, cnt]) => `
+          <div style="display:flex;align-items:center;gap:6px;cursor:pointer"
+               onclick="window.App && window.App.navigate && null"
+               title="${BCG_CFG[key]?.label}">
+            <div style="width:10px;height:10px;border-radius:3px;
+                        background:${BCG_CFG[key]?.color};flex-shrink:0"></div>
+            <span style="font-size:12px;color:var(--text-muted)">${BCG_CFG[key]?.label}</span>
+            <span style="font-size:12px;font-weight:600;color:var(--text-primary);margin-left:auto;padding-left:8px">${cnt}</span>
+          </div>`).join('');
+
+      bcgEl.innerHTML = donutSVG + `<div style="flex:1;display:flex;flex-direction:column;gap:7px">${legend}</div>`;
+    }
+
+    // ── Bars: Лояльность ──
+    const loyaltyEl = document.getElementById('pf-chart-loyalty');
+    if (loyaltyEl) {
+      const sorted = [...computed]
+        .filter(r => r.loyalty != null)
+        .sort((a, b) => (b.loyalty ?? 0) - (a.loyalty ?? 0))
+        .slice(0, 8);
+      const maxVal = 100;
+
+      loyaltyEl.innerHTML = sorted.map(r => {
+        const pct   = Math.round(r.loyalty ?? 0);
+        const color = pct >= 70 ? '#10b981' : pct >= 40 ? '#f59e0b' : '#ef4444';
+        const w     = Math.max(4, Math.round((pct / maxVal) * 100));
+        return `
+          <div style="display:flex;align-items:center;gap:8px;cursor:pointer"
+               data-action="go-detail" data-id="${r.client.id}">
+            <div style="width:90px;font-size:11px;color:var(--text-primary);
+                        white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+                        flex-shrink:0">${r.client.name}</div>
+            <div style="flex:1;background:#f1f5f9;border-radius:4px;height:8px;overflow:hidden">
+              <div style="width:${w}%;height:100%;background:${color};border-radius:4px;
+                          transition:width .4s"></div>
+            </div>
+            <div style="width:32px;text-align:right;font-size:11px;font-weight:600;
+                        color:${color};flex-shrink:0">${pct}%</div>
+          </div>`;
+      }).join('') || '<div style="font-size:12px;color:#94a3b8">Нет данных</div>';
+
+      loyaltyEl.querySelectorAll('[data-action="go-detail"]').forEach(el => {
+        el.addEventListener('click', () => window.App.navigate('detail', el.dataset.id));
+      });
+    }
+
+    // ── Bars: Revenue at Risk ──
+    const riskEl = document.getElementById('pf-chart-risk');
+    if (riskEl) {
+      const sorted = [...computed]
+        .filter(r => (r.riskAmt ?? 0) > 0)
+        .sort((a, b) => (b.riskAmt ?? 0) - (a.riskAmt ?? 0))
+        .slice(0, 8);
+      const maxVal = sorted[0]?.riskAmt ?? 1;
+
+      riskEl.innerHTML = sorted.map(r => {
+        const amt   = r.riskAmt ?? 0;
+        const pct   = r.riskPct ?? 0;
+        const w     = Math.max(4, Math.round((amt / maxVal) * 100));
+        const color = pct > 30 ? '#ef4444' : pct > 15 ? '#f59e0b' : '#6366f1';
+        return `
+          <div style="display:flex;align-items:center;gap:8px;cursor:pointer"
+               data-action="go-detail" data-id="${r.client.id}">
+            <div style="width:90px;font-size:11px;color:var(--text-primary);
+                        white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+                        flex-shrink:0">${r.client.name}</div>
+            <div style="flex:1;background:#f1f5f9;border-radius:4px;height:8px;overflow:hidden">
+              <div style="width:${w}%;height:100%;background:${color};border-radius:4px;
+                          transition:width .4s"></div>
+            </div>
+            <div style="width:52px;text-align:right;font-size:11px;font-weight:600;
+                        color:${color};flex-shrink:0">$${amt >= 1000 ? Math.round(amt/1000)+'k' : amt}</div>
+          </div>`;
+      }).join('') || '<div style="font-size:12px;color:#94a3b8">Рисков нет</div>';
+
+      riskEl.querySelectorAll('[data-action="go-detail"]').forEach(el => {
+        el.addEventListener('click', () => window.App.navigate('detail', el.dataset.id));
+      });
+    }
+
+    // ── Bars: Реализация потенциала ──
+    const potEl = document.getElementById('pf-chart-potential');
+    if (potEl) {
+      const sorted = [...computed]
+        .filter(r => (r.potential ?? 0) > 0)
+        .sort((a, b) => {
+          const pa = (r => r.client.monthly_revenue / Math.max(1, r.potential ?? r.client.monthly_revenue))(a);
+          const pb = (r => r.client.monthly_revenue / Math.max(1, r.potential ?? r.client.monthly_revenue))(b);
+          return pa - pb; // снизу — самые недореализованные
+        })
+        .slice(0, 8);
+
+      potEl.innerHTML = sorted.map(r => {
+        const mr  = r.client.monthly_revenue ?? 0;
+        const pot = r.potential ?? mr;
+        const pct = pot > 0 ? Math.min(100, Math.round((mr / pot) * 100)) : 100;
+        const w   = Math.max(4, pct);
+        const color = pct >= 80 ? '#10b981' : pct >= 50 ? '#f59e0b' : '#ef4444';
+        return `
+          <div style="display:flex;align-items:center;gap:8px;cursor:pointer"
+               data-action="go-detail" data-id="${r.client.id}">
+            <div style="width:90px;font-size:11px;color:var(--text-primary);
+                        white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+                        flex-shrink:0">${r.client.name}</div>
+            <div style="flex:1;background:#f1f5f9;border-radius:4px;height:8px;overflow:hidden">
+              <div style="width:${w}%;height:100%;background:${color};border-radius:4px;
+                          transition:width .4s"></div>
+            </div>
+            <div style="width:32px;text-align:right;font-size:11px;font-weight:600;
+                        color:${color};flex-shrink:0">${pct}%</div>
+          </div>`;
+      }).join('') || '<div style="font-size:12px;color:#94a3b8">Нет данных</div>';
+
+      potEl.querySelectorAll('[data-action="go-detail"]').forEach(el => {
+        el.addEventListener('click', () => window.App.navigate('detail', el.dataset.id));
+      });
+    }
+  },
+
   _buildSummary(computed) {
     const total       = computed.length;
     const withLoyalty = computed.filter(r => r.loyalty !== null);
@@ -525,7 +933,7 @@ document.getElementById('pf-ai-mode-sw')
     return { total, avgBchs, avgLoyalty, totalRisk, bcgCount, top3Risk, avgPotential };
   },
 
-  _summaryHTML(s) {
+  _summaryHTML(s, computed = []) {
     const loyaltyColor = s.avgLoyalty === null ? '#6b7280'
       : s.avgLoyalty >= 70 ? '#10b981'
       : s.avgLoyalty >= 50 ? '#f59e0b' : '#ef4444';
@@ -565,7 +973,184 @@ document.getElementById('pf-ai-mode-sw')
         value: s.total,
         hint: 'в портфеле',
         valueColor: 'var(--text-primary)',
-        detail: `<div class="kpi-det-title">BCG распределение</div>${bcgBars}`,
+        detail: (() => {
+          const BCG_COLORS = { KEY:'#f59e0b', GROWTH:'#6366f1', GROWTH_EARLY:'#8b5cf6', STABLE:'#6b7280', TAIL:'#9ca3af' };
+          const total = computed.length || 1;
+          // Donut SVG
+          const r = 36, cx = 44, cy = 44, stroke = 12;
+          const circ = 2 * Math.PI * r;
+          let offset = 0;
+          const segments = Object.entries(s.bcgCount)
+            .filter(([,cnt]) => cnt > 0)
+            .map(([key, cnt]) => {
+              const pct = cnt / total;
+              const seg = `<circle cx="${cx}" cy="${cy}" r="${r}"
+                fill="none" stroke="${BCG_COLORS[key]||'#9ca3af'}"
+                stroke-width="${stroke}"
+                stroke-dasharray="${pct*circ} ${circ}"
+                stroke-dashoffset="${-offset*circ}"
+                transform="rotate(-90 ${cx} ${cy})"/>`;
+              offset += pct;
+              return seg;
+            }).join('');
+          const donut = `<svg width="88" height="88" viewBox="0 0 88 88">${segments}
+            <text x="${cx}" y="${cy+5}" text-anchor="middle"
+                  font-size="14" font-weight="700" fill="#0f172a">${total}</text>
+          </svg>`;
+          const legend = Object.entries(s.bcgCount).filter(([,c])=>c>0).map(([key,cnt]) =>
+            `<div style="display:flex;align-items:center;gap:5px;margin-bottom:3px">
+              <div style="width:8px;height:8px;border-radius:2px;background:${BCG_COLORS[key]||'#9ca3af'};flex-shrink:0"></div>
+              <span style="font-size:11px;color:#6b7280;flex:1">${key.replace('_',' ')}</span>
+              <span style="font-size:11px;font-weight:700;color:#0f172a">${cnt}</span>
+            </div>`).join('');
+          const list = computed.map(r => `
+            <div data-action="go-detail" data-id="${r.client.id}"
+                 style="display:flex;align-items:center;gap:8px;padding:7px 0;
+                        border-bottom:1px solid #f5f5f8;cursor:pointer"
+                 onmouseover="this.style.background='#f8faff'"
+                 onmouseout="this.style.background='transparent'">
+              <div style="width:6px;height:6px;border-radius:2px;flex-shrink:0;
+                          background:${BCG_COLORS[r.client.bcg_category]||'#9ca3af'}"></div>
+              <span style="font-size:12px;font-weight:600;flex:1;color:#0f172a">${r.client.name}</span>
+              <span style="font-size:11px;font-weight:600;color:#6366f1">$${Number(r.client.monthly_revenue||0).toLocaleString('ru-RU')}</span>
+            </div>`).join('');
+          const bcgInsightHTML = `
+            <div id="bcg-ai-insight" style="font-size:12px;color:#6b7280;line-height:1.6">
+              <div style="display:flex;align-items:center;gap:6px;color:#6366f1;font-size:11px">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>
+                AI анализирует портфель...
+              </div>
+            </div>`;
+          return `
+            <div style="display:flex;gap:16px;margin-bottom:14px;padding-bottom:14px;border-bottom:1px solid #f5f5f8">
+              <div style="display:flex;gap:16px;align-items:center;flex-shrink:0">
+                ${donut}
+                <div>${legend}</div>
+              </div>
+              <div style="flex:1;padding-left:16px;border-left:1px solid #f1f5f9">
+                ${bcgInsightHTML}
+              </div>
+            </div>
+            <div class="kpi-det-title">Все клиенты</div>
+            <div style="max-height:200px;overflow-y:auto;scrollbar-width:thin;scrollbar-color:#e2e8f0 transparent">${list}</div>`;
+        })(),
+      },
+      {
+        id: 'revenue_bcg',
+        label: 'Revenue by BCG',
+        value: '$' + Math.round(computed.reduce((sum, r) => sum + (r.client.monthly_revenue||0), 0) / 1000) + 'K',
+        hint: 'суммарный MR',
+        valueColor: 'var(--text-primary)',
+        detail: (() => {
+          const BCG_COLORS = { KEY:'#f59e0b', GROWTH:'#6366f1', GROWTH_EARLY:'#8b5cf6', STABLE:'#6b7280', TAIL:'#9ca3af' };
+          const BCG_ORDER  = ['KEY','STABLE','GROWTH','GROWTH_EARLY','TAIL'];
+          const mrByBcg = {};
+          BCG_ORDER.forEach(k => { mrByBcg[k] = 0; });
+          computed.forEach(r => {
+            const k = r.client.bcg_category;
+            if (mrByBcg[k] != null) mrByBcg[k] += (r.client.monthly_revenue||0);
+          });
+          const maxMR   = Math.max(...Object.values(mrByBcg), 1);
+          const totalMR = Object.values(mrByBcg).reduce((a,b) => a+b, 0) || 1;
+          const barW = 40, barGap = 12, chartH = 120, labelH = 28;
+          const svgW = BCG_ORDER.length * (barW + barGap);
+          const bars = BCG_ORDER.map((key, i) => {
+            const val = mrByBcg[key] || 0;
+            const bh  = Math.round((val / maxMR) * chartH);
+            const x   = i * (barW + barGap);
+            const y   = chartH - bh;
+            const lbl = val >= 1000 ? '$' + Math.round(val/1000) + 'K' : '$' + val;
+            return `
+              <rect x="${x}" y="${y}" width="${barW}" height="${bh}"
+                    fill="${BCG_COLORS[key]||'#9ca3af'}" rx="4" opacity=".9"/>
+              <text x="${x + barW/2}" y="${y - 4}" text-anchor="middle"
+                    font-size="9" fill="#6b7280">${val > 0 ? lbl : ''}</text>
+              <text x="${x + barW/2}" y="${chartH + 14}" text-anchor="middle"
+                    font-size="9" fill="#6b7280">${key.replace('_EARLY','\nE').replace('_',' ')}</text>`;
+          }).join('');
+          const chartSVG = `<svg width="${svgW}" height="${chartH + labelH}" viewBox="0 0 ${svgW} ${chartH + labelH}">
+            <line x1="0" y1="${chartH}" x2="${svgW}" y2="${chartH}" stroke="#e2e8f0" stroke-width="1"/>
+            ${bars}
+          </svg>`;
+          return `
+            <div style="display:flex;gap:20px;align-items:flex-start">
+              <div style="flex-shrink:0">${chartSVG}</div>
+              <div style="flex:1;padding-left:16px;border-left:1px solid #f1f5f9">
+                <div id="revenue-bcg-ai-insight" style="font-size:12px;color:#6b7280;line-height:1.6">
+                  <div style="display:flex;align-items:center;gap:6px;color:#6366f1;font-size:11px">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>
+                    AI анализирует...
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div style="margin-top:12px;display:flex;flex-wrap:wrap;gap:8px">
+              ${BCG_ORDER.filter(k => mrByBcg[k] > 0).map(k => `
+                <div style="display:flex;align-items:center;gap:5px;font-size:11px;color:#6b7280">
+                  <div style="width:8px;height:8px;border-radius:2px;background:${BCG_COLORS[k]}"></div>
+                  ${k.replace('_',' ')}:
+                  <strong style="color:#0f172a">$${mrByBcg[k].toLocaleString('en-US')}</strong>
+                  <span style="color:#94a3b8">(${Math.round(mrByBcg[k]/totalMR*100)}%)</span>
+                </div>`).join('')}
+            </div>`;
+        })(),
+      },
+      {
+        id: 'hours_revenue',
+        label: 'Часы vs Revenue',
+        value: (() => {
+          const avgHrs = computed.length
+            ? Math.round(computed.reduce((s,r) => s + (r.total_hours||0), 0) / computed.length * 10) / 10
+            : 0;
+          return avgHrs + 'h';
+        })(),
+        hint: 'среднее на клиента',
+        valueColor: 'var(--text-primary)',
+        detail: (() => {
+          const BCG_COLORS = { KEY:'#f59e0b', GROWTH:'#6366f1', GROWTH_EARLY:'#8b5cf6', STABLE:'#6b7280', TAIL:'#9ca3af' };
+          const maxHrs = Math.max(...computed.map(r => r.total_hours||0), 1);
+          const maxMR  = Math.max(...computed.map(r => r.client.monthly_revenue||0), 1);
+          const W = 220, H = 160, PAD = 24;
+          const px = h  => Math.round(PAD + (h  / maxHrs) * (W - PAD*2));
+          const py = mr => Math.round(H - PAD - (mr / maxMR) * (H - PAD*2));
+          const dots = computed.map(r => {
+            const x = px(r.total_hours||0);
+            const y = py(r.client.monthly_revenue||0);
+            const c = BCG_COLORS[r.client.bcg_category]||'#9ca3af';
+            return `<circle cx="${x}" cy="${y}" r="5" fill="${c}" opacity=".85"
+              data-action="go-detail" data-id="${r.client.id}" style="cursor:pointer">
+              <title>${r.client.name} | ${r.total_hours}h | $${r.client.monthly_revenue}</title>
+            </circle>`;
+          }).join('');
+          // Оси
+          const axisX = `<line x1="${PAD}" y1="${H-PAD}" x2="${W-4}" y2="${H-PAD}" stroke="#e2e8f0" stroke-width="1"/>`;
+          const axisY = `<line x1="${PAD}" y1="4" x2="${PAD}" y2="${H-PAD}" stroke="#e2e8f0" stroke-width="1"/>`;
+          const labelX = `<text x="${W/2}" y="${H}" text-anchor="middle" font-size="9" fill="#94a3b8">Часы / нед</text>`;
+          const labelY = `<text x="8" y="${H/2}" text-anchor="middle" font-size="9" fill="#94a3b8" transform="rotate(-90 8 ${H/2})">MR ($)</text>`;
+          const scatterSVG = `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
+            ${axisX}${axisY}${labelX}${labelY}${dots}
+          </svg>`;
+          const legend = Object.entries(BCG_COLORS).map(([key, color]) => `
+            <div style="display:flex;align-items:center;gap:4px;font-size:10px;color:#6b7280">
+              <div style="width:8px;height:8px;border-radius:50%;background:${color}"></div>
+              ${key.replace('_EARLY',' E')}
+            </div>`).join('');
+          return `
+            <div style="display:flex;gap:20px;align-items:flex-start">
+              <div style="flex-shrink:0">
+                ${scatterSVG}
+                <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:6px">${legend}</div>
+              </div>
+              <div style="flex:1;padding-left:16px;border-left:1px solid #f1f5f9">
+                <div id="hours-rev-ai-insight" style="font-size:12px;color:#6b7280;line-height:1.6">
+                  <div style="display:flex;align-items:center;gap:6px;color:#6366f1;font-size:11px">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>
+                    AI анализирует...
+                  </div>
+                </div>
+              </div>
+            </div>`;
+        })(),
       },
       {
         id: 'loyalty',
@@ -573,13 +1158,31 @@ document.getElementById('pf-ai-mode-sw')
         value: s.avgLoyalty !== null ? s.avgLoyalty + '%' : '—',
         hint: 'средняя по портфелю',
         valueColor: loyaltyColor,
-        detail: `<div class="kpi-det-title">По зонам лояльности</div>
-          <div class="kpi-det-row"><span class="kpi-det-label">Ниже 50%</span>
-            <span class="kpi-det-risk" style="color:#ef4444">${s.bcgCount.TAIL || 0} кл.</span></div>
-          <div class="kpi-det-row"><span class="kpi-det-label">50–70%</span>
-            <span class="kpi-det-risk" style="color:#f59e0b">${(s.bcgCount.GROWTH_EARLY||0)+(s.bcgCount.GROWTH||0)} кл.</span></div>
-          <div class="kpi-det-row"><span class="kpi-det-label">Выше 70%</span>
-            <span class="kpi-det-risk" style="color:#10b981">${(s.bcgCount.KEY||0)+(s.bcgCount.STABLE||0)} кл.</span></div>`,
+        detail: (() => {
+          const sorted = [...computed].filter(r => r.loyalty !== null)
+            .sort((a,b) => b.loyalty - a.loyalty);
+          const barClr = v => v >= 60 ? '#10b981' : v >= 40 ? '#f59e0b' : '#ef4444';
+          const rows = sorted.map(r => `
+            <div data-action="go-detail" data-id="${r.client.id}"
+                 style="display:flex;align-items:center;gap:8px;padding:6px 0;
+                        border-bottom:1px solid #f5f5f8;cursor:pointer"
+                 onmouseover="this.style.background='#f8faff'"
+                 onmouseout="this.style.background='transparent'">
+              <span style="font-size:11px;font-weight:600;width:80px;flex-shrink:0;
+                           overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+                           color:#0f172a">${r.client.name}</span>
+              <div style="flex:1;height:6px;background:#f1f5f9;border-radius:3px;overflow:hidden">
+                <div style="width:${r.loyalty}%;height:100%;
+                            background:${barClr(r.loyalty)};border-radius:3px;
+                            transition:width .3s"></div>
+              </div>
+              <span style="font-size:11px;font-weight:700;color:${barClr(r.loyalty)};
+                           width:32px;text-align:right;flex-shrink:0">${r.loyalty}%</span>
+            </div>`).join('');
+          return `<div class="kpi-det-title">Лояльность клиентов</div>
+            <div style="max-height:300px;overflow-y:auto;scrollbar-width:thin;
+                        scrollbar-color:#e2e8f0 transparent">${rows}</div>`;
+        })(),
       },
       {
         id: 'risk',
@@ -587,7 +1190,34 @@ document.getElementById('pf-ai-mode-sw')
         value: '$' + s.totalRisk.toLocaleString('ru-RU'),
         hint: 'суммарно',
         valueColor: riskColor,
-        detail: `<div class="kpi-det-title">Топ-3 риска</div>${top3rows}`,
+        detail: (() => {
+          const risky = [...computed].filter(r => r.revenueAtRisk > 0)
+            .sort((a,b) => b.revenueAtRisk - a.revenueAtRisk).slice(0,8);
+          const maxRisk = risky[0]?.revenueAtRisk || 1;
+          const rClr = p => p >= 30 ? '#ef4444' : p >= 15 ? '#f59e0b' : '#10b981';
+          const rows = risky.map((r,i) => `
+            <div data-action="go-detail" data-id="${r.client.id}"
+                 style="display:flex;align-items:center;gap:8px;padding:6px 0;
+                        border-bottom:1px solid #f5f5f8;cursor:pointer"
+                 onmouseover="this.style.background='#f8faff'"
+                 onmouseout="this.style.background='transparent'">
+              <span style="font-size:10px;color:#94a3b8;width:14px;flex-shrink:0">${i+1}</span>
+              <span style="font-size:11px;font-weight:600;width:72px;flex-shrink:0;
+                           overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+                           color:#0f172a">${r.client.name}</span>
+              <div style="flex:1;height:6px;background:#f1f5f9;border-radius:3px;overflow:hidden">
+                <div style="width:${Math.round(r.revenueAtRisk/maxRisk*100)}%;height:100%;
+                            background:${rClr(r.riskPct)};border-radius:3px"></div>
+              </div>
+              <span style="font-size:11px;font-weight:700;color:${rClr(r.riskPct)};
+                           width:28px;text-align:right;flex-shrink:0">${r.riskPct}%</span>
+            </div>`).join('');
+          return `<div class="kpi-det-title">Revenue at Risk</div>
+            <div style="max-height:300px;overflow-y:auto;scrollbar-width:thin;
+                        scrollbar-color:#e2e8f0 transparent">
+              ${risky.length ? rows : '<div style="font-size:12px;color:#94a3b8;padding:8px 0">Рисков нет</div>'}
+            </div>`;
+        })(),
       },
       {
         id: 'potential',
@@ -595,11 +1225,33 @@ document.getElementById('pf-ai-mode-sw')
         value: s.avgPotential !== null ? s.avgPotential + '%' : '—',
         hint: 'от потенциала',
         valueColor: potColor,
-        detail: `<div class="kpi-det-title">Потенциал портфеля</div>
-          <div class="kpi-det-row"><span class="kpi-det-label">Реализовано</span>
-            <span class="kpi-det-risk" style="color:${potColor}">${s.avgPotential !== null ? s.avgPotential+'%' : '—'}</span></div>
-          <div class="kpi-det-row"><span class="kpi-det-label">Недореализовано</span>
-            <span class="kpi-det-risk">${s.avgPotential !== null ? (100-s.avgPotential)+'%' : '—'}</span></div>`,
+        detail: (() => {
+          const withPot = [...computed].filter(r => r.pctPot !== null && r.pctPot !== undefined)
+            .sort((a,b) => b.pctPot - a.pctPot);
+          const pClr = v => v >= 85 ? '#10b981' : v >= 65 ? '#f59e0b' : '#ef4444';
+          const rows = withPot.map(r => `
+            <div data-action="go-detail" data-id="${r.client.id}"
+                 style="display:flex;align-items:center;gap:8px;padding:6px 0;
+                        border-bottom:1px solid #f5f5f8;cursor:pointer"
+                 onmouseover="this.style.background='#f8faff'"
+                 onmouseout="this.style.background='transparent'">
+              <span style="font-size:11px;font-weight:600;width:80px;flex-shrink:0;
+                           overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+                           color:#0f172a">${r.client.name}</span>
+              <div style="flex:1;height:6px;background:#f1f5f9;border-radius:3px;overflow:hidden">
+                <div style="width:${Math.min(r.pctPot,100)}%;height:100%;
+                            background:${pClr(r.pctPot)};border-radius:3px;
+                            transition:width .3s"></div>
+              </div>
+              <span style="font-size:11px;font-weight:700;color:${pClr(r.pctPot)};
+                           width:32px;text-align:right;flex-shrink:0">${r.pctPot}%</span>
+            </div>`).join('');
+          return `<div class="kpi-det-title">Реализация потенциала</div>
+            <div style="max-height:300px;overflow-y:auto;scrollbar-width:thin;
+                        scrollbar-color:#e2e8f0 transparent">
+              ${withPot.length ? rows : '<div style="font-size:12px;color:#94a3b8;padding:8px 0">Нет данных</div>'}
+            </div>`;
+        })(),
       },
     ];
 

@@ -454,6 +454,66 @@ async function buildMessages(body, env) {
     ];
   }
 
+  if (type === 'portfolio_analysis') {
+    const snap = body.clients_snapshot ?? [];
+    const s    = body.summary          ?? {};
+
+    const rolling = env ? await getRollingSummary(env) : { snapshot: {}, mc_agg: null };
+    const mcAgg   = rolling.mc_agg;
+
+    const mcText = mcAgg
+      ? 'MONTE CARLO:\n' +
+        '- Avg churn risk 3M: ' + mcAgg.avg_churn_3m + '\n' +
+        '- Avg churn risk 12M: ' + mcAgg.avg_churn_12m + '\n' +
+        '- Forecast bCHS 3M: ' + mcAgg.avg_bchs_3m + '\n' +
+        '- Clients at risk (churn>=15%): ' + mcAgg.clients_at_risk + '\n' +
+        '- MR at risk: $' + mcAgg.mr_at_risk + '\n' +
+        '- Top-3 churn: ' + mcAgg.top3_churn_risk + '\n'
+      : '';
+
+    const snapText = snap.length
+      ? snap.map(c =>
+          '  - ' + c.name + ' [' + c.bcg + '] loyalty:' + (c.loyalty ?? '—') +
+          '% bCHS:' + (c.bchs ?? '—') + ' MR:$' + (c.mr ?? 0) +
+          ' risk:$' + (c.risk ?? 0) + ' trend:' + (c.trend ?? '—')
+        ).join('\n')
+      : 'no data';
+
+    return [
+      {
+        role: 'system',
+        content: 'Ты старший CSM-аналитик. Анализируй портфель клиентов и давай конкретные, ' +
+          'честные инсайты на русском языке. Пиши кратко, по делу, с цифрами. ' +
+          'Отвечай ТОЛЬКО валидным JSON без markdown.',
+      },
+      {
+        role: 'user',
+        content:
+          'Проанализируй портфель и дай инсайты по каждому блоку.\n\n' +
+          'СВОДКА:\n' +
+          '- Клиентов: ' + (s.total ?? '—') + '\n' +
+          '- Средняя лояльность: ' + (s.avgLoyalty ?? '—') + '%\n' +
+          '- Revenue at Risk: $' + (s.totalRisk ?? 0) + '\n' +
+          '- BCG: KEY=' + (s.bcgCount?.KEY ?? 0) +
+          ' STABLE=' + (s.bcgCount?.STABLE ?? 0) +
+          ' GROWTH=' + (s.bcgCount?.GROWTH ?? 0) +
+          ' GROWTH_EARLY=' + (s.bcgCount?.GROWTH_EARLY ?? 0) +
+          ' TAIL=' + (s.bcgCount?.TAIL ?? 0) + '\n' +
+          '- Ср. реализация потенциала: ' + (s.avgPotential ?? '—') + '%\n' +
+          mcText + '\n' +
+          'КЛИЕНТЫ:\n' + snapText + '\n\n' +
+          'Верни JSON строго в таком формате:\n' +
+          '{' +
+          '"bcg": "2-3 предложения: что говорит распределение по BCG о зрелости портфеля",' +
+          '"revenue": "2-3 предложения: где сидят деньги, какой BCG-кластер самый ценный и уязвимый",' +
+          '"loyalty": "2-3 предложения: состояние лояльности, кто в зоне риска",' +
+          '"potential": "2-3 предложения: насколько реализован потенциал, где точки роста",' +
+          '"priority": "3-4 приоритетных действия на ближайший месяц в виде массива строк"' +
+          '}',
+      },
+    ];
+  }
+
   if (type === 'account') {
     const c    = body.client              ?? {};
     const m    = body.metrics             ?? {};

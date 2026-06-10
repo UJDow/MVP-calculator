@@ -481,6 +481,11 @@ export const Calc = {
       : revenuePerHour >= 500 ? 'positive'
       : revenuePerHour >= 200 ? 'warning' : 'danger';
 
+    // Считаем total_hours по BCG категории напрямую
+    const BCG_HOURS = { KEY: 2.5, GROWTH: 2.0, GROWTH_EARLY: 1.75, STABLE: 1.25, TAIL: 0.75 };
+    const matMult   = { Junior: 1.25, Standard: 1.0, Senior: 0.8 }[client.team_maturity || 'Standard'] || 1.0;
+    const total_hours = Math.round((BCG_HOURS[client.bcg_category] || 0.5) * matMult * 100) / 100;
+
     return {
       bchs, pcScore, loyalty, final, revenueEfficiency,
       health, load, monthly, monthlyData, trend, badge, focus, section,
@@ -488,6 +493,7 @@ export const Calc = {
       bchsHistory, pcHistory, curBCHSEntry, curPCEntry,
       riskRate, riskPct, revenueAtRisk, riskCls, riskColor, isWD,
       revenuePerHour, rphWD, rphColor, rphCls,
+      total_hours,
     };
   },
 };

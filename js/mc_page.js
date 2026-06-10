@@ -414,9 +414,10 @@ export const MCPage = {
     const h = this.result?.horizons?.[horizonKey];
     if (!h) return 'medium';
     const churn = h.churn_rate ?? 0;
-    if (churn >= 40) return 'critical';
-    if (churn >= 25) return 'high';
-    if (churn >= 12) return 'medium';
+    const t = this._churnThreshold(horizonKey);
+    if (churn >= t.medium * 2) return 'critical';
+    if (churn >= t.medium)     return 'high';
+    if (churn >= t.low)        return 'medium';
     return 'low';
   },
 

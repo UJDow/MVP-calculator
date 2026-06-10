@@ -58,19 +58,17 @@ export const DetailPage = {
   /* ─── TABS CONFIG ─────────────────────────────────────────── */
   _buildTabs() {
   const tabs = [
-    { id: 'overview',  label: '📋 Обзор',    always: true },
-    { id: 'history',   label: '📈 История',  always: true },
-    { id: 'touches',   label: '📍 Касания',  always: true },
-    { id: 'notes',     label: '📝 Заметки',  always: true },
-    { id: 'delivery',  label: '👥 Delivery', module: 'detail_delivery' },
-    { id: 'mc',        label: '🎲 Monte Carlo', module: 'detail_monte_carlo' },
+    { id: 'overview',  label: 'Обзор',    always: true },
+    { id: 'history',   label: 'История',  always: true },
+    { id: 'touches',   label: 'Касания',  always: true },
+    { id: 'notes',     label: 'Заметки',  always: true },
+    { id: 'delivery',  label: 'Delivery', module: 'detail_delivery' },
+    { id: 'mc',        label: 'Monte Carlo', module: 'detail_monte_carlo' },
   ];
+  // Возвращаем только overview — остальные доступны через панель действий
+  return [tabs[0]];
 
-    return tabs.filter(t => {
-      if (t.always) return true;
-      if (window.canAccess) return window.canAccess(t.module);
-      return true;
-    });
+    // фильтрация перенесена выше
   },
 
   /* ─── PAGE SHELL ──────────────────────────────────────────── */
@@ -106,26 +104,28 @@ export const DetailPage = {
             <div class="detail-badges">
               <span class="badge ${r.badge.cls}">${r.badge.label}</span>
               <span class="bcg-badge">${bcg ? bcg.label : c.bcg_category}</span>
-              <span class="bcg-badge">🎯 ${c.key_account_priority}</span>
-              <span class="bcg-badge">📌 ${c.status}</span>
+              <span class="bcg-badge">${c.key_account_priority}</span>
+              <span class="bcg-badge">${c.status}</span>
             </div>
             <div class="detail-meta">
               Ответственный: <strong>${c.sales_owner || '—'}</strong>
             </div>
           </div>
-          <div style="display:flex;gap:8px;flex-wrap:wrap">
-            <button class="btn btn-primary btn-sm" id="btn-add-data">
-              ✎ Данные за ${cmLabel} ${cy}
-            </button>
-            <button class="btn btn-secondary btn-sm" id="btn-edit-client">
-              ⚙ Редактировать
+          <div style="display:flex;gap:8px;align-items:center">
+            <button class="btn btn-secondary btn-sm" id="btn-actions-panel"
+                    style="display:flex;align-items:center;gap:6px;font-weight:600">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+                   stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                <circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/>
+              </svg>
+              Действия
             </button>
           </div>
         </div>
       </div>
 
       <div class="focus-box">
-        <div class="focus-box-label">◉ Фокус сейчас</div>
+        <div class="focus-box-label">Фокус сейчас</div>
         <div class="focus-box-text">${r.focus}</div>
       </div>
 
@@ -158,7 +158,7 @@ export const DetailPage = {
           '% Потенциала',
           r.pctPot !== null ? r.pctPot + '%' : '—',
           r.pctPot !== null
-            ? (r.pctPot >= 100 ? '🚀 Выше идеала' : 'от идеала')
+            ? (r.pctPot >= 100 ? 'Выше идеала' : 'от идеала')
             : '—'
         )}
         ${this._renderKPI(
@@ -785,8 +785,191 @@ _bindTouchesEvents(touchPoints) {
   });
 },
 
-  /* ─── PAGE EVENTS ─────────────────────────────────────────── */
+  /* ─── ACTIONS PANEL ──────────────────────────────────────── */
+  _openActionsPanel() {
+    const c = this.client;
+    document.getElementById('detail-actions-panel')?.remove();
+    if (!document.getElementById('dap-styles')) {
+      const st = document.createElement('style');
+      st.id = 'dap-styles';
+      st.textContent = `
+        .dap-action-btn {
+          display:flex;align-items:center;gap:12px;
+          padding:12px 14px;border-radius:10px;
+          border:1.5px solid #f0f0f5;background:#fff;
+          cursor:pointer;text-align:left;width:100%;
+          transition:all .15s;
+        }
+        .dap-action-btn:hover { border-color:#6366f1;background:#f8f7ff; }
+        .dap-action-icon {
+          width:36px;height:36px;border-radius:8px;
+          display:flex;align-items:center;justify-content:center;flex-shrink:0;
+        }
+        .dap-action-title { font-size:13px;font-weight:600;color:#111827;margin-bottom:2px; }
+        .dap-action-sub   { font-size:11px;color:#9ca3af; }
+      `;
+      document.head.appendChild(st);
+    }
+
+    const el = document.createElement('div');
+    el.id = 'detail-actions-panel';
+    el.innerHTML = `
+      <div class="variant-picker-backdrop" id="dap-backdrop"></div>
+      <div class="variant-picker-panel" id="dap-panel">
+        <div class="variant-picker-header">
+          <span style="font-size:14px;font-weight:700">${c.name}</span>
+          <button class="variant-picker-close" id="dap-close">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+                 stroke="currentColor" stroke-width="2">
+              <line x1="18" y1="6" x2="6" y2="18"/>
+              <line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
+        </div>
+        <div class="variant-picker-body" style="padding:16px;display:flex;flex-direction:column;gap:8px">
+          <div style="font-size:10px;font-weight:700;text-transform:uppercase;
+                      letter-spacing:.06em;color:#9ca3af;margin-bottom:4px">
+            Быстрые действия
+          </div>
+          <button class="dap-action-btn" id="dap-add-data">
+            <div class="dap-action-icon" style="background:#eef2ff;color:#6366f1">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+                   stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                <line x1="12" y1="5" x2="12" y2="19"/>
+                <line x1="5" y1="12" x2="19" y2="12"/>
+              </svg>
+            </div>
+            <div>
+              <div class="dap-action-title">Добавить данные</div>
+              <div class="dap-action-sub">Текущий период</div>
+            </div>
+          </button>
+          <button class="dap-action-btn" id="dap-edit-client">
+            <div class="dap-action-icon" style="background:#f0fdf4;color:#10b981">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+                   stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
+                <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
+              </svg>
+            </div>
+            <div>
+              <div class="dap-action-title">Редактировать клиента</div>
+              <div class="dap-action-sub">Профиль и настройки</div>
+            </div>
+          </button>
+          <div style="font-size:10px;font-weight:700;text-transform:uppercase;
+                      letter-spacing:.06em;color:#9ca3af;margin:8px 0 4px">
+            Разделы
+          </div>
+          <button class="dap-action-btn" id="dap-history">
+            <div class="dap-action-icon" style="background:#eff6ff;color:#3b82f6">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+                   stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+              </svg>
+            </div>
+            <div>
+              <div class="dap-action-title">История</div>
+              <div class="dap-action-sub">bCHS по месяцам</div>
+            </div>
+          </button>
+          <button class="dap-action-btn" id="dap-touches">
+            <div class="dap-action-icon" style="background:#fff7ed;color:#f97316">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+                   stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>
+              </svg>
+            </div>
+            <div>
+              <div class="dap-action-title">Касания</div>
+              <div class="dap-action-sub">История встреч</div>
+            </div>
+          </button>
+          <button class="dap-action-btn" id="dap-notes">
+            <div class="dap-action-icon" style="background:#fefce8;color:#ca8a04">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+                   stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+                <polyline points="14 2 14 8 20 8"/>
+              </svg>
+            </div>
+            <div>
+              <div class="dap-action-title">Заметки</div>
+              <div class="dap-action-sub">Стратегия и комментарии</div>
+            </div>
+          </button>
+          <button class="dap-action-btn" id="dap-delivery">
+            <div class="dap-action-icon" style="background:#f0fdf4;color:#16a34a">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+                   stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/>
+                <circle cx="9" cy="7" r="4"/>
+                <path d="M23 21v-2a4 4 0 00-3-3.87"/>
+                <path d="M16 3.13a4 4 0 010 7.75"/>
+              </svg>
+            </div>
+            <div>
+              <div class="dap-action-title">Delivery</div>
+              <div class="dap-action-sub">Команда и роли</div>
+            </div>
+          </button>
+          <div style="font-size:10px;font-weight:700;text-transform:uppercase;
+                      letter-spacing:.06em;color:#9ca3af;margin:8px 0 4px">
+            Аналитика
+          </div>
+          <button class="dap-action-btn" id="dap-mc">
+            <div class="dap-action-icon" style="background:#f5f3ff;color:#8b5cf6">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+                   stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                <polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/>
+                <polyline points="16 7 22 7 22 13"/>
+              </svg>
+            </div>
+            <div>
+              <div class="dap-action-title">Monte Carlo</div>
+              <div class="dap-action-sub">Прогноз 3–12 месяцев</div>
+            </div>
+          </button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(el);
+    requestAnimationFrame(() =>
+      document.getElementById('dap-panel')?.classList.add('visible')
+    );
+
+    const close = () => {
+      document.getElementById('dap-panel')?.classList.remove('visible');
+      setTimeout(() => el.remove(), 300);
+    };
+
+    document.getElementById('dap-backdrop')?.addEventListener('click', close);
+    document.getElementById('dap-close')?.addEventListener('click', close);
+    document.getElementById('dap-add-data')?.addEventListener('click', () => {
+      close(); window.App.navigate('entry', this.client.id);
+    });
+    document.getElementById('dap-edit-client')?.addEventListener('click', () => {
+      close(); window.App.navigate('clients', this.client.id);
+    });
+    const goTab = (tab) => {
+      close();
+      this.activeTab = tab;
+      document.querySelectorAll('.detail-tab-btn')
+        .forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+      this._renderActiveTab();
+    };
+    document.getElementById('dap-history')?.addEventListener('click',  () => goTab('history'));
+    document.getElementById('dap-touches')?.addEventListener('click',  () => goTab('touches'));
+    document.getElementById('dap-notes')?.addEventListener('click',    () => goTab('notes'));
+    document.getElementById('dap-delivery')?.addEventListener('click', () => goTab('delivery'));
+    document.getElementById('dap-mc')?.addEventListener('click',       () => goTab('mc'));
+  },
+
+  /* ─── PAGE EVENTS  ─────────────────────────────────────────── */
   _bindDetailEvents() {
+    document.getElementById('btn-actions-panel')
+      ?.addEventListener('click', () => this._openActionsPanel());
+
     document.getElementById('btn-back-dash')
       ?.addEventListener('click', () => window.App.navigate('dashboard'));
 

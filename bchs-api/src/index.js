@@ -101,6 +101,36 @@ const MCEngine = {
   },
 };
 
+
+const SIGNAL_LABELS = {
+  team_scope_request: 'запрос расширения команды',
+  new_services_interest: 'интерес к новым услугам',
+  strategic_sessions: 'стратегические сессии',
+  fast_responses: 'быстрые ответы',
+  internal_events: 'внутренние мероприятия',
+  shared_business_plans: 'совместное планирование',
+  contract_renewal: 'продление контракта',
+  upsell: 'апсейл',
+  cross_sell: 'кросс-продажи',
+  positive_feedback: 'положительная обратная связь',
+  slow_responses: 'медленные ответы',
+  missed_meetings: 'пропущенные встречи',
+  no_planning: 'отсутствие планирования',
+  detailed_report_request: 'запрос детальной отчётности',
+  scope_reduction: 'сокращение объёма',
+  competitor_mentions: 'упоминание конкурентов',
+  new_decision_maker: 'новый ЛПР',
+  exit_questions: 'вопросы о выходе',
+  reduced_frequency: 'снижение частоты контактов',
+  no_growth_response: 'нет реакции на предложения роста',
+  complaint: 'жалоба',
+  payment_delay_10_30: 'задержка оплаты 10-30 дней',
+  specialist_replacement: 'замена специалиста',
+  escalation: 'эскалация',
+  payment_delay_30plus: 'задержка оплаты 30+ дней',
+  churn: 'отток',
+};
+
 /* ── Автокоррекция параметров MC под сигналы клиента ── */
 function adjustCfgBySignals(baseCfg, latestEntry) {
   const cfg = Object.assign({}, baseCfg);
@@ -692,7 +722,10 @@ export default {
           {
             role: 'system',
             content: 'Ты старший CSM-аналитик. Анализируешь клиентский аккаунт и даёшь конкретные советы. ' +
-              'Отвечай ТОЛЬКО валидным JSON без markdown и пояснений.',
+              'Пиши на русском языке для менеджера по работе с клиентами. ' +
+              'Не используй технические термины: p_churn, p_upsell, p_escalation, drift, volatility, p90, p10. ' +
+              'Вместо них пиши: вероятность оттока, потенциал роста дохода, риск эскалации. ' +
+              'Не используй английские названия сигналов. Отвечай ТОЛЬКО валидным JSON без markdown.',
           },
           {
             role: 'user',
@@ -704,11 +737,13 @@ export default {
               'История bCHS: ' + (bchsHistory.length
                 ? bchsHistory.map(h => h.month + '/' + h.year + ':' + h.bchs).join(', ')
                 : 'нет истории') + '\n\n' +
-              'Параметры симуляции (клиент сам гоняет Monte Carlo):\n' +
-              '  drift=' + cfg.drift + ', volatility=' + cfg.volatility +
-              ', p_churn=' + cfg.p_churn + ', p_escalation=' + cfg.p_escalation +
-              ', p_upsell=' + cfg.p_upsell + ', monthly_revenue=' + cfg.monthly_revenue + '\n\n' +
-              'АКТИВНЫЕ СИГНАЛЫ: ' + (activeSignals.length ? activeSignals.join(', ') : 'нет') + '\n\n' +
+              'Параметры риска:\n' +
+              '  базовый доход $' + cfg.monthly_revenue +
+              ', вероятность оттока ' + Math.round(cfg.p_churn * 100) + '%' +
+              ', вероятность роста дохода ' + Math.round(cfg.p_upsell * 100) + '%\n\n' +
+              'АКТИВНЫЕ СИГНАЛЫ: ' + (activeSignals.length
+                ? activeSignals.map(k => SIGNAL_LABELS[k] || k).join(', ')
+                : 'нет') + '\n\n' +
               'ПОСЛЕДНИЕ КАСАНИЯ:\n' +
               (recentTouchSummaries.length ? recentTouchSummaries.map(s => '- ' + s).join('\n') : 'нет данных') + '\n\n' +
               'ТЕКУЩАЯ СТРАТЕГИЯ: ' + (currentStrat ? (currentStrat.focus || currentStrat.goal || '—') : 'не задана') + '\n\n' +

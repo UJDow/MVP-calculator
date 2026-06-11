@@ -164,6 +164,29 @@ function adjustCfgBySignals(baseCfg, latestEntry) {
   return cfg;
 }
 
+function applyScenarioCfg(baseCfg, scenario, bcgCategory, currentChurn3m) {
+  const cfg = { ...baseCfg };
+  const { loyaltyDelta = 0, loyaltySegment = 'ALL', reduceRisk = false, reduceRiskSegment = 'ALL' } = scenario;
+
+  const loyaltyMatch = loyaltySegment === 'ALL' || loyaltySegment === bcgCategory;
+  if (loyaltyMatch && loyaltyDelta !== 0) {
+    cfg.drift        += loyaltyDelta * 0.04;
+    cfg.p_churn       = Math.max(0.003, cfg.p_churn * (1 - loyaltyDelta * 0.008));
+    cfg.equilibrium   = Math.min(85, (cfg.equilibrium || 50) + loyaltyDelta * 0.5);
+  }
+
+  const riskMatch = reduceRiskSegment === 'ALL' || reduceRiskSegment === bcgCategory;
+  if (reduceRisk && riskMatch && currentChurn3m >= 15) {
+    cfg.p_churn       = Math.min(cfg.p_churn, 0.012);
+    cfg.p_escalation  = (cfg.p_escalation  || 0.12) * 0.4;
+    cfg.p_complaint   = (cfg.p_complaint   || 0.18) * 0.5;
+    cfg.drift        += 0.6;
+  }
+
+  return cfg;
+}
+
+
 /* ── Вычисление bCHS из сигналов (зеркало js/constants.js + js/calc.js) ── */
 const SIGNAL_WEIGHTS = {
   team_scope_request:      +5,
@@ -638,6 +661,14 @@ async function buildMessages(body, env) {
     ];
   }
 
+  if (type === 'portfolio_scenario_horizons') {
+    const prompt = body.prompt ?? '';
+    return [
+      { role: 'system', content: 'Ты стратегический CSM-советник. Отвечай строго по заданной структуре без лишних слов.' },
+      { role: 'user', content: prompt },
+    ];
+  }
+
   return body.messages ?? [];
 }
 
@@ -682,33 +713,130 @@ export default {
 
     /* ── Portfolio KPI Cache ── */
     if (path === '/portfolio/summary/save' && method === 'POST') {
-    try {
-      const body2   = await req.json();
-      const period  = body2.period  || new Date().toISOString().slice(0, 7);
-      const snapshot = body2.snapshot;
-      const mc_agg   = body2.mc_agg || null;
-      if (!snapshot) return Response.json({ error: 'snapshot required' }, { status: 400 });
+      try {
+        const body2    = await request.json();
+        const period   = body2.period || new Date().toISOString().slice(0, 7);
+        const snapshot = body2.snapshot;
+        const mc_agg   = body2.mc_agg || null;
+        if (!snapshot) return json({ error: 'snapshot required' }, 400);
 
-      // Проверяем есть ли уже запись за этот период
-      const existing = await env.DB.prepare(
-        'SELECT id FROM portfolio_summary WHERE period = ? ORDER BY created_at DESC LIMIT 1'
-      ).bind(period).first();
+        const existing = await env.DB.prepare(
+          'SELECT id FROM portfolio_summary WHERE period = ? ORDER BY created_at DESC LIMIT 1'
+        ).bind(period).first();
 
-      if (existing) {
-        await env.DB.prepare(
-          'UPDATE portfolio_summary SET snapshot = ?, mc_agg = ? WHERE id = ?'
-        ).bind(JSON.stringify(snapshot), mc_agg ? JSON.stringify(mc_agg) : null, existing.id).run();
-      } else {
-        const newId = crypto.randomUUID();
-        await env.DB.prepare(
-          'INSERT INTO portfolio_summary (id, period, snapshot, mc_agg) VALUES (?, ?, ?, ?)'
-        ).bind(newId, period, JSON.stringify(snapshot), mc_agg ? JSON.stringify(mc_agg) : null).run();
+        if (existing) {
+          await env.DB.prepare(
+            'UPDATE portfolio_summary SET snapshot = ?, mc_agg = ? WHERE id = ?'
+          ).bind(JSON.stringify(snapshot), mc_agg ? JSON.stringify(mc_agg) : null, existing.id).run();
+        } else {
+          const newId = crypto.randomUUID();
+          await env.DB.prepare(
+            'INSERT INTO portfolio_summary (id, period, snapshot, mc_agg) VALUES (?, ?, ?, ?)'
+          ).bind(newId, period, JSON.stringify(snapshot), mc_agg ? JSON.stringify(mc_agg) : null).run();
+        }
+        return json({ ok: true, period });
+      } catch(e) {
+        return json({ error: e.message }, 500);
       }
-      return Response.json({ ok: true, period });
-    } catch(e) {
-      return Response.json({ error: e.message }, { status: 500 });
     }
-  }
+
+
+    if (path === '/portfolio/mc/scenario' && method === 'POST') {
+      try {
+        const body = await request.json();
+        const { loyaltyDelta = 0, loyaltySegment = 'ALL',
+                reduceRisk = false, reduceRiskSegment = 'ALL',
+                newClients = 0, newClientMR = 5000 } = body;
+
+        const [{ results: clients }, { results: mcConfigs }, { results: bchsEntries }] = await Promise.all([
+          env.DB.prepare('SELECT * FROM clients LIMIT 500').all(),
+          env.DB.prepare('SELECT * FROM mc_configs LIMIT 500').all(),
+          env.DB.prepare('SELECT * FROM bchs_entries ORDER BY year DESC, month DESC LIMIT 2000').all(),
+        ]);
+
+        // Последняя запись bCHS на клиента
+        const latestBchs = {};
+        for (const b of bchsEntries) {
+          const cid = String(b.client_id);
+          if (!latestBchs[cid]) latestBchs[cid] = b;
+        }
+
+        const perClient = [];
+
+        for (const client of clients) {
+          const cid   = String(client.id);
+          const entry = latestBchs[cid] ?? null;
+          const bchs  = bchsNorm(entry) ?? 50;
+          const mr    = client.monthly_revenue || 5000;
+          const bcg   = client.bcg_category || 'TAIL';
+          const savedCfg = mcConfigs.find(x => String(x.client_id) === cid) || {};
+
+          // Базовый cfg
+          let baseCfg = Object.assign({}, MCEngine.DEFAULTS, { monthly_revenue: mr }, savedCfg);
+          baseCfg     = adjustCfgBySignals(baseCfg, entry);
+
+          // Базовый прогноз
+          const baseResult  = MCEngine.run(bchs, baseCfg);
+          const churn3base  = baseResult.horizons['3m'].churn_rate;
+
+          // Сценарный cfg
+          const scenCfg = applyScenarioCfg(baseCfg, {
+            loyaltyDelta, loyaltySegment, reduceRisk, reduceRiskSegment,
+          }, bcg, churn3base);
+
+          const scenResult = MCEngine.run(bchs, scenCfg);
+
+          perClient.push({ id: cid, name: client.name, bcg, mr, bchs, base: baseResult, scen: scenResult });
+        }
+
+        // Синтетические новые клиенты
+        for (let i = 0; i < Math.min(newClients, 10); i++) {
+          const synthCfg = Object.assign({}, MCEngine.DEFAULTS, { monthly_revenue: newClientMR });
+          const synthRes = MCEngine.run(45, synthCfg);
+          perClient.push({
+            id: 'new_' + i, name: 'Новый клиент ' + (i + 1),
+            bcg: 'GROWTH_EARLY', mr: newClientMR, bchs: 45,
+            base: synthRes, scen: synthRes,
+          });
+        }
+
+        const avg = arr => arr.reduce((a, b) => a + b, 0) / (arr.length || 1);
+        const agg = h => ({
+          base:        avg(perClient.map(r => r.base.horizons[h].churn_rate)),
+          scen:        avg(perClient.map(r => r.scen.horizons[h].churn_rate)),
+          baseBchs:    avg(perClient.map(r => r.base.horizons[h].bchs.median)),
+          scenBchs:    avg(perClient.map(r => r.scen.horizons[h].bchs.median)),
+          baseMR:      perClient.reduce((s, r) => s + r.base.horizons[h].mr.mean, 0),
+          scenMR:      perClient.reduce((s, r) => s + r.scen.horizons[h].mr.mean, 0),
+          baseAtRisk:  perClient.filter(r => r.base.horizons[h].churn_rate >= 15).length,
+          scenAtRisk:  perClient.filter(r => r.scen.horizons[h].churn_rate >= 15).length,
+          baseMrAtRisk: perClient.filter(r => r.base.horizons[h].churn_rate >= 15).reduce((s,r) => s+r.mr, 0),
+          scenMrAtRisk: perClient.filter(r => r.scen.horizons[h].churn_rate >= 15).reduce((s,r) => s+r.mr, 0),
+        });
+
+        // Топ-5 по изменению риска
+        const topChanged = [...perClient]
+          .filter(r => !String(r.id).startsWith('new_'))
+          .map(r => ({
+            id: r.id, name: r.name, bcg: r.bcg, mr: r.mr,
+            baseChurn3: r.base.horizons['3m'].churn_rate,
+            scenChurn3: r.scen.horizons['3m'].churn_rate,
+            delta: r.scen.horizons['3m'].churn_rate - r.base.horizons['3m'].churn_rate,
+          }))
+          .sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta))
+          .slice(0, 5);
+
+        return json({
+          ok: true,
+          totalClients: perClient.length,
+          horizons: { '3m': agg('3m'), '6m': agg('6m'), '12m': agg('12m') },
+          topChanged,
+        });
+      } catch(e) {
+        console.error('[/portfolio/mc/scenario]', e.message);
+        return json({ error: e.message }, { status: 500 });
+      }
+    }
 
   if (path === '/portfolio/kpi/save' && method === 'POST') {
       try {

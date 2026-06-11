@@ -6,6 +6,7 @@
 import { API }  from '../api.js';
 import { Calc } from '../calc.js';
 import { BCG_CATEGORIES } from '../constants.js';
+import { runPortfolioScenario } from '../portfolio_mc.js';
 
 /* ── SVG иконки ── */
 const ic = {
@@ -403,7 +404,8 @@ export const PortfolioPage = {
   ${this._summaryHTML(summary, computed)}
 
   <div class="pf-section-head" style="margin-top:28px">
-    <div class="pf-section-title">Стратегические горизонты</div>
+    <div id="pf-mc-planner"></div>
+  <div class="pf-section-title">Стратегические горизонты</div>
     <label class="pf-ai-mode-toggle">
       <input type="checkbox" id="pf-ai-mode-sw">
       <span class="pf-ai-mode-track">
@@ -433,6 +435,7 @@ export const PortfolioPage = {
 
       // Рендерим графики
       this._renderPortfolioCharts(computed);
+      this._renderMCPlanner(computed);
 
       // Загружаем кеш инсайтов один раз
       let _cachedInsights = {};
@@ -3700,4 +3703,305 @@ document.getElementById('pf-ai-mode-sw')
     setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 1000);
     window.App.toast('CSV экспортирован', 'success');
   },
+  /* ══════════════════════════════════════════
+     MC СЦЕНАРНЫЙ ПЛАНИРОВЩИК
+  ══════════════════════════════════════════ */
+  _renderMCPlanner(computed) {
+    const el = document.getElementById('pf-mc-planner');
+    if (!el) return;
+    el.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text-muted);font-size:13px">Загрузка MC...</div>';
+    // Инициализация после вставки DOM
+    setTimeout(() => this._initMCPlanner(computed), 0);
+  },
+
+  async _initMCPlanner(computed) {
+    const el = document.getElementById('pf-mc-planner');
+    if (!el) return;
+
+    const totalMR    = computed.reduce((s,r) => s + (r.client.monthly_revenue||0), 0);
+    const avgLoyalty = computed.length ? Math.round(computed.reduce((s,r) => s+(r.loyalty??0),0)/computed.length) : 0;
+    const atRisk     = computed.filter(r => (r.bchs??100) < 30 || (r.revenueAtRisk||0) > 0).length;
+    const totalRAR   = computed.reduce((s,r) => s + (r.revenueAtRisk||0), 0);
+    const potMR      = computed.reduce((s,r) => s + (r.client.potential_revenue||r.client.monthly_revenue||0), 0);
+    const realization = potMR > 0 ? Math.round(totalMR / potMR * 100) : 0;
+
+    if (!document.getElementById('pf-mc-style')) {
+      const s = document.createElement('style'); s.id = 'pf-mc-style';
+      s.textContent = '.pf-studio{margin:4px 0 24px}'
+        + '.pf-studio-inner{background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:24px 28px;color:#1e293b;box-shadow:0 1px 4px rgba(0,0,0,.06)}'
+        + '.pf-studio-header{font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:#94a3b8;display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}'
+        + '.pf-studio-tabs{display:flex;gap:4px;background:#f1f5f9;border-radius:8px;padding:3px}'
+        + '.pf-studio-tab{background:transparent;border:none;border-radius:6px;padding:5px 14px;font-size:12px;font-weight:600;color:#64748b;cursor:pointer;font-family:inherit;transition:all .15s}'
+        + '.pf-studio-tab--active{background:#fff;color:#6366f1;box-shadow:0 1px 3px rgba(0,0,0,.1)}'
+        + '.pf-studio-grid{display:grid;grid-template-columns:1fr 1fr;gap:32px}'
+        + '.pf-studio-col-title{font-size:12px;color:#64748b;margin-bottom:16px;font-weight:600}'
+        + '.pf-studio-slider-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;gap:12px}'
+        + '.pf-studio-slider-label{font-size:13px;color:#475569;min-width:130px}'
+        + '.pf-studio-slider-ctrl{display:flex;align-items:center;gap:10px;flex:1;justify-content:flex-end}'
+        + '.pf-studio-slider-ctrl input[type=range]{width:100px;accent-color:#6366f1;cursor:pointer}'
+        + '.pf-studio-val{font-size:13px;font-weight:700;color:#6366f1;min-width:48px;text-align:right;font-family:"SF Mono",monospace}'
+        + '.pf-studio-metrics{display:flex;flex-direction:column;gap:10px}'
+        + '.pf-studio-metric-row{display:flex;justify-content:space-between;align-items:baseline;font-size:13px}'
+        + '.pf-studio-metric-key{color:#64748b}'
+        + '.pf-studio-metric-vals{display:flex;align-items:center;gap:6px;font-family:"SF Mono",monospace}'
+        + '.pf-studio-metric-base{color:#94a3b8}'
+        + '.pf-studio-metric-arrow{color:#cbd5e1;font-size:11px}'
+        + '.pf-studio-metric-scen{font-weight:700}'
+        + '.pf-studio-metric-scen.good{color:#16a34a}'
+        + '.pf-studio-metric-scen.bad{color:#dc2626}'
+        + '.pf-studio-metric-scen.neu{color:#64748b}'
+        + '.pf-studio-prob-row{margin-top:16px;padding-top:14px;border-top:1px solid #f1f5f9;display:flex;align-items:center;gap:12px}'
+        + '.pf-studio-prob-label{font-size:12px;color:#64748b}'
+        + '.pf-studio-prob-val{font-size:22px;font-weight:800;font-family:"SF Mono",monospace}'
+        + '.pf-studio-prob-bar{flex:1;height:4px;background:#e2e8f0;border-radius:2px;overflow:hidden}'
+        + '.pf-studio-prob-fill{height:100%;border-radius:2px;transition:width .5s,background .5s}'
+        + '.pf-studio-btn-row{margin-top:20px;display:flex;align-items:center;gap:14px}'
+        + '.pf-studio-btn{background:#6366f1;color:#fff;border:none;border-radius:8px;padding:10px 20px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;transition:opacity .2s}'
+        + '.pf-studio-btn:hover{opacity:.85}.pf-studio-btn:disabled{opacity:.45;cursor:not-allowed}'
+        + '.pf-studio-btn-status{font-size:12px;color:#94a3b8;font-family:"SF Mono",monospace}'
+        + '.pf-studio-kpi-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:14px 16px;margin-bottom:20px}'
+        + '.pf-studio-kpi-label{color:#94a3b8;display:block;margin-bottom:2px;font-size:11px}'
+        + '.pf-studio-kpi-val{color:#1e293b;font-size:15px;font-weight:700;display:block}'
+        + '.pf-studio-placeholder{font-size:12px;color:#cbd5e1;padding:4px 0}'
+        + '@media(max-width:860px){.pf-studio-grid{grid-template-columns:1fr}}';
+      document.head.appendChild(s);
+    }
+
+    const targets = { loyalty:avgLoyalty, atRisk, newClients:0, newClientMR:5000 };
+    let _last = null, _timer = null;
+    const fmtMR    = v => '$' + Math.round(v/1000) + 'K';
+    const fmtPct   = v => v.toFixed(1) + '%';
+    const probColor = p => p >= 70 ? '#34d399' : p >= 45 ? '#fbbf24' : '#f87171';
+    const calcProb  = (ld, rd, nc, s3) => Math.min(95, Math.max(10, 50 + ld*1.2 + (rd<0?-rd*4:rd*-3) + nc*3 - (s3>20?10:0)));
+
+    el.innerHTML = '<div class="pf-studio"><div class="pf-studio-inner">'
+      + '<div class="pf-studio-header"><span>Сценарная студия</span>'
+      + '<div class="pf-studio-tabs" id="st-tabs">'
+      + '<button class="pf-studio-tab pf-studio-tab--active" data-tab="scenario">Сценарий</button>'
+      + '<button class="pf-studio-tab" data-tab="strategy">Стратегия сейчас</button>'
+      + '</div></div>'
+      + '<div id="st-strategy-panel" style="display:none">'
+      + '<div style="color:#475569;font-size:13px;line-height:1.7;margin-bottom:20px">AI проанализирует весь портфель и заполнит горизонты конкретным планом действий.</div>'
+      + '<div class="pf-studio-kpi-grid">'
+      + '<div><span class="pf-studio-kpi-label">Клиентов</span><span class="pf-studio-kpi-val" id="st-s-clients">-</span></div>'
+      + '<div><span class="pf-studio-kpi-label">MR портфеля</span><span class="pf-studio-kpi-val" id="st-s-mr">-</span></div>'
+      + '<div><span class="pf-studio-kpi-label">Лояльность</span><span class="pf-studio-kpi-val" id="st-s-loyalty">-</span></div>'
+      + '<div><span class="pf-studio-kpi-label">В риске</span><span class="pf-studio-kpi-val" id="st-s-risk" style="color:#dc2626">-</span></div>'
+      + '<div><span class="pf-studio-kpi-label">Rev at Risk</span><span class="pf-studio-kpi-val" id="st-s-rar" style="color:#f59e0b">-</span></div>'
+      + '<div><span class="pf-studio-kpi-label">Реализация</span><span class="pf-studio-kpi-val" id="st-s-real" style="color:#6366f1">-</span></div>'
+      + '</div>'
+      + '<div class="pf-studio-btn-row">'
+      + '<button class="pf-studio-btn" id="st-now-btn">&#9889; Построить стратегию портфеля</button>'
+      + '<span class="pf-studio-btn-status" id="st-now-status"></span>'
+      + '</div></div>'
+      + '<div id="st-scenario-panel">'
+      + '<div class="pf-studio-grid"><div>'
+      + '<div class="pf-studio-col-title">Целевое состояние портфеля</div>'
+      + '<div class="pf-studio-slider-row"><span class="pf-studio-slider-label">Лояльность</span>'
+      + '<div class="pf-studio-slider-ctrl"><input type="range" id="st-loyalty" min="' + Math.max(0,avgLoyalty-20) + '" max="' + Math.min(100,avgLoyalty+40) + '" value="' + avgLoyalty + '" step="1">'
+      + '<span class="pf-studio-val" id="st-loyalty-val">' + avgLoyalty + '%</span></div></div>'
+      + '<div class="pf-studio-slider-row"><span class="pf-studio-slider-label">Клиентов в риске</span>'
+      + '<div class="pf-studio-slider-ctrl"><input type="range" id="st-atrisk" min="0" max="' + Math.max(atRisk+2,5) + '" value="' + atRisk + '" step="1">'
+      + '<span class="pf-studio-val" id="st-atrisk-val">' + atRisk + '</span></div></div>'
+      + '<div class="pf-studio-slider-row"><span class="pf-studio-slider-label">Новых клиентов</span>'
+      + '<div class="pf-studio-slider-ctrl"><input type="range" id="st-newcli" min="0" max="10" value="0" step="1">'
+      + '<span class="pf-studio-val" id="st-newcli-val">+0</span></div></div>'
+      + '<div class="pf-studio-slider-row" id="st-newmr-row" style="opacity:.35;pointer-events:none"><span class="pf-studio-slider-label">Avg MR новых</span>'
+      + '<div class="pf-studio-slider-ctrl"><input type="range" id="st-newmr" min="1000" max="30000" value="5000" step="500">'
+      + '<span class="pf-studio-val" id="st-newmr-val">$5K</span></div></div>'
+      + '</div>'
+      + '<div><div class="pf-studio-col-title">Текущее &rarr; Цель</div>'
+      + '<div class="pf-studio-metrics" id="st-metrics"><div class="pf-studio-placeholder">// двигайте слайдеры...</div></div>'
+      + '</div></div>'
+      + '<div class="pf-studio-btn-row" id="st-btn-row" style="display:none">'
+      + '<button class="pf-studio-btn" id="st-gen-btn">[ Как прийти к этому сценарию? ]</button>'
+      + '<span class="pf-studio-btn-status" id="st-gen-status"></span>'
+      + '</div></div>'
+      + '</div></div>';
+
+    const $  = id => document.getElementById(id);
+    const on = (id, ev, fn) => $(id)?.addEventListener(ev, fn);
+
+    const setTab = tab => {
+      document.querySelectorAll('.pf-studio-tab').forEach(b =>
+        b.classList.toggle('pf-studio-tab--active', b.dataset.tab === tab)
+      );
+      const sp = $('st-scenario-panel'), np = $('st-strategy-panel');
+      if (sp) sp.style.display = tab === 'scenario' ? '' : 'none';
+      if (np) np.style.display = tab === 'strategy' ? '' : 'none';
+    };
+    document.querySelectorAll('.pf-studio-tab').forEach(b =>
+      b.addEventListener('click', () => setTab(b.dataset.tab))
+    );
+
+    const setTxt = (id, val) => { const e = $(id); if (e) e.textContent = val; };
+    setTxt('st-s-clients', computed.length);
+    setTxt('st-s-mr',      '$' + Math.round(totalMR/1000) + 'K');
+    setTxt('st-s-loyalty', avgLoyalty + '%');
+    setTxt('st-s-risk',    atRisk + ' кл.');
+    setTxt('st-s-rar',     '$' + Math.round(totalRAR/1000) + 'K');
+    setTxt('st-s-real',    realization + '%');
+
+    const mapHorizons = (text) => {
+      const parseBlock = m => {
+        const rx = new RegExp(m + '[^\\n]*\\n([\\s\\S]+?)(?=КРАТКОСРОЧНАЯ|СРЕДНЕСРОЧНАЯ|ДОЛГОСРОЧНАЯ|$)', 'i');
+        const mt = text.match(rx); return mt ? mt[1].trim() : '';
+      };
+      const parseField = (b, f) => {
+        const rx = new RegExp(f + '[:\\s]+([^\\n]+)', 'i');
+        const mt = b.match(rx); return mt ? mt[1].trim() : '';
+      };
+      const blocks = { short: parseBlock('КРАТКОСРОЧНАЯ'), mid: parseBlock('СРЕДНЕСРОЧНАЯ'), long: parseBlock('ДОЛГОСРОЧНАЯ') };
+      ['short','mid','long'].forEach(key => {
+        const block = blocks[key]; if (!block) return;
+        const focus = parseField(block, 'ФОКУС'), outcome = parseField(block, 'РЕЗУЛЬТАТ'), risk = parseField(block, 'РИСК');
+        const sv = (id, val) => { const e = document.getElementById(id); if (e && val) e.value = val; };
+        sv('pf-' + key + '-focus', focus); sv('pf-' + key + '-outcome', outcome); sv('pf-' + key + '-risk', risk);
+        const bodyEl = document.getElementById('pf-hz-body-' + key);
+        if (bodyEl) bodyEl.style.display = 'block';
+        const viewEl = document.getElementById('pf-hz-view-' + key);
+        if (viewEl) {
+          let vh = '<div class="pf-hz-view-grid">';
+          if (focus)   vh += '<div class="pf-hz-view-block"><div class="pf-hz-view-label">Фокус</div><div class="pf-hz-view-text">' + focus + '</div></div>';
+          if (outcome) vh += '<div class="pf-hz-view-block"><div class="pf-hz-view-label">Результат</div><div class="pf-hz-view-text">' + outcome + '</div></div>';
+          if (risk)    vh += '<div class="pf-hz-view-block"><div class="pf-hz-view-label">Риск</div><div class="pf-hz-view-text">' + risk + '</div></div>';
+          vh += '</div>';
+          viewEl.innerHTML = vh; viewEl.style.display = '';
+        }
+        const editEl = document.getElementById('pf-hz-edit-' + key);
+        if (editEl) editEl.style.display = 'none';
+        const subEl = document.querySelector('#pf-horizon-' + key + ' .pf-hz-subtitle');
+        if (subEl && focus) subEl.textContent = focus.slice(0,60) + (focus.length>60?'...':'');
+        const stEl = document.querySelector('#pf-horizon-' + key + ' .pf-hz-status');
+        if (stEl) { stEl.className = 'pf-hz-status pf-hz-status--filled'; stEl.textContent = 'Заполнено'; }
+        const hEl = document.querySelector('#pf-horizon-' + key + ' .pf-horizon-head');
+        if (hEl && !hEl.querySelector('.pf-hz-ai-badge')) {
+          const badge = document.createElement('span');
+          badge.className = 'pf-hz-ai-badge';
+          badge.textContent = '\u26a1 стратегия';
+          badge.style.cssText = 'font-size:10px;font-weight:700;color:#6366f1;background:#eef2ff;border-radius:4px;padding:2px 7px;margin-left:8px;';
+          hEl.appendChild(badge);
+        }
+      });
+    };
+
+    on('st-now-btn', 'click', async () => {
+      const btn = $('st-now-btn'), status = $('st-now-status');
+      if (!btn) return;
+      btn.disabled = true; if (status) status.textContent = '// анализирую портфель...';
+      try {
+        const clientCtx = computed.slice(0,20).map(r =>
+          r.client.name + '(' + (r.client.bcg_category||'?') + ' bchs=' + (r.bchs??'?') + ' MR=$' + (r.client.monthly_revenue||0) + ' rar=$' + (r.revenueAtRisk||0) + ')'
+        ).join(', ');
+        const prompt = 'Ты стратегический CSM. Портфель: ' + computed.length + ' клиентов, MR $' + Math.round(totalMR/1000) + 'K, лояльность ' + avgLoyalty + '%, в риске ' + atRisk + ' клиентов, Rev at Risk $' + Math.round(totalRAR) + ', реализация ' + realization + '%.\n\nКлиенты: ' + clientCtx + '\n\nПострой стратегию. Формат строго:\n\nКРАТКОСРОЧНАЯ (1 месяц):\nФОКУС: ...\nРЕЗУЛЬТАТ: ...\nРИСК: ...\n\nСРЕДНЕСРОЧНАЯ (1-2 квартала):\nФОКУС: ...\nРЕЗУЛЬТАТ: ...\nРИСК: ...\n\nДОЛГОСРОЧНАЯ (4 квартала):\nФОКУС: ...\nРЕЗУЛЬТАТ: ...\nРИСК: ...';
+        if (status) status.textContent = '// AI думает...';
+        const aiRes = await API.callAI({ type: 'portfolio_scenario_horizons', prompt });
+        const text = (aiRes && aiRes.choices && aiRes.choices[0] && aiRes.choices[0].message && aiRes.choices[0].message.content)
+          || (typeof aiRes === 'string' ? aiRes : ((aiRes && (aiRes.result || aiRes.text)) || ''));
+        mapHorizons(text);
+        if (status) status.textContent = '\u2713 горизонты обновлены';
+        setTimeout(() => { if (status) status.textContent = ''; }, 3000);
+        const hzEl = document.getElementById('pf-horizon-short');
+        if (hzEl) hzEl.scrollIntoView({ behavior:'smooth', block:'start' });
+      } catch(e) {
+        if (status) status.textContent = '// ошибка';
+        console.error('[Strategy now]', e);
+      } finally { if (btn) btn.disabled = false; }
+    });
+
+    const updateMetrics = res => {
+      const metricsEl = $('st-metrics'), btnRow = $('st-btn-row');
+      if (!metricsEl || !res) return;
+      const ld = targets.loyalty - avgLoyalty, rd = targets.atRisk - atRisk;
+      if (ld === 0 && rd === 0 && targets.newClients === 0) {
+        metricsEl.innerHTML = '<div class="pf-studio-placeholder">// двигайте слайдеры...</div>';
+        if (btnRow) btnRow.style.display = 'none'; return;
+      }
+      const h3 = res.horizons['3m'], h12 = res.horizons['12m'];
+      const prob = calcProb(ld, rd, targets.newClients, h3.scen);
+      const pc   = probColor(prob);
+      const mRow = (label, base, scen, fmt, inv) => {
+        const d = scen - base, good = inv ? d<0 : d>0;
+        const cls = Math.abs(d)<0.05 ? 'neu' : good ? 'good' : 'bad';
+        return '<div class="pf-studio-metric-row"><span class="pf-studio-metric-key">' + label + '</span>'
+          + '<span class="pf-studio-metric-vals"><span class="pf-studio-metric-base">' + fmt(base) + '</span>'
+          + '<span class="pf-studio-metric-arrow">\u2192</span>'
+          + '<span class="pf-studio-metric-scen ' + cls + '">' + fmt(scen) + '</span></span></div>';
+      };
+      metricsEl.innerHTML =
+        mRow('Отток 3M',       h3.base,          h3.scen,          fmtPct, true)
+        + mRow('Отток 12M',    h12.base,          h12.scen,         fmtPct, true)
+        + mRow('MR портфеля',  h3.baseMR,         h3.scenMR,        fmtMR,  false)
+        + mRow('В риске',      h3.baseAtRisk,     h3.scenAtRisk,    v => String(v), true)
+        + mRow('MR под угрозой', h3.baseMrAtRisk, h3.scenMrAtRisk,  fmtMR,  true)
+        + '<div class="pf-studio-prob-row"><span class="pf-studio-prob-label">Вероятность достижения</span>'
+        + '<span class="pf-studio-prob-val" style="color:' + pc + '">' + Math.round(prob) + '%</span>'
+        + '<div class="pf-studio-prob-bar"><div class="pf-studio-prob-fill" style="width:' + prob + '%;background:' + pc + '"></div></div></div>';
+      if (btnRow) btnRow.style.display = 'flex';
+    };
+
+    const recalc = () => {
+      clearTimeout(_timer);
+      _timer = setTimeout(async () => {
+        const m = $('st-metrics');
+        if (m) m.innerHTML = '<div class="pf-studio-placeholder">// расчёт...</div>';
+        try {
+          const res = await runPortfolioScenario(computed, {
+            loyaltyDelta: targets.loyalty - avgLoyalty, loyaltySegment: 'ALL',
+            reduceRisk: targets.atRisk < atRisk, reduceRiskSegment: 'ALL',
+            newClients: targets.newClients, newClientMR: targets.newClientMR,
+          });
+          _last = { res, ld: targets.loyalty-avgLoyalty, rd: targets.atRisk-atRisk };
+          updateMetrics(res);
+        } catch(e) {
+          const m2 = $('st-metrics');
+          if (m2) m2.innerHTML = '<div class="pf-studio-placeholder" style="color:#f87171">// ошибка: ' + e.message + '</div>';
+          console.error('[Studio]', e);
+        }
+      }, 400);
+    };
+
+    on('st-gen-btn', 'click', async () => {
+      if (!_last) return;
+      const btn = $('st-gen-btn'), status = $('st-gen-status');
+      btn.disabled = true; if (status) status.textContent = '// генерирую...';
+      try {
+        const res2 = _last.res, h3 = res2.horizons['3m'], h12 = res2.horizons['12m'];
+        const clientCtx = computed.slice(0,15).map(r =>
+          r.client.name + '(' + (r.client.bcg_category||'?') + ' bchs=' + (r.bchs??'?') + ' MR=$' + (r.client.monthly_revenue||0) + ')'
+        ).join(', ');
+        const parts = [];
+        if (targets.loyalty !== avgLoyalty) parts.push('Лояльность: ' + avgLoyalty + '%->' + targets.loyalty + '%');
+        if (targets.atRisk  !== atRisk)     parts.push('В риске: ' + atRisk + '->' + targets.atRisk);
+        if (targets.newClients > 0)         parts.push('+' + targets.newClients + ' новых (avg MR $' + targets.newClientMR + ')');
+        const prompt = 'Ты CSM-советник. Портфель: ' + computed.length + ' кл, MR $' + Math.round(totalMR/1000) + 'K, лояльность ' + avgLoyalty + '%, риск ' + atRisk + '.\nКлиенты: ' + clientCtx + '\nСценарий: ' + parts.join('; ') + '\nMC: 3M отток ' + h3.scen.toFixed(1) + '% (база ' + h3.base.toFixed(1) + '%), MR $' + Math.round(h3.scenMR/1000) + 'K\n\nФормат строго:\n\nКРАТКОСРОЧНАЯ (1 месяц):\nФОКУС: ...\nРЕЗУЛЬТАТ: ...\nРИСК: ...\n\nСРЕДНЕСРОЧНАЯ (1-2 квартала):\nФОКУС: ...\nРЕЗУЛЬТАТ: ...\nРИСК: ...\n\nДОЛГОСРОЧНАЯ (4 квартала):\nФОКУС: ...\nРЕЗУЛЬТАТ: ...\nРИСК: ...';
+        if (status) status.textContent = '// AI анализирует...';
+        const aiRes = await API.callAI({ type: 'portfolio_scenario_horizons', prompt });
+        const text = (aiRes && aiRes.choices && aiRes.choices[0] && aiRes.choices[0].message && aiRes.choices[0].message.content)
+          || (typeof aiRes === 'string' ? aiRes : ((aiRes && (aiRes.result || aiRes.text)) || ''));
+        mapHorizons(text);
+        const saveBar = document.getElementById('pf-save-bar');
+        if (saveBar) saveBar.classList.remove('hidden');
+        if (status) status.textContent = '// горизонты заполнены';
+        setTimeout(() => { if (status) status.textContent = ''; }, 4000);
+      } catch(e) {
+        if (status) status.textContent = '// ошибка: ' + e.message;
+        console.error('[Studio gen]', e);
+      } finally { const b = $('st-gen-btn'); if (b) b.disabled = false; }
+    });
+
+    on('st-loyalty','input', e => { targets.loyalty=+e.target.value; const v=$('st-loyalty-val'); if(v) v.textContent=targets.loyalty+'%'; recalc(); });
+    on('st-atrisk', 'input', e => { targets.atRisk=+e.target.value;  const v=$('st-atrisk-val');  if(v) v.textContent=targets.atRisk; recalc(); });
+    on('st-newcli', 'input', e => {
+      targets.newClients=+e.target.value;
+      const v=$('st-newcli-val'); if(v) v.textContent='+'+targets.newClients;
+      const r=$('st-newmr-row'); if(r) r.style.cssText=targets.newClients>0?'':'opacity:.35;pointer-events:none';
+      recalc();
+    });
+    on('st-newmr', 'input', e => { targets.newClientMR=+e.target.value; const v=$('st-newmr-val'); if(v) v.textContent='$'+Math.round(+e.target.value/1000)+'K'; recalc(); });
+
+    recalc();
+  },
+
+
 };

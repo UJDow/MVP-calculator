@@ -377,6 +377,25 @@ async function buildMessages(body, env) {
   }
 
   if (type === 'horizon') {
+    /* Загружаем KPI кеш как контекст */
+    let kpiCtx = '';
+    try {
+      const kpiRow = env ? await env.DB.prepare(
+        'SELECT kpi_snapshot, summary FROM portfolio_kpi_cache ORDER BY cached_at DESC LIMIT 1'
+      ).first() : null;
+      if (kpiRow) {
+        const kpiSnap = JSON.parse(kpiRow.kpi_snapshot || '{}');
+        const kpiSum  = JSON.parse(kpiRow.summary      || '{}');
+        kpiCtx = '\nKPI ПОРТФЕЛЯ (из кеша):\n' +
+          '- Клиентов: ' + (kpiSum.total ?? '—') + '\n' +
+          '- Ср. лояльность: ' + (kpiSum.avgLoyalty ?? '—') + '%\n' +
+          '- Revenue at Risk: $' + (kpiSum.totalRisk ?? 0) + '\n' +
+          '- Топ Priority Score: ' + (kpiSnap.topPriority ?? '—') + '\n' +
+          '- Часы vs Revenue: ' + (kpiSnap.hoursRevenue ?? '—') + '\n' +
+          '- Реализация потенциала: ' + (kpiSum.avgPotential ?? '—') + '%\n';
+      }
+    } catch(e) {}
+
     const h     = body.horizon             ?? 'short';
     const s     = body.summary             ?? {};
     const dir   = body.direction           ?? null;
@@ -442,6 +461,7 @@ async function buildMessages(body, env) {
           '- Топ-3 риска: ' + (s.top3Risk ?? 'нет') + '\n' +
           '- Средняя реализация потенциала: ' + (s.avgPotential != null ? s.avgPotential + '%' : 'нет данных') + '\n' +
           mcText + '\n' +
+          kpiCtx +
           'КЛИЕНТЫ ПОРТФЕЛЯ (топ по риску):\n' + snapText + '\n\n' +
           'УЖЕ НАПИСАННЫЕ СТРАТЕГИИ (не повторяй, развивай логику):\n' + existText + '\n\n' +
           'Верни СТРОГО валидный JSON с 3 вариантами:\n' +
@@ -659,6 +679,80 @@ export default {
     }
 
     /* ── MC Forecast (контекстный прогноз по клиенту) ── */
+
+    /* ── Portfolio KPI Cache ── */
+    if (path === '/portfolio/summary/save' && method === 'POST') {
+    try {
+      const body2   = await req.json();
+      const period  = body2.period  || new Date().toISOString().slice(0, 7);
+      const snapshot = body2.snapshot;
+      const mc_agg   = body2.mc_agg || null;
+      if (!snapshot) return Response.json({ error: 'snapshot required' }, { status: 400 });
+
+      // Проверяем есть ли уже запись за этот период
+      const existing = await env.DB.prepare(
+        'SELECT id FROM portfolio_summary WHERE period = ? ORDER BY created_at DESC LIMIT 1'
+      ).bind(period).first();
+
+      if (existing) {
+        await env.DB.prepare(
+          'UPDATE portfolio_summary SET snapshot = ?, mc_agg = ? WHERE id = ?'
+        ).bind(JSON.stringify(snapshot), mc_agg ? JSON.stringify(mc_agg) : null, existing.id).run();
+      } else {
+        const newId = crypto.randomUUID();
+        await env.DB.prepare(
+          'INSERT INTO portfolio_summary (id, period, snapshot, mc_agg) VALUES (?, ?, ?, ?)'
+        ).bind(newId, period, JSON.stringify(snapshot), mc_agg ? JSON.stringify(mc_agg) : null).run();
+      }
+      return Response.json({ ok: true, period });
+    } catch(e) {
+      return Response.json({ error: e.message }, { status: 500 });
+    }
+  }
+
+  if (path === '/portfolio/kpi/save' && method === 'POST') {
+      try {
+        const body = await request.json();
+        const { kpi_snapshot, computed_clients, summary, insights } = body;
+        if (!kpi_snapshot && !insights) return json({ error: 'kpi_snapshot or insights required' }, 400);
+        const period   = new Date().toISOString().slice(0, 7);
+        const cachedAt = new Date().toISOString();
+        const existing = await env.DB.prepare(
+          'SELECT id, insights FROM portfolio_kpi_cache WHERE period = ?'
+        ).bind(period).first();
+        if (existing) {
+          const mergedInsights = { ...JSON.parse(existing.insights || '{}'), ...(insights || {}) };
+          await env.DB.prepare(
+            'UPDATE portfolio_kpi_cache SET cached_at=?, kpi_snapshot=?, computed_clients=?, summary=?, insights=? WHERE period=?'
+          ).bind(cachedAt, JSON.stringify(kpi_snapshot||{}), JSON.stringify(computed_clients||[]), JSON.stringify(summary||{}), JSON.stringify(mergedInsights), period).run();
+        } else {
+          await env.DB.prepare(
+            'INSERT INTO portfolio_kpi_cache (id,cached_at,period,kpi_snapshot,computed_clients,summary,insights) VALUES (?,?,?,?,?,?,?)'
+          ).bind(crypto.randomUUID(), cachedAt, period, JSON.stringify(kpi_snapshot||{}), JSON.stringify(computed_clients||[]), JSON.stringify(summary||{}), JSON.stringify(insights||{})).run();
+        }
+        return json({ success: true, cached_at: cachedAt });
+      } catch (e) { return json({ error: e.message }, 500); }
+    }
+
+    if (path === '/portfolio/kpi/get' && method === 'GET') {
+      try {
+        const row = await env.DB.prepare(
+          'SELECT * FROM portfolio_kpi_cache ORDER BY cached_at DESC LIMIT 1'
+        ).first();
+        if (!row) return json({ data: null });
+        return json({
+          data: {
+            cached_at:        row.cached_at,
+            period:           row.period,
+            kpi_snapshot:     JSON.parse(row.kpi_snapshot   || '{}'),
+            computed_clients: JSON.parse(row.computed_clients|| '[]'),
+            summary:          JSON.parse(row.summary        || '{}'),
+            insights:         JSON.parse(row.insights       || '{}'),
+          }
+        });
+      } catch (e) { return json({ error: e.message }, 500); }
+    }
+
     /* ── MC Snapshot ── */
     if (path === '/mc/snapshot' && method === 'GET') {
       const clientId = url.searchParams.get('client_id');

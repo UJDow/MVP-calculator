@@ -55,6 +55,21 @@ const PF_STYLES = `
   .pf-tab svg { opacity:.7; }
   .pf-tab.active svg { opacity:1; }
 
+  .pf-kpi-refresh-btn {
+    position:absolute;top:8px;right:8px;
+    width:28px;height:28px;
+    display:none;align-items:center;justify-content:center;
+    background:rgba(99,102,241,.07);border:none;
+    border-radius:7px;
+    cursor:pointer;color:rgba(99,102,241,.35);font-size:20px;
+    transition:all .2s;z-index:10;line-height:1;padding:0;
+  }
+  .pf-kpi-refresh-btn:hover {
+    background:rgba(99,102,241,.15);
+    color:rgba(99,102,241,.9);
+  }
+  .pf-kpi-card { position:relative; }
+  .pf-kpi-card.pf-kpi-active.has-cache .pf-kpi-refresh-btn { display:flex; }
   .pf-kpi-grid {
     display:grid; grid-template-columns:repeat(auto-fit,minmax(130px,1fr));
     gap:1px; background:var(--border); border-radius:12px; overflow:hidden;
@@ -297,12 +312,16 @@ export const PortfolioPage = {
         <button class="pf-tab" data-pftab="coverage">
           Покрытие
         </button>
+        <button class="pf-tab" data-pftab="history">
+          История
+        </button>
       </div>
 
       <div style="padding-top:24px">
         <div id="pf-tab-portfolio"></div>
         <div id="pf-tab-accounts"  class="hidden"></div>
         <div id="pf-tab-coverage"  class="hidden"></div>
+        <div id="pf-tab-history"   class="hidden"></div>
       </div>
     `;
 
@@ -313,11 +332,12 @@ export const PortfolioPage = {
         document.querySelectorAll('[data-pftab]').forEach(b =>
           b.classList.toggle('active', b.dataset.pftab === tab)
         );
-        ['portfolio', 'accounts', 'coverage'].forEach(t =>
+        ['portfolio', 'accounts', 'coverage', 'history'].forEach(t =>
           document.getElementById(`pf-tab-${t}`)?.classList.toggle('hidden', t !== tab)
         );
         if (tab === 'accounts') this._renderAccountsTab();
         if (tab === 'coverage') this._renderCoverageTab();
+        if (tab === 'history')  this._renderHistoryTab();
       });
     });
 
@@ -327,6 +347,33 @@ export const PortfolioPage = {
   /* ══════════════════════════════════════════
      ТАБ 1 — СТРАТЕГИЯ ПОРТФЕЛЯ
   ══════════════════════════════════════════ */
+  /* ── KPI Insight cache helpers ── */
+  async _saveInsight(key, text) {
+    try {
+      const existing = await API.getPortfolioKpi();
+      const insights = (existing?.data?.insights) ? { ...existing.data.insights } : {};
+      insights[key] = { text, cached_at: new Date().toISOString() };
+      const kpiSnap = existing?.data?.kpi_snapshot || {};
+      const summ    = existing?.data?.summary      || {};
+      await API.savePortfolioKpi(kpiSnap, existing?.data?.computed_clients || [], summ, insights);
+    } catch(e) { console.warn('[_saveInsight]', e.message); }
+  },
+
+  _renderInsightWithCache(el, key, cachedInsights, loadFn) {
+    if (el.dataset.loaded) return;
+    const cached = cachedInsights?.[key];
+    if (cached?.text) {
+      const d = new Date(cached.cached_at);
+      const dateStr = d.toLocaleDateString('ru-RU', { day:'2-digit', month:'2-digit' })
+        + ' ' + d.toLocaleTimeString('ru-RU', { hour:'2-digit', minute:'2-digit' });
+      el.dataset.loaded = '1';
+      el.innerHTML = '<div style="font-size:12px;color:#374151;line-height:1.7">' + cached.text + '</div>'
+        + '<div style="margin-top:5px;font-size:10px;color:#c4c9d4">Кеш от ' + dateStr + '</div>';
+      return true;
+    }
+    return false;
+  },
+
   async _renderPortfolioTab() {
     const el = document.getElementById('pf-tab-portfolio');
     el.innerHTML = `<div style="padding:40px;text-align:center;color:var(--text-muted);
@@ -377,76 +424,7 @@ export const PortfolioPage = {
     </button>
   </div>
 
-  <!-- Аналитика портфеля -->
-  <div style="margin-top:32px">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
-      <div style="font-size:15px;font-weight:700;color:var(--text-primary)">Аналитика портфеля</div>
-      <button id="pf-ai-analyze-btn"
-              style="display:flex;align-items:center;gap:6px;padding:7px 14px;
-                     border:1px solid #6366f1;border-radius:8px;background:#fff;
-                     color:#6366f1;font-size:12px;font-weight:600;cursor:pointer">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-             stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/>
-        </svg>
-        AI-анализ портфеля
-      </button>
-    </div>
 
-    <!-- AI инсайт панель -->
-    <div id="pf-ai-insight-panel" style="display:none;background:#f8f7ff;border:1px solid #e0e7ff;
-         border-radius:12px;padding:16px;margin-bottom:20px;position:relative">
-      <div style="font-size:11px;font-weight:600;color:#6366f1;text-transform:uppercase;
-                  letter-spacing:.06em;margin-bottom:8px">AI · Анализ портфеля</div>
-      <div id="pf-ai-insight-text" style="font-size:13px;color:var(--text-primary);
-           line-height:1.6;white-space:pre-wrap"></div>
-    </div>
-
-    <!-- Графики: 2 колонки -->
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
-
-      <!-- Клиенты по BCG -->
-      <div style="background:var(--surface);border:1px solid var(--border);
-                  border-radius:12px;padding:16px">
-        <div style="font-size:12px;font-weight:600;color:var(--text-muted);
-                    text-transform:uppercase;letter-spacing:.05em;margin-bottom:14px">
-          Распределение по BCG
-        </div>
-        <div id="pf-chart-bcg" style="display:flex;align-items:center;gap:20px"></div>
-      </div>
-
-      <!-- Лояльность -->
-      <div style="background:var(--surface);border:1px solid var(--border);
-                  border-radius:12px;padding:16px">
-        <div style="font-size:12px;font-weight:600;color:var(--text-muted);
-                    text-transform:uppercase;letter-spacing:.05em;margin-bottom:14px">
-          Лояльность клиентов
-        </div>
-        <div id="pf-chart-loyalty" style="display:flex;flex-direction:column;gap:6px"></div>
-      </div>
-
-      <!-- Revenue at Risk -->
-      <div style="background:var(--surface);border:1px solid var(--border);
-                  border-radius:12px;padding:16px">
-        <div style="font-size:12px;font-weight:600;color:var(--text-muted);
-                    text-transform:uppercase;letter-spacing:.05em;margin-bottom:14px">
-          Revenue at Risk (топ клиенты)
-        </div>
-        <div id="pf-chart-risk" style="display:flex;flex-direction:column;gap:6px"></div>
-      </div>
-
-      <!-- Реализация потенциала -->
-      <div style="background:var(--surface);border:1px solid var(--border);
-                  border-radius:12px;padding:16px">
-        <div style="font-size:12px;font-weight:600;color:var(--text-muted);
-                    text-transform:uppercase;letter-spacing:.05em;margin-bottom:14px">
-          Реализация потенциала
-        </div>
-        <div id="pf-chart-potential" style="display:flex;flex-direction:column;gap:6px"></div>
-      </div>
-
-    </div>
-  </div>
 `;
 
 
@@ -455,6 +433,69 @@ export const PortfolioPage = {
 
       // Рендерим графики
       this._renderPortfolioCharts(computed);
+
+      // Загружаем кеш инсайтов один раз
+      let _cachedInsights = {};
+      const _cardLoaders = {};
+      try {
+        const _kpiCache = await API.getPortfolioKpi();
+        _cachedInsights = _kpiCache?.data?.insights || {};
+        // Помечаем карточки с кешем
+        const cardKeyMap = { clients:'bcg', priority_revenue:'priority', hours_revenue:'hours', risk:'risk', potential:'potential', revenue_bcg:'revenue_bcg' };
+        Object.entries(cardKeyMap).forEach(([cardId, insightKey]) => {
+          if (_cachedInsights[insightKey]?.text) {
+            const cardEl = document.querySelector('.pf-kpi-card[data-card="' + cardId + '"]');
+            if (cardEl) cardEl.classList.add('has-cache');
+          }
+        });
+      } catch(e) {}
+
+      // Автосохранение KPI в кеш
+      try {
+        const kpiSnapshot = {
+          topPriority:  summary.top3Risk ? summary.top3Risk.split(',')[0]?.trim() : null,
+          hoursRevenue: summary.avgLoyalty ? (summary.avgLoyalty + '% loyalty') : null,
+          cachedAt:     new Date().toISOString(),
+        };
+        API.savePortfolioKpi(kpiSnapshot, computed.slice(0, 50).map(r => ({
+          id: r.client.id, name: r.client.name, bcg: r.client.bcg_category,
+          bchs: r.bchs, loyalty: r.loyalty, mr: r.client.monthly_revenue || 0,
+          risk: r.risk || 0, trend: r.trend?.label || null,
+          priority_score: r.priority_score || null,
+        })), summary).catch(() => {});
+      } catch(e) {}
+
+      // Кнопка ручного обновления кеша
+      document.getElementById('pf-refresh-kpi-btn')?.addEventListener('click', async () => {
+        const btn = document.getElementById('pf-refresh-kpi-btn');
+        btn.disabled = true;
+        btn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/></svg> Сохраняю...';
+        try {
+          const kpiSnapshot = {
+            topPriority: summary.top3Risk || null,
+            hoursRevenue: summary.avgLoyalty ? (summary.avgLoyalty + '% loyalty') : null,
+            cachedAt: new Date().toISOString(),
+          };
+          const computedForSave = computed.slice(0, 50).map(r => ({
+            id: r.client.id, name: r.client.name, bcg: r.client.bcg_category,
+            bchs: r.bchs, loyalty: r.loyalty, mr: r.client.monthly_revenue || 0,
+            risk: r.risk || 0, trend: r.trend?.label || null,
+            priority_score: r.priority_score || null,
+          }));
+          await Promise.all([
+            API.savePortfolioKpi(kpiSnapshot, computedForSave, summary),
+            API.savePortfolioSummary(computedForSave, summary?.mcAgg || null),
+          ]);
+          const now = new Date().toLocaleTimeString('ru-RU', {hour:'2-digit', minute:'2-digit'});
+          btn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> Кеш ' + now;
+          btn.style.color = '#10b981';
+          btn.style.borderColor = '#10b981';
+        } catch(e) {
+          btn.innerHTML = '✗ Ошибка';
+          btn.style.color = '#ef4444';
+        }
+        btn.disabled = false;
+      });
 
       // AI анализ портфеля
       document.getElementById('pf-ai-analyze-btn')?.addEventListener('click', async () => {
@@ -544,6 +585,25 @@ export const PortfolioPage = {
               window.App.navigate('detail', goBtn.dataset.id);
               return;
             }
+            // Клик на кнопку обновления кеша
+            const refreshBtn = e.target.closest('[data-refresh-card]');
+            if (refreshBtn) {
+              e.stopPropagation();
+              const cardId = refreshBtn.dataset.refreshCard;
+              const keyMap = { clients:'bcg', priority_revenue:'priority', hours_revenue:'hours', risk:'risk', potential:'potential', revenue_bcg:'revenue_bcg' };
+              const insightIdMap = { clients:'bcg-ai-insight', priority_revenue:'ps-ai-insight', hours_revenue:'hr-ai-insight', risk:'risk-ai-insight', potential:'potential-ai-insight', revenue_bcg:'revenue-bcg-ai-insight' };
+              const insightKey = keyMap[cardId];
+              const insightElId = insightIdMap[cardId];
+              if (insightKey) delete _cachedInsights[insightKey];
+              const insightEl = document.getElementById(insightElId);
+              if (insightEl) { insightEl.dataset.loaded = ''; insightEl.innerHTML = ''; }
+              const cardEl = document.querySelector('.pf-kpi-card[data-card="' + cardId + '"]');
+              if (cardEl) cardEl.classList.remove('has-cache');
+              // Запускаем загрузку заново
+              if (_cardLoaders[cardId]) _cardLoaders[cardId]();
+              return;
+            }
+
             const card = e.target.closest('.pf-kpi-card');
             if (!card) return;
             if (e.target.closest('.pf-kpi-card-close')) { collapse(); return; }
@@ -579,13 +639,13 @@ export const PortfolioPage = {
 
             // AI анализ при раскрытии карточки clients
             if (card.dataset.card === 'clients') {
-              const insightEl = document.getElementById('bcg-ai-insight');
-              if (insightEl && !insightEl.dataset.loaded) {
+              const _doLoadClients = async () => {
+                const insightEl = document.getElementById('bcg-ai-insight');
+                if (!insightEl) return;
                 insightEl.dataset.loaded = '1';
-                insightEl.innerHTML = `<div style="display:flex;align-items:center;gap:6px;color:#6366f1;font-size:11px">
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>
-                  Анализирую портфель...
-                </div>`;
+                insightEl.innerHTML = '<div style="display:flex;align-items:center;gap:6px;color:#6366f1;font-size:11px">'
+                  + '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/>' + '</svg>'
+                  + ' Анализирую портфель...</div>';
                 try {
                   console.log('[BCG AI] summary:', summary);
                   console.log('[BCG AI] computed length:', computed?.length);
@@ -609,10 +669,19 @@ export const PortfolioPage = {
                     const parsed = JSON.parse(content);
                     bcgText = parsed.bcg ?? parsed.insight ?? content;
                   } catch (_) { bcgText = content; }
-                  insightEl.innerHTML = `<div style="font-size:12px;color:#374151;line-height:1.7">${bcgText}</div>`;
+                  insightEl.innerHTML = '<div style="font-size:12px;color:#374151;line-height:1.7">' + bcgText + '</div>';
+                  this._saveInsight('bcg', bcgText);
+                  _cachedInsights['bcg'] = { text: bcgText, cached_at: new Date().toISOString() };
+                  card.classList.add('has-cache');
                 } catch (e) {
-                  insightEl.innerHTML = `<div style="font-size:11px;color:#ef4444">Ошибка: ${e.message}</div>`;
+                  insightEl.innerHTML = '<div style="font-size:11px;color:#ef4444">Ошибка: ' + e.message + '</div>';
                 }
+              };
+              const insightEl = document.getElementById('bcg-ai-insight');
+              _cardLoaders['clients'] = _doLoadClients.bind(this);
+              if (insightEl && !insightEl.dataset.loaded) {
+                const _fromCache = this._renderInsightWithCache(insightEl, 'bcg', _cachedInsights, _doLoadClients.bind(this));
+                if (!_fromCache) _doLoadClients.call(this);
               }
             }
 
@@ -705,33 +774,42 @@ export const PortfolioPage = {
                 }
                 applyPsFilter();
 
-                // AI инсайт
+                // AI инсайт — с кешем
                 const insightEl = document.getElementById('ps-ai-insight');
-                if (insightEl && !insightEl.dataset.loaded) {
-                  insightEl.dataset.loaded = '1';
-                  insightEl.innerHTML = '<div style="display:flex;align-items:center;gap:6px;color:#6366f1;font-size:11px">'
-                    + '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>'
-                    + 'AI анализирует...</div>';
-                  try {
-                    const snap = computed.slice(0,16).map(r => ({
-                      name: r.client.name, bcg: r.client.bcg_category,
-                      priority: Math.round((r.priority||0)*100)/100,
-                      mr: r.client.monthly_revenue||0,
-                      loyalty: r.loyalty, bchs: r.bchs,
-                    }));
-                    const result = await API.callAI({ type: 'portfolio_analysis', summary, clients_snapshot: snap });
-                    const content = result?.choices?.[0]?.message?.content ?? result?.content ?? '';
-                    let display = content;
+                if (insightEl) {
+                  const _doLoadPriority = async () => {
+                    if (insightEl.dataset.loaded) return;
+                    insightEl.dataset.loaded = '1';
+                    insightEl.innerHTML = '<div style="display:flex;align-items:center;gap:6px;color:#6366f1;font-size:11px">'
+                      + '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>'
+                      + 'AI анализирует...</div>';
                     try {
-                      const parsed = JSON.parse(content);
-                      display = parsed.priority || parsed.insight || parsed.bcg || JSON.stringify(parsed, null, 2);
-                    } catch(_) {}
-                    insightEl.style.cssText = 'font-size:12px;color:#374151;line-height:1.7;white-space:pre-wrap';
-                    insightEl.textContent = display || 'Анализ завершён.';
-                  } catch(e) {
-                    insightEl.style.color = '#ef4444';
-                    insightEl.textContent = 'Ошибка: ' + e.message;
-                  }
+                      const snap = computed.slice(0,16).map(r => ({
+                        name: r.client.name, bcg: r.client.bcg_category,
+                        priority: Math.round((r.priority||0)*100)/100,
+                        mr: r.client.monthly_revenue||0,
+                        loyalty: r.loyalty, bchs: r.bchs,
+                      }));
+                      const result = await API.callAI({ type: 'portfolio_analysis', summary, clients_snapshot: snap });
+                      const content = result?.choices?.[0]?.message?.content ?? result?.content ?? '';
+                      let display = content;
+                      try {
+                        const parsed = JSON.parse(content);
+                        display = parsed.priority || parsed.insight || parsed.bcg || JSON.stringify(parsed, null, 2);
+                      } catch(_) {}
+                      insightEl.innerHTML = '<div style="font-size:12px;color:#374151;line-height:1.7">' + (display || 'Анализ завершён.') + '</div>';
+                      this._saveInsight('priority', display);
+                      _cachedInsights['priority'] = { text: display, cached_at: new Date().toISOString() };
+                      card.classList.add('has-cache');
+                      _cardLoaders['priority_revenue'] = _doLoadPriority.bind(this);
+                    } catch(e) {
+                      insightEl.innerHTML = '<div style="font-size:11px;color:#ef4444">Ошибка: ' + e.message + '</div>';
+                      insightEl.dataset.loaded = '';
+                    }
+                  };
+                  _cardLoaders['priority_revenue'] = _doLoadPriority.bind(this);
+                  const _fromCache = this._renderInsightWithCache(insightEl, 'priority', _cachedInsights, _doLoadPriority.bind(this));
+                  if (_fromCache) { card.classList.add('has-cache'); } else { _doLoadPriority.call(this); }
                 }
               }, 80);
             }
@@ -844,38 +922,40 @@ export const PortfolioPage = {
                 applyFilter();
               }, 80);
               const insightEl = document.getElementById('hours-rev-ai-insight');
-              if (insightEl && !insightEl.dataset.loaded) {
-                insightEl.dataset.loaded = '1';
-                insightEl.innerHTML = `<div style="display:flex;align-items:center;gap:6px;color:#6366f1;font-size:11px">
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>
-                  AI анализирует...
-                </div>`;
-                try {
-                  const snap = computed.slice(0, 16).map(r => ({
-                    name:    r.client.name,
-                    bcg:     r.client.bcg_category,
-                    hours:   r.total_hours ?? 0,
-                    mr:      r.client.monthly_revenue ?? 0,
-                    loyalty: r.loyalty ?? null,
-                    bchs:    r.bchs ?? null,
-                    risk:    r.revenueAtRisk ?? 0,
-                    trend:   r.trend?.direction ?? null,
-                  }));
-                  const result = await API.callAI({
-                    type: 'portfolio_analysis',
-                    summary,
-                    clients_snapshot: snap,
-                  });
-                  const content = result?.choices?.[0]?.message?.content ?? result?.content ?? '';
-                  let text = '';
+              if (insightEl) {
+                const _doLoadHours = async () => {
+                  if (insightEl.dataset.loaded) return;
+                  insightEl.dataset.loaded = '1';
+                  insightEl.innerHTML = '<div style="display:flex;align-items:center;gap:6px;color:#6366f1;font-size:11px">'
+                    + '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>'
+                    + 'AI анализирует...</div>';
                   try {
-                    const parsed = JSON.parse(content);
-                    text = parsed.hours ?? parsed.efficiency ?? parsed.bcg ?? parsed.insight ?? content;
-                  } catch (_) { text = content; }
-                  insightEl.innerHTML = `<div style="font-size:12px;color:#374151;line-height:1.7">${text}</div>`;
-                } catch (e) {
-                  insightEl.innerHTML = `<div style="font-size:11px;color:#ef4444">Ошибка: ${e.message}</div>`;
-                }
+                    const snap = computed.slice(0, 16).map(r => ({
+                      name: r.client.name, bcg: r.client.bcg_category,
+                      hours: r.total_hours ?? 0, mr: r.client.monthly_revenue ?? 0,
+                      loyalty: r.loyalty ?? null, bchs: r.bchs ?? null,
+                      risk: r.revenueAtRisk ?? 0, trend: r.trend?.direction ?? null,
+                    }));
+                    const result = await API.callAI({ type: 'portfolio_analysis', summary, clients_snapshot: snap });
+                    const content = result?.choices?.[0]?.message?.content ?? result?.content ?? '';
+                    let text = content;
+                    try {
+                      const parsed = JSON.parse(content);
+                      text = parsed.hours ?? parsed.efficiency ?? parsed.bcg ?? parsed.insight ?? content;
+                    } catch(_) {}
+                    insightEl.innerHTML = '<div style="font-size:12px;color:#374151;line-height:1.7">' + text + '</div>';
+                    this._saveInsight('hours_revenue', text);
+                    _cachedInsights['hours_revenue'] = { text, cached_at: new Date().toISOString() };
+                    card.classList.add('has-cache');
+                    _cardLoaders['hours_revenue'] = _doLoadHours.bind(this);
+                  } catch(e) {
+                    insightEl.innerHTML = '<div style="font-size:11px;color:#ef4444">Ошибка: ' + e.message + '</div>';
+                    insightEl.dataset.loaded = '';
+                  }
+                };
+                _cardLoaders['hours_revenue'] = _doLoadHours.bind(this);
+                const _fromCache = this._renderInsightWithCache(insightEl, 'hours_revenue', _cachedInsights, _doLoadHours.bind(this));
+                if (_fromCache) { card.classList.add('has-cache'); } else { _doLoadHours.call(this); }
               }
             }
 
@@ -978,39 +1058,40 @@ export const PortfolioPage = {
 
               }, 80);
               const insightEl = document.getElementById('risk-ai-insight');
-              if (insightEl && !insightEl.dataset.loaded) {
-                insightEl.dataset.loaded = '1';
-                insightEl.innerHTML = '<div style="display:flex;align-items:center;gap:6px;color:#6366f1;font-size:11px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>AI анализирует риски...</div>';
-                try {
-                  const snap = [...computed]
-                    .filter(r => (r.revenueAtRisk ?? 0) > 0)
-                    .sort((a, b) => (b.revenueAtRisk ?? 0) - (a.revenueAtRisk ?? 0))
-                    .slice(0, 16)
-                    .map(r => ({
-                      name:     r.client.name,
-                      bcg:      r.client.bcg_category,
-                      loyalty:  r.loyalty ?? null,
-                      bchs:     r.bchs ?? null,
-                      mr:       r.client.monthly_revenue ?? 0,
-                      risk:     r.revenueAtRisk ?? 0,
-                      riskPct:  r.riskPct ?? 0,
-                      trend:    r.trend?.direction ?? null,
-                    }));
-                  const result = await API.callAI({
-                    type: 'portfolio_analysis',
-                    summary,
-                    clients_snapshot: snap,
-                  });
-                  const content = result?.choices?.[0]?.message?.content ?? result?.content ?? '';
-                  let riskText = '';
+              if (insightEl) {
+                const _doLoadRisk = async () => {
+                  if (insightEl.dataset.loaded) return;
+                  insightEl.dataset.loaded = '1';
+                  insightEl.innerHTML = '<div style="display:flex;align-items:center;gap:6px;color:#6366f1;font-size:11px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>AI анализирует риски...</div>';
                   try {
-                    const parsed = JSON.parse(content);
-                    riskText = parsed.risk ?? parsed.loyalty ?? parsed.insight ?? content;
-                  } catch (_) { riskText = content; }
-                  insightEl.innerHTML = '<div style="font-size:12px;color:#374151;line-height:1.7">' + riskText + '</div>';
-                } catch (e) {
-                  insightEl.innerHTML = '<div style="font-size:11px;color:#ef4444">Ошибка: ' + e.message + '</div>';
-                }
+                    const snap = [...computed]
+                      .filter(r => (r.revenueAtRisk ?? 0) > 0)
+                      .sort((a, b) => (b.revenueAtRisk ?? 0) - (a.revenueAtRisk ?? 0))
+                      .slice(0, 16)
+                      .map(r => ({
+                        name: r.client.name, bcg: r.client.bcg_category,
+                        loyalty: r.loyalty ?? null, bchs: r.bchs ?? null,
+                        mr: r.client.monthly_revenue ?? 0,
+                        risk: r.revenueAtRisk ?? 0, riskPct: r.riskPct ?? 0,
+                        trend: r.trend?.direction ?? null,
+                      }));
+                    const result = await API.callAI({ type: 'portfolio_analysis', summary, clients_snapshot: snap });
+                    const content = result?.choices?.[0]?.message?.content ?? result?.content ?? '';
+                    let riskText = content;
+                    try { const p = JSON.parse(content); riskText = p.risk ?? p.loyalty ?? p.insight ?? content; } catch(_) {}
+                    insightEl.innerHTML = '<div style="font-size:12px;color:#374151;line-height:1.7">' + riskText + '</div>';
+                    this._saveInsight('risk', riskText);
+                    _cachedInsights['risk'] = { text: riskText, cached_at: new Date().toISOString() };
+                    card.classList.add('has-cache');
+                    _cardLoaders['risk'] = _doLoadRisk.bind(this);
+                  } catch(e) {
+                    insightEl.innerHTML = '<div style="font-size:11px;color:#ef4444">Ошибка: ' + e.message + '</div>';
+                    insightEl.dataset.loaded = '';
+                  }
+                };
+                _cardLoaders['risk'] = _doLoadRisk.bind(this);
+                const _fromCache = this._renderInsightWithCache(insightEl, 'risk', _cachedInsights, _doLoadRisk.bind(this));
+                if (_fromCache) { card.classList.add('has-cache'); } else { _doLoadRisk.call(this); }
               }
             }
 
@@ -1111,110 +1192,111 @@ export const PortfolioPage = {
                 }
               }, 80);
 
-              // AI инсайт
+              // AI инсайт — с кешем
               const insightEl = document.getElementById('pot-ai-insight');
-              if (insightEl && !insightEl.dataset.loaded) {
-                insightEl.dataset.loaded = '1';
-                insightEl.innerHTML = '<div style="display:flex;align-items:center;gap:6px;color:#6366f1;font-size:11px">'
-                  + '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>'
-                  + 'AI анализирует потенциал...</div>';
-                try {
-                  const snap = computed.filter(r => r.potential > 0).slice(0, 16).map(r => ({
-                    name:      r.client.name,
-                    bcg:       r.client.bcg_category,
-                    mr:        r.client.monthly_revenue ?? 0,
-                    potential: r.potential ?? 0,
-                    pctPot:    r.pctPot ?? null,
-                    loyalty:   r.loyalty ?? null,
-                    bchs:      r.bchs ?? null,
-                    trend:     r.trend?.direction ?? null,
-                  }));
-                  const result = await API.callAI({
-                    type: 'portfolio_analysis',
-                    summary,
-                    clients_snapshot: snap,
-                  });
-                  const content = result?.choices?.[0]?.message?.content ?? result?.content ?? '';
-                  let potText = '';
+              if (insightEl) {
+                const _doLoadPot = async () => {
+                  if (insightEl.dataset.loaded) return;
+                  insightEl.dataset.loaded = '1';
+                  insightEl.innerHTML = '<div style="display:flex;align-items:center;gap:6px;color:#6366f1;font-size:11px">'
+                    + '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>'
+                    + 'AI анализирует потенциал...</div>';
                   try {
-                    const parsed = JSON.parse(content);
-                    potText = parsed.potential ?? parsed.insight ?? content;
-                  } catch (_) { potText = content; }
-                  insightEl.innerHTML = '<div style="font-size:12px;color:#374151;line-height:1.7">' + potText + '</div>';
-                } catch (e) {
-                  insightEl.innerHTML = '<div style="font-size:11px;color:#ef4444">Ошибка: ' + e.message + '</div>';
-                }
+                    const snap = computed.filter(r => r.potential > 0).slice(0, 16).map(r => ({
+                      name: r.client.name, bcg: r.client.bcg_category,
+                      mr: r.client.monthly_revenue ?? 0, potential: r.potential ?? 0,
+                      pctPot: r.pctPot ?? null, loyalty: r.loyalty ?? null,
+                      bchs: r.bchs ?? null, trend: r.trend?.direction ?? null,
+                    }));
+                    const result = await API.callAI({ type: 'portfolio_analysis', summary, clients_snapshot: snap });
+                    const content = result?.choices?.[0]?.message?.content ?? result?.content ?? '';
+                    let potText = content;
+                    try { const p = JSON.parse(content); potText = p.potential ?? p.insight ?? content; } catch(_) {}
+                    insightEl.innerHTML = '<div style="font-size:12px;color:#374151;line-height:1.7">' + potText + '</div>';
+                    this._saveInsight('potential', potText);
+                    _cachedInsights['potential'] = { text: potText, cached_at: new Date().toISOString() };
+                    card.classList.add('has-cache');
+                    _cardLoaders['potential'] = _doLoadPot.bind(this);
+                  } catch(e) {
+                    insightEl.innerHTML = '<div style="font-size:11px;color:#ef4444">Ошибка: ' + e.message + '</div>';
+                    insightEl.dataset.loaded = '';
+                  }
+                };
+                _cardLoaders['potential'] = _doLoadPot.bind(this);
+                const _fromCache = this._renderInsightWithCache(insightEl, 'potential', _cachedInsights, _doLoadPot.bind(this));
+                if (_fromCache) { card.classList.add('has-cache'); } else { _doLoadPot.call(this); }
               }
             }
 
             if (card.dataset.card === 'loyalty') {
               const insightEl = document.getElementById('loyalty-ai-insight');
-              if (insightEl && !insightEl.dataset.loaded) {
-                insightEl.dataset.loaded = '1';
-                insightEl.innerHTML = '<div style="display:flex;align-items:center;gap:6px;color:#6366f1;font-size:11px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>AI анализирует лояльность...</div>';
-                try {
-                  const snap = computed.slice(0, 16).map(r => ({
-                    name:    r.client.name,
-                    bcg:     r.client.bcg_category,
-                    loyalty: r.loyalty ?? null,
-                    bchs:    r.bchs ?? null,
-                    mr:      r.client.monthly_revenue ?? 0,
-                    risk:    r.revenueAtRisk ?? 0,
-                    riskPct: r.riskPct ?? 0,
-                    trend:   r.trend?.direction ?? null,
-                  }));
-                  const result = await API.callAI({
-                    type: 'portfolio_analysis',
-                    summary,
-                    clients_snapshot: snap,
-                  });
-                  const content = result?.choices?.[0]?.message?.content ?? result?.content ?? '';
-                  let loyaltyText = '';
+              if (insightEl) {
+                const _doLoadLoyalty = async () => {
+                  if (insightEl.dataset.loaded) return;
+                  insightEl.dataset.loaded = '1';
+                  insightEl.innerHTML = '<div style="display:flex;align-items:center;gap:6px;color:#6366f1;font-size:11px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>AI анализирует лояльность...</div>';
                   try {
-                    const parsed = JSON.parse(content);
-                    loyaltyText = parsed.loyalty ?? parsed.insight ?? content;
-                  } catch (_) { loyaltyText = content; }
-                  insightEl.innerHTML = '<div style="font-size:12px;color:#374151;line-height:1.7">' + loyaltyText + '</div>';
-                } catch (e) {
-                  insightEl.innerHTML = '<div style="font-size:11px;color:#ef4444">Ошибка: ' + e.message + '</div>';
-                }
+                    const snap = computed.slice(0, 16).map(r => ({
+                      name: r.client.name, bcg: r.client.bcg_category,
+                      loyalty: r.loyalty ?? null, bchs: r.bchs ?? null,
+                      mr: r.client.monthly_revenue ?? 0,
+                      risk: r.revenueAtRisk ?? 0, riskPct: r.riskPct ?? 0,
+                      trend: r.trend?.direction ?? null,
+                    }));
+                    const result = await API.callAI({ type: 'portfolio_analysis', summary, clients_snapshot: snap });
+                    const content = result?.choices?.[0]?.message?.content ?? result?.content ?? '';
+                    let loyaltyText = content;
+                    try { const p = JSON.parse(content); loyaltyText = p.loyalty ?? p.insight ?? content; } catch(_) {}
+                    insightEl.innerHTML = '<div style="font-size:12px;color:#374151;line-height:1.7">' + loyaltyText + '</div>';
+                    this._saveInsight('loyalty', loyaltyText);
+                    _cachedInsights['loyalty'] = { text: loyaltyText, cached_at: new Date().toISOString() };
+                    card.classList.add('has-cache');
+                    _cardLoaders['loyalty'] = _doLoadLoyalty.bind(this);
+                  } catch(e) {
+                    insightEl.innerHTML = '<div style="font-size:11px;color:#ef4444">Ошибка: ' + e.message + '</div>';
+                    insightEl.dataset.loaded = '';
+                  }
+                };
+                _cardLoaders['loyalty'] = _doLoadLoyalty.bind(this);
+                const _fromCache = this._renderInsightWithCache(insightEl, 'loyalty', _cachedInsights, _doLoadLoyalty.bind(this));
+                if (_fromCache) { card.classList.add('has-cache'); } else { _doLoadLoyalty.call(this); }
               }
             }
 
             // AI анализ при раскрытии карточки revenue_bcg
             if (card.dataset.card === 'revenue_bcg') {
               const insightEl = document.getElementById('revenue-bcg-ai-insight');
-              if (insightEl && !insightEl.dataset.loaded) {
-                insightEl.dataset.loaded = '1';
-                insightEl.innerHTML = `<div style="display:flex;align-items:center;gap:6px;color:#6366f1;font-size:11px">
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>
-                  AI анализирует...
-                </div>`;
-                try {
-                  const snap = computed.slice(0, 16).map(r => ({
-                    name:    r.client.name,
-                    bcg:     r.client.bcg_category,
-                    loyalty: r.loyalty ?? null,
-                    bchs:    r.bchs ?? null,
-                    mr:      r.client.monthly_revenue ?? 0,
-                    risk:    r.revenueAtRisk ?? 0,
-                    trend:   r.trend?.direction ?? null,
-                  }));
-                  const result = await API.callAI({
-                    type: 'portfolio_analysis',
-                    summary,
-                    clients_snapshot: snap,
-                  });
-                  const content = result?.choices?.[0]?.message?.content ?? result?.content ?? '';
-                  let revenueText = '';
+              if (insightEl) {
+                const _doLoadRevBcg = async () => {
+                  if (insightEl.dataset.loaded) return;
+                  insightEl.dataset.loaded = '1';
+                  insightEl.innerHTML = '<div style="display:flex;align-items:center;gap:6px;color:#6366f1;font-size:11px">'
+                    + '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>'
+                    + 'AI анализирует...</div>';
                   try {
-                    const parsed = JSON.parse(content);
-                    revenueText = parsed.revenue ?? parsed.insight ?? content;
-                  } catch (_) { revenueText = content; }
-                  insightEl.innerHTML = `<div style="font-size:12px;color:#374151;line-height:1.7">${revenueText}</div>`;
-                } catch (e) {
-                  insightEl.innerHTML = `<div style="font-size:11px;color:#ef4444">Ошибка: ${e.message}</div>`;
-                }
+                    const snap = computed.slice(0, 16).map(r => ({
+                      name: r.client.name, bcg: r.client.bcg_category,
+                      loyalty: r.loyalty ?? null, bchs: r.bchs ?? null,
+                      mr: r.client.monthly_revenue ?? 0,
+                      risk: r.revenueAtRisk ?? 0, trend: r.trend?.direction ?? null,
+                    }));
+                    const result = await API.callAI({ type: 'portfolio_analysis', summary, clients_snapshot: snap });
+                    const content = result?.choices?.[0]?.message?.content ?? result?.content ?? '';
+                    let revenueText = content;
+                    try { const p = JSON.parse(content); revenueText = p.revenue ?? p.insight ?? content; } catch(_) {}
+                    insightEl.innerHTML = '<div style="font-size:12px;color:#374151;line-height:1.7">' + revenueText + '</div>';
+                    this._saveInsight('revenue_bcg', revenueText);
+                    _cachedInsights['revenue_bcg'] = { text: revenueText, cached_at: new Date().toISOString() };
+                    card.classList.add('has-cache');
+                    _cardLoaders['revenue_bcg'] = _doLoadRevBcg.bind(this);
+                  } catch(e) {
+                    insightEl.innerHTML = '<div style="font-size:11px;color:#ef4444">Ошибка: ' + e.message + '</div>';
+                    insightEl.dataset.loaded = '';
+                  }
+                };
+                _cardLoaders['revenue_bcg'] = _doLoadRevBcg.bind(this);
+                const _fromCache = this._renderInsightWithCache(insightEl, 'revenue_bcg', _cachedInsights, _doLoadRevBcg.bind(this));
+                if (_fromCache) { card.classList.add('has-cache'); } else { _doLoadRevBcg.call(this); }
               }
             }
           });
@@ -2243,6 +2325,7 @@ document.getElementById('pf-ai-mode-sw')
 
     const cardsHTML = cards.map(c => `
       <div class="pf-kpi-card" data-card="${c.id}">
+        <button class="pf-kpi-refresh-btn" data-refresh-card="${c.id}" title="Обновить AI анализ">↻</button>
         <div class="pf-kpi-card-collapsed">
           <div class="pf-kpi-card-icon">${c.icon||''}</div>
           <div class="pf-kpi-card-label">${c.label}</div>
@@ -2252,7 +2335,7 @@ document.getElementById('pf-ai-mode-sw')
         <div class="pf-kpi-card-detail" style="display:none">${c.detail}</div>
       </div>`).join('');
 
-    return `<div class="pf-kpi-grid-new">${cardsHTML}</div>`;
+    return '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">' + '<span style="font-size:13px;font-weight:600;color:#64748b">KPI портфеля</span>' + '<div style="display:flex;gap:8px">' + '<button id="pf-refresh-kpi-btn" style="display:flex;align-items:center;gap:5px;padding:5px 11px;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:7px;font-size:11px;font-weight:600;color:#64748b;cursor:pointer">' + '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>' + '</svg> Обновить кеш</button>' + '<button id="pf-ai-analyze-btn" style="display:flex;align-items:center;gap:5px;padding:5px 11px;border:1px solid #6366f1;border-radius:7px;background:#fff;color:#6366f1;font-size:11px;font-weight:600;cursor:pointer">' + '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/>' + '</svg> AI-анализ</button>' + '</div></div>' + '<div id="pf-ai-insight-panel" style="display:none;background:#f8f7ff;border:1px solid #e0e7ff;border-radius:10px;padding:14px;margin-bottom:14px">' + '<div style="font-size:11px;font-weight:600;color:#6366f1;margin-bottom:6px">AI · Анализ портфеля</div>' + '<div id="pf-ai-insight-text" style="font-size:12px;color:#374151;line-height:1.6;white-space:pre-wrap"></div>' + '</div>' + '<div class="pf-kpi-grid-new">' + cardsHTML + '</div>';
   },
 
   _horizonFormHTML(key, label, period, dotColor, saved) {
@@ -3009,6 +3092,246 @@ document.getElementById('pf-ai-mode-sw')
   /* ══════════════════════════════════════════
      ТАБ 3 — ПОКРЫТИЕ
   ══════════════════════════════════════════ */
+
+  /* ══════════════════════════════════════════
+     ТАБ 4 — ИСТОРИЯ ПОРТФЕЛЯ
+  ══════════════════════════════════════════ */
+  async _renderHistoryTab() {
+    const el = document.getElementById('pf-tab-history');
+    if (!el) return;
+    el.innerHTML = '<div style="padding:40px;text-align:center;color:var(--text-muted);font-size:13px">Загрузка истории...</div>';
+
+    try {
+      // Источник правды — portfolio_summary, там готовые снапшоты с реальными данными
+      const summaries = await API._get('tables/portfolio_summary?limit=24&order=created_at.desc');
+      const rows = Array.isArray(summaries) ? summaries : (summaries?.data || []);
+
+      if (!rows.length) {
+        el.innerHTML = '<div style="padding:40px;text-align:center;color:var(--text-muted);font-size:13px">Нет исторических данных. Они появятся после первого сохранения снапшота.</div>';
+        return;
+      }
+
+      // Парсим снапшоты и mc_agg
+      const data = rows.map(r => {
+        const snap  = typeof r.snapshot === 'string' ? JSON.parse(r.snapshot) : (r.snapshot || {});
+        const mc    = typeof r.mc_agg   === 'string' ? JSON.parse(r.mc_agg)   : (r.mc_agg   || {});
+        const clients = snap.clients || [];
+
+        // Считаем агрегаты из реальных данных снапшота
+        const totalMR   = clients.reduce((s, c) => s + (c.mr || 0), 0);
+        const withBchs  = clients.filter(c => c.bchs !== null && c.bchs !== undefined);
+        const avgBchs   = withBchs.length
+          ? Math.round(withBchs.reduce((s, c) => s + c.bchs, 0) / withBchs.length)
+          : null;
+
+        // BCG распределение
+        const bcgCount = { KEY:0, STABLE:0, GROWTH:0, GROWTH_EARLY:0, TAIL:0 };
+        clients.forEach(c => { if (bcgCount[c.bcg] !== undefined) bcgCount[c.bcg]++; });
+
+        // Monte Carlo данные
+        const avgChurn3m  = mc.avg_churn_3m  || '—';
+        const mrAtRisk    = mc.mr_at_risk     || '—';
+        const clientsRisk = mc.clients_at_risk ?? '—';
+
+        // Период
+        const [y, m] = (r.period || '').split('-');
+        const monthNames = ['Янв','Фев','Мар','Апр','Май','Июн','Июл','Авг','Сен','Окт','Ноя','Дек'];
+        const monthFull  = ['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
+
+        return {
+          period:      r.period || '',
+          year:        y || '',
+          month:       m || '',
+          label:       m ? monthNames[+m-1] + ' ' + (y||'').slice(2) : r.period,
+          labelFull:   m ? monthFull[+m-1]  + ' ' + y : r.period,
+          totalClients: snap.total_clients || clients.length,
+          totalMR,
+          avgBchs,
+          bcgCount,
+          avgChurn3m,
+          mrAtRisk,
+          clientsRisk,
+          createdAt: r.created_at,
+        };
+      }).filter(d => d.period);
+
+      // Дедупликация по периоду (берём последний снапшот за период)
+      const byPeriod = {};
+      data.forEach(d => { byPeriod[d.period] = d; });
+      const deduped = Object.values(byPeriod).sort((a,b) => a.period.localeCompare(b.period));
+
+      if (!deduped.length) {
+        el.innerHTML = '<div style="padding:40px;text-align:center;color:var(--text-muted)">Нет данных</div>';
+        return;
+      }
+
+      // Фильтры
+      const FILTERS = [
+        { key:'all', label:'Всё' },
+        { key:'6m',  label:'6M'  },
+        { key:'3m',  label:'3M'  },
+        { key:'1m',  label:'1M'  },
+      ];
+
+      const filterData = (key) => {
+        if (key === 'all') return deduped;
+        const n = { '6m':6, '3m':3, '1m':1 }[key];
+        return deduped.slice(-n);
+      };
+
+      // Sparkline SVG
+      const sparkline = (values, color) => {
+        const vals = values.filter(v => v !== null && v !== undefined);
+        if (vals.length < 2) return '<div style="height:36px;display:flex;align-items:center;font-size:10px;color:#94a3b8">—</div>';
+        const min = Math.min(...vals), max = Math.max(...vals);
+        const range = max - min || 1;
+        const W = 280, H = 36;
+        const step = W / (vals.length - 1);
+        const pts = vals.map((v, i) => Math.round(i*step) + ',' + Math.round(H - ((v-min)/range)*(H-8) - 4)).join(' ');
+        const dots = vals.map((v, i) => {
+          const x = Math.round(i*step), y2 = Math.round(H - ((v-min)/range)*(H-8) - 4);
+          return '<circle cx="' + x + '" cy="' + y2 + '" r="2.5" fill="' + color + '"/>';
+        }).join('');
+        return '<svg width="280" height="' + H + '" viewBox="0 0 280 ' + H + '" style="overflow:visible">'
+          + '<polyline points="' + pts + '" fill="none" stroke="' + color
+          + '" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"/>'
+          + dots + '</svg>';
+      };
+
+      const renderContent = (filterKey) => {
+        const fd = filterData(filterKey);
+        if (!fd.length) return '<div style="padding:20px;text-align:center;color:var(--text-muted)">Нет данных за период</div>';
+
+        const last = fd[fd.length-1];
+        const prev = fd.length > 1 ? fd[fd.length-2] : null;
+
+        const dTag = (cur, prv, inv) => {
+          if (prv === null || cur === null || prv === undefined) return '';
+          const diff = (typeof cur === 'number' && typeof prv === 'number') ? Math.round(cur - prv) : null;
+          if (diff === null || diff === 0) return '';
+          const pos = inv ? diff < 0 : diff > 0;
+          return '<span style="font-size:11px;color:' + (pos?'#10b981':'#ef4444') + ';margin-left:5px;font-weight:500">'
+            + (diff > 0 ? '+' : '') + diff + '</span>';
+        };
+
+        const mrK   = fd.map(d => Math.round(d.totalMR / 1000));
+        const bchs  = fd.map(d => d.avgBchs);
+        const risk  = fd.map(d => typeof d.clientsRisk === 'number' ? d.clientsRisk : null);
+        const cnt   = fd.map(d => d.totalClients);
+
+        // Bar chart для BCHS
+        const validBchs = bchs.filter(v => v !== null);
+        const maxB = Math.max(...validBchs.map(Math.abs), 1);
+        const barChart = '<div style="display:flex;align-items:flex-end;gap:5px;height:88px;padding-bottom:22px">'
+          + fd.map((d, i) => {
+              const val = d.avgBchs;
+              const isLast = i === fd.length - 1;
+              if (val === null) return '<div style="flex:1;min-width:28px;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:2px">'
+                + '<div style="width:100%;max-width:32px;height:3px;background:#e2e8f0;border-radius:2px"></div>'
+                + '<div style="font-size:9px;color:#cbd5e1;text-align:center">' + d.label + '</div></div>';
+              const pct  = Math.abs(val) / maxB;
+              const barH = Math.max(4, Math.round(pct * 60));
+              const col  = val > 10 ? '#6366f1' : val >= 0 ? '#f59e0b' : '#ef4444';
+              return '<div style="flex:1;min-width:28px;display:flex;flex-direction:column;align-items:center;gap:2px">'
+                + '<div style="font-size:9px;font-weight:600;color:' + col + '">' + val + '</div>'
+                + '<div style="width:100%;max-width:32px;height:' + barH + 'px;background:' + col
+                + ';border-radius:3px 3px 0 0;opacity:' + (isLast?'1':'.6') + '"></div>'
+                + '<div style="font-size:9px;color:#94a3b8;text-align:center;line-height:1.2">' + d.label + '</div>'
+                + '</div>';
+            }).join('')
+          + '</div>';
+
+        return ''
+          // Summary карточки
+          + '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px">'
+          + [
+              { label:'Клиентов',      val: last.totalClients,                       dval: prev?.totalClients,  inv:false, color:'#6366f1', spark: sparkline(cnt, '#6366f1') },
+              { label:'MR портфеля',   val: '$'+mrK[mrK.length-1]+'K',              dval: prev ? mrK[mrK.length-1]-mrK[mrK.length-2] : null, raw:true, inv:false, color:'#10b981', spark: sparkline(mrK, '#10b981') },
+              { label:'Avg BCHS',      val: last.avgBchs ?? '—',                     dval: prev?.avgBchs,       inv:false, color:'#8b5cf6', spark: sparkline(bchs, '#8b5cf6') },
+              { label:'Клиентов в риске', val: last.clientsRisk,                     dval: prev?.clientsRisk,   inv:true,  color:'#ef4444', spark: sparkline(risk, '#ef4444') },
+            ].map(card => {
+              let dHtml = '';
+              if (!card.raw && card.dval !== null && card.dval !== undefined && typeof card.val === 'number') {
+                const diff = Math.round(card.val - card.dval);
+                if (diff !== 0) {
+                  const pos = card.inv ? diff < 0 : diff > 0;
+                  dHtml = '<span style="font-size:11px;color:' + (pos?'#10b981':'#ef4444') + ';margin-left:5px;font-weight:500">'
+                    + (diff>0?'+':'') + diff + '</span>';
+                }
+              }
+              return '<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:14px 16px">'
+                + '<div style="font-size:11px;color:#94a3b8;margin-bottom:4px">' + card.label + '</div>'
+                + '<div style="font-size:20px;font-weight:700;color:#1e293b">' + card.val + dHtml + '</div>'
+                + '<div style="margin-top:6px">' + card.spark + '</div>'
+                + '</div>';
+            }).join('')
+          + '</div>'
+
+          // BCHS бар-чарт
+          + '<div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:18px 20px;margin-bottom:16px">'
+          + '<div style="font-size:13px;font-weight:600;color:#374151;margin-bottom:12px">Avg BCHS Score по периодам</div>'
+          + barChart
+          + '</div>'
+
+          // Таблица
+          + '<div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden">'
+          + '<table style="width:100%;border-collapse:collapse;font-size:12px">'
+          + '<thead><tr style="background:#f8fafc">'
+          + ['Период','Клиентов','MR','Avg BCHS','В риске (MC)','MR под угрозой','Avg Churn 3M'].map((h,i) =>
+              '<th style="padding:9px 12px;text-align:' + (i===0?'left':'right')
+              + ';font-weight:600;color:#64748b;border-bottom:1px solid #e2e8f0;white-space:nowrap">' + h + '</th>'
+            ).join('')
+          + '</tr></thead><tbody>'
+          + fd.slice().reverse().map((d, i) => {
+              const isFirst = i === 0;
+              const bchsCol = d.avgBchs === null ? '#94a3b8'
+                : d.avgBchs > 10 ? '#10b981' : d.avgBchs >= 0 ? '#f59e0b' : '#ef4444';
+              return '<tr style="border-bottom:1px solid #f1f5f9' + (isFirst?';background:#fafbff':'') + '">'
+                + '<td style="padding:9px 12px;font-weight:' + (isFirst?'600':'400') + ';color:#1e293b">'
+                + d.labelFull
+                + (isFirst ? ' <span style="font-size:10px;color:#6366f1;background:#ede9fe;padding:1px 6px;border-radius:10px;margin-left:4px">текущий</span>' : '')
+                + '</td>'
+                + '<td style="padding:9px 12px;text-align:right;color:#374151">' + d.totalClients + '</td>'
+                + '<td style="padding:9px 12px;text-align:right;color:#374151">$' + Math.round(d.totalMR/1000) + 'K</td>'
+                + '<td style="padding:9px 12px;text-align:right;font-weight:600;color:' + bchsCol + '">' + (d.avgBchs ?? '—') + '</td>'
+                + '<td style="padding:9px 12px;text-align:right;color:' + (d.clientsRisk > 0 ? '#ef4444':'#10b981') + ';font-weight:600">' + d.clientsRisk + '</td>'
+                + '<td style="padding:9px 12px;text-align:right;color:#374151">' + d.mrAtRisk + '</td>'
+                + '<td style="padding:9px 12px;text-align:right;color:#64748b">' + d.avgChurn3m + '</td>'
+                + '</tr>';
+            }).join('')
+          + '</tbody></table></div>';
+      };
+
+      // Фильтр-бар + контент
+      const filterBar = '<div style="display:flex;gap:6px;margin-bottom:18px">'
+        + FILTERS.map(f =>
+            '<button data-hf="' + f.key + '" style="padding:5px 14px;border-radius:20px;border:1px solid '
+            + (f.key==='all' ? '#6366f1;background:#6366f1;color:#fff' : '#e2e8f0;background:#fff;color:#64748b')
+            + ';font-size:12px;cursor:pointer;font-weight:500;transition:all .15s">' + f.label + '</button>'
+          ).join('')
+        + '</div>';
+
+      el.innerHTML = '<div style="padding:0 0 24px">' + filterBar + '<div id="pf-history-content">' + renderContent('all') + '</div></div>';
+
+      el.querySelectorAll('[data-hf]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          el.querySelectorAll('[data-hf]').forEach(b => {
+            const active = b.dataset.hf === btn.dataset.hf;
+            b.style.background  = active ? '#6366f1' : '#fff';
+            b.style.color       = active ? '#fff'    : '#64748b';
+            b.style.borderColor = active ? '#6366f1' : '#e2e8f0';
+          });
+          document.getElementById('pf-history-content').innerHTML = renderContent(btn.dataset.hf);
+        });
+      });
+
+    } catch(e) {
+      el.innerHTML = '<div style="padding:40px;text-align:center;color:#ef4444;font-size:13px">Ошибка: ' + e.message + '</div>';
+      console.error('[_renderHistoryTab]', e);
+    }
+  },
+
+
   async _renderCoverageTab() {
     const el = document.getElementById('pf-tab-coverage');
     if (!el) return;

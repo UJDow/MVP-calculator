@@ -261,6 +261,43 @@ export const API = {
     return r.json();
   },
 
+
+  /* ══════════════════════════════════════════
+     PORTFOLIO KPI CACHE
+  ══════════════════════════════════════════ */
+  async savePortfolioSummary(computedClients, mcAgg) {
+    const period = new Date().toISOString().slice(0, 7);
+    const snapshot = {
+      period,
+      total_clients: computedClients.length,
+      clients: computedClients.map(r => ({
+        id:       r.id,
+        name:     r.name,
+        bcg:      r.bcg,
+        mr:       r.mr    || 0,
+        bchs:     r.bchs  ?? null,
+        loyalty:  r.loyalty ?? null,
+        risk:     r.risk  || 0,
+        trend:    r.trend || null,
+        priority_score: r.priority_score || null,
+      })),
+    };
+    return this._post('portfolio/summary/save', { period, snapshot, mc_agg: mcAgg || null });
+  },
+
+  async savePortfolioKpi(kpiSnapshot, computedClients, summary, insights) {
+    return this._post('portfolio/kpi/save', {
+      kpi_snapshot:     kpiSnapshot,
+      computed_clients: computedClients,
+      summary:          summary,
+      insights:         insights || {},
+    });
+  },
+
+  async getPortfolioKpi() {
+    return this._get('portfolio/kpi/get');
+  },
+
   /* ══════════════════════════════════════════
      PORTFOLIO STRATEGIES
   ══════════════════════════════════════════ */

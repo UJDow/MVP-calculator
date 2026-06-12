@@ -301,8 +301,110 @@ export const API = {
   /* ══════════════════════════════════════════
      PORTFOLIO STRATEGIES
   ══════════════════════════════════════════ */
+  /* ══════════════════════════════════════════
+     STRATEGY COMMITMENT & HISTORY
+  ══════════════════════════════════════════ */
+  async commitStrategy(horizon) {
+    const [strategies, kpiCache] = await Promise.all([
+      this.getPortfolioStrategies(),
+      this._get('tables/portfolio_kpi_cache?limit=1&sort=cached_at'),
+    ]);
+    const s = strategies.find(x => x.horizon === horizon);
+    if (!s) throw new Error('Strategy not found');
+
+    const latestKpi = Array.isArray(kpiCache) ? kpiCache[0]
+      : Array.isArray(kpiCache?.data) ? kpiCache.data[0] : null;
+
+    const now = new Date().toISOString();
+
+    // 1. Snapshot in history
+    await this._post('tables/portfolio_strategy_history', {
+      id: crypto.randomUUID(),
+      horizon,
+      focus:        s.focus    || '',
+      outcome:      s.outcome  || '',
+      risk:         s.risk     || '',
+      deadline:     s.deadline || '',
+      status:       'active',
+      ai_generated: s.ai_generated || false,
+      committed_at: now,
+      kpi_snapshot: latestKpi ? JSON.stringify({ period: latestKpi.period, cached_at: latestKpi.cached_at }) : null,
+      notes:        '',
+    });
+
+    // 2. Mark strategy as committed
+    return this._put(`tables/portfolio_strategies/${s.id}`, {
+      ...s,
+      is_committed: 1,
+      committed_at: now,
+      updated_at:   now,
+    });
+  },
+
+  async uncommitStrategy(horizon, { abandoned = false, kpiFinal = null } = {}) {
+    const all = await this.getPortfolioStrategies();
+    const s   = all.find(x => x.horizon === horizon);
+    if (!s) return;
+
+    const now = new Date().toISOString();
+
+    // Close active history record
+    const hist = await this._get(`tables/portfolio_strategy_history?limit=100`);
+    const rows  = Array.isArray(hist) ? hist : (Array.isArray(hist?.data) ? hist.data : []);
+    const active = rows
+      .filter(r => r.horizon === horizon && r.status === 'active')
+      .sort((a, b) => new Date(b.committed_at) - new Date(a.committed_at))[0];
+
+    if (active) {
+      await this._put(`tables/portfolio_strategy_history/${active.id}`, {
+        ...active,
+        status:       abandoned ? 'abandoned' : 'completed',
+        completed_at: now,
+        kpi_final:    kpiFinal ? JSON.stringify(kpiFinal) : null,
+      });
+    }
+
+    // Mark strategy as uncommitted
+    return this._put(`tables/portfolio_strategies/${s.id}`, {
+      ...s,
+      is_committed: 0,
+      updated_at:   now,
+    });
+  },
+
+  async getStrategyHistory(limit = 100) {
+    const r = await this._get(`tables/portfolio_strategy_history?limit=${limit}`);
+    const rows = Array.isArray(r) ? r : (Array.isArray(r?.data) ? r.data : []);
+    return rows.sort((a, b) => new Date(b.committed_at || b.saved_at || 0) - new Date(a.committed_at || a.saved_at || 0));
+  },
+
   async getPortfolioStrategies() {
     const r = await this._get('tables/portfolio_strategies?limit=100');
+    return Array.isArray(r) ? r : (Array.isArray(r?.data) ? r.data : []);
+  },
+
+  async saveStrategySnapshot(notes = '') {
+    const strategies = await this.getPortfolioStrategies();
+    await Promise.all(strategies.map(s => {
+      const id = crypto.randomUUID();
+      return this._post('tables/portfolio_strategy_history', {
+        id,
+        horizon:      s.horizon,
+        focus:        s.focus        || '',
+        outcome:      s.outcome      || '',
+        risk:         s.risk         || '',
+        deadline:     s.deadline     || '',
+        status:       s.status       || 'on_track',
+        ai_generated: s.ai_generated || false,
+        saved_at:     new Date().toISOString(),
+        notes,
+      });
+    }));
+    return { ok: true, count: strategies.length };
+  },
+
+  async getStrategyHistory(limit = 50) {
+    const r = await this._get(`tables/portfolio_strategy_history?limit=${limit}`);
     return Array.isArray(r) ? r : (Array.isArray(r?.data) ? r.data : []);
   },
 

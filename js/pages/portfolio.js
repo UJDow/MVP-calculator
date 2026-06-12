@@ -411,13 +411,7 @@ export const PortfolioPage = {
 
   <div class="pf-section-head" style="margin-top:28px">
   <div class="pf-section-title">Стратегические горизонты</div>
-    <label class="pf-ai-mode-toggle">
-      <input type="checkbox" id="pf-ai-mode-sw">
-      <span class="pf-ai-mode-track">
-        <span class="pf-ai-mode-thumb"></span>
-      </span>
-      <span class="pf-ai-mode-label">AI режим</span>
-    </label>
+
   </div>
 
   ${this._horizonFormHTML('short', 'Краткосрочная', '1 месяц',      '#ef4444', this._portfolioData.short)}
@@ -1361,23 +1355,34 @@ export const PortfolioPage = {
         });
       });
 
-      // Перемещаем AI кнопки в pf-hz-actions
-      const moveAiBtn = (key) => {
-        const existing = document.getElementById(`pf-ai-gen-btn-${key}`);
-        if (existing) {
-          const actions = document.getElementById(`pf-hz-actions-${key}`);
-          if (actions) actions.appendChild(existing);
-        }
-      };
 
-      // AI режим тогл
-document.getElementById('pf-ai-mode-sw')
-  ?.addEventListener('change', (e) => {
-    this._setAiMode(e.target.checked, summary, computed);
+  // Сохранение по кнопке в каждом горизонте
+['short', 'mid', 'long'].forEach(key => {
+  document.getElementById(`pf-hz-commit-${key}`)?.addEventListener('change', async (e) => {
+    const cb    = e.target;
+    const label = cb.closest('.pf-hz-commit-toggle')?.querySelector('.pf-hz-commit-label');
+    cb.disabled = true;
+    try {
+      if (cb.checked) {
+        await API.commitStrategy(key);
+        if (label) label.textContent = 'Следую';
+        document.getElementById(`pf-horizon-${key}`)?.classList.add('pf-hz--committed');
+        window.App.toast('Обязательство зафиксировано ✓', 'success');
+      } else {
+        await API.uncommitStrategy(key, { abandoned: true });
+        if (label) label.textContent = 'Следовать';
+        document.getElementById(`pf-horizon-${key}`)?.classList.remove('pf-hz--committed');
+        window.App.toast('Обязательство снято', 'info');
+      }
+    } catch (err) {
+      console.error('commit error', err);
+      cb.checked = !cb.checked;
+      window.App.toast('Ошибка', 'error');
+    } finally {
+      cb.disabled = false;
+    }
   });
 
-// Сохранение по кнопке в каждом горизонте
-['short', 'mid', 'long'].forEach(key => {
   document.getElementById(`pf-save-btn-${key}`)
     ?.addEventListener('click', async () => {
       await this._savePortfolioStrats();
@@ -2380,6 +2385,15 @@ document.getElementById('pf-ai-mode-sw')
             ${hasData
               ? `<span class="pf-hz-status pf-hz-status--filled">Заполнено</span>`
               : `<span class="pf-hz-status pf-hz-status--empty">Не заполнено</span>`}
+            <label class="pf-hz-commit-toggle" title="Следую этой стратегии" onclick="event.stopPropagation()">
+              <input type="checkbox" id="pf-hz-commit-${key}"
+                     ${saved?.is_committed ? 'checked' : ''}
+                     data-commitkey="${key}" />
+              <span class="pf-hz-commit-track">
+                <span class="pf-hz-commit-thumb"></span>
+              </span>
+              <span class="pf-hz-commit-label">${saved?.is_committed ? 'Следую' : 'Следовать'}</span>
+            </label>
             <button class="pf-hz-edit-btn" data-editkey="${key}" title="Редактировать">
               ${ic.edit}
             </button>
@@ -2483,11 +2497,23 @@ document.getElementById('pf-ai-mode-sw')
     const btn = document.getElementById('pf-save-btn');
     if (btn) { btn.disabled = true; btn.innerHTML = `${ic.save} Сохраняем...`; }
     try {
+      // Если горизонт был закоммичен — uncommit при сохранении изменений
+      const committed = ['short','mid','long'].filter(k => {
+        const cb = document.getElementById(`pf-hz-commit-${k}`);
+        return cb && cb.checked;
+      });
       await Promise.all([
         API.upsertPortfolioStrategy('short', this._readHorizon('short')),
         API.upsertPortfolioStrategy('mid',   this._readHorizon('mid')),
         API.upsertPortfolioStrategy('long',  this._readHorizon('long')),
       ]);
+      // Uncommit изменённые горизонты
+      for (const k of committed) {
+        await API.uncommitStrategy(k, { abandoned: false });
+        const cb = document.getElementById(`pf-hz-commit-${k}`);
+        if (cb) { cb.checked = false; cb.closest('.pf-hz-commit-toggle').querySelector('.pf-hz-commit-label').textContent = 'Следовать'; }
+        window.App.toast(`Горизонт «${k}» изменён — обязательство снято`, 'info');
+      }
       window.App.toast('Стратегия сохранена', 'success');
     } catch {
       window.App.toast('Ошибка сохранения', 'error');
@@ -2498,245 +2524,6 @@ document.getElementById('pf-ai-mode-sw')
 
 
   /* ── Direction picker ── */
-
-  _setAiMode(enabled, summary, computed) {
-  ['short', 'mid', 'long'].forEach(key => {
-    const existing = document.getElementById(`pf-ai-gen-btn-${key}`);
-    if (enabled && !existing) {
-      const actions = document.getElementById(`pf-hz-actions-${key}`);
-      if (!actions) return;
-      const btn = document.createElement('button');
-      btn.id = `pf-ai-gen-btn-${key}`;
-      btn.className = 'pf-ai-gen-btn';
-      btn.innerHTML = `
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
-             stroke="currentColor" stroke-width="2">
-          <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77
-                   l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
-        </svg>
-        Сгенерировать
-      `;
-      btn.onclick = () => this._aiHorizon(key, summary, computed);
-      actions.appendChild(btn);
-    } else if (!enabled && existing) {
-      existing.remove();
-    }
-  });
-},
-
-  async _aiHorizon(key, summary, computed) {
-    const genBtn = document.getElementById(`pf-ai-gen-btn-${key}`);
-    if (genBtn) { genBtn.disabled = true; genBtn.textContent = 'Генерирую...'; }
-
-    document.getElementById('pf-variant-picker')?.remove();
-    const el = document.createElement('div');
-    el.id = 'pf-variant-picker';
-    el.innerHTML = `
-      <div class="variant-picker-backdrop"></div>
-      <div class="variant-picker-panel">
-        <div class="variant-picker-header">
-          <span>AI варианты</span>
-          <button class="variant-picker-close"
-            onclick="document.getElementById('pf-variant-picker').remove()">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
-                 stroke="currentColor" stroke-width="2">
-              <line x1="18" y1="6" x2="6" y2="18"/>
-              <line x1="6" y1="6" x2="18" y2="18"/>
-            </svg>
-          </button>
-        </div>
-        <div class="variant-picker-body" id="vp-body">
-          <div class="vp-direction-label">Выбери направление</div>
-          <div class="vp-dir-grid">
-            <button class="vp-dir-btn vp-dir-retention" data-dir="retention">
-              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-              </svg>
-              Удержание
-            </button>
-            <button class="vp-dir-btn vp-dir-growth" data-dir="growth">
-              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-                <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/>
-                <polyline points="17 6 23 6 23 12"/>
-              </svg>
-              Рост
-            </button>
-            <button class="vp-dir-btn vp-dir-optimization" data-dir="optimization">
-              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-                <line x1="4" y1="21" x2="4" y2="14"/>
-                <line x1="4" y1="10" x2="4" y2="3"/>
-                <line x1="12" y1="21" x2="12" y2="12"/>
-                <line x1="12" y1="8" x2="12" y2="3"/>
-                <line x1="20" y1="21" x2="20" y2="16"/>
-                <line x1="20" y1="12" x2="20" y2="3"/>
-                <line x1="1" y1="14" x2="7" y2="14"/>
-                <line x1="9" y1="8" x2="15" y2="8"/>
-                <line x1="17" y1="16" x2="23" y2="16"/>
-              </svg>
-              Оптимизация
-            </button>
-            <button class="vp-dir-btn vp-dir-custom" data-dir="custom">
-              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M12 20h9"/>
-                <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
-              </svg>
-              Своё
-            </button>
-          </div>
-          <textarea id="vp-custom-text" class="vp-custom-textarea"
-                    placeholder="Опиши направление..." style="display:none"></textarea>
-          <button class="vp-generate-btn" id="vp-gen-btn" disabled>
-            Сгенерировать варианты
-          </button>
-        </div>
-      </div>
-    `;
-    document.body.appendChild(el);
-    requestAnimationFrame(() =>
-      el.querySelector('.variant-picker-panel').classList.add('visible')
-    );
-
-    const restoreGenBtn = () => {
-      if (genBtn) {
-        genBtn.disabled = false;
-        genBtn.innerHTML = `
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
-               stroke="currentColor" stroke-width="2">
-            <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77
-                     l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
-          </svg>
-          Сгенерировать`;
-      }
-    };
-
-    el.querySelector('.variant-picker-backdrop').onclick = () => {
-      el.remove();
-      restoreGenBtn();
-    };
-
-    let selectedDir = null;
-    el.querySelectorAll('.vp-dir-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        el.querySelectorAll('.vp-dir-btn').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        selectedDir = btn.dataset.dir;
-        const customArea = document.getElementById('vp-custom-text');
-        if (selectedDir === 'custom') {
-          customArea.style.display = 'block';
-          customArea.focus();
-        } else {
-          customArea.style.display = 'none';
-        }
-        document.getElementById('vp-gen-btn').disabled = false;
-      });
-    });
-
-    document.getElementById('vp-gen-btn').addEventListener('click', async () => {
-      const direction = selectedDir === 'custom'
-        ? (document.getElementById('vp-custom-text')?.value.trim() || 'custom')
-        : selectedDir;
-
-      const body = document.getElementById('vp-body');
-      body.innerHTML = `
-        <div class="vp-loading">
-          <div class="vp-spinner"></div>
-          <div class="vp-loading-text">Генерирую варианты...</div>
-        </div>
-      `;
-
-      try {
-        const clientsSnapshot = (computed || [])
-          .filter(r => r.bchs !== null)
-          .sort((a, b) => (b.revenueAtRisk || 0) - (a.revenueAtRisk || 0))
-          .slice(0, 10)
-          .map(r => ({
-            name:  r.client.name,
-            bcg:   r.client.bcg_category,
-            bchs:  r.bchs,
-            trend: r.trend?.label ?? '—',
-            mr:    r.client.monthly_revenue || 0,
-            risk:  r.revenueAtRisk || 0,
-          }));
-
-        const data = await API.callAI({
-          type: 'horizon', horizon: key, direction, max_tokens: 1800,
-          summary: {
-            total:        summary.total,
-            avgLoyalty:   summary.avgLoyalty,
-            totalRisk:    summary.totalRisk,
-            bcgCount:     summary.bcgCount,
-            top3Risk:     summary.top3Risk.map(r =>
-              `${r.name} ($${r.risk.toLocaleString('ru-RU')}, ${r.pct}%)`
-            ).join('; ') || 'нет',
-            avgPotential: summary.avgPotential,
-          },
-          clients_snapshot:    clientsSnapshot,
-          existing_strategies: this._portfolioData,
-        });
-
-        const content  = data?.choices?.[0]?.message?.content ?? '';
-        if (!content) throw new Error('Пустой ответ от AI');
-        const match    = content.match(/\{[\s\S]*\}/);
-        const parsed   = JSON.parse(match ? match[0] : content);
-        const variants = parsed.variants ?? [];
-        if (!variants.length) throw new Error('AI не вернул варианты');
-
-        const items = variants.map((v, i) => `
-          <label class="variant-toggle-row" for="vt-${i}">
-            <div class="variant-toggle-content">
-              <div class="variant-toggle-title">${v.label || v.name || 'Вариант ' + (i+1)}</div>
-              <div class="variant-toggle-text">${v.focus || v.outcome || v.text || ''}</div>
-            </div>
-            <div class="toggle-switch">
-              <input type="radio" name="variant-pick" id="vt-${i}"
-                     value="${i}" ${i===0?'checked':''}>
-              <span class="toggle-track"></span>
-            </div>
-          </label>
-        `).join('');
-
-        body.innerHTML = `
-          <div class="variant-picker-list">${items}</div>
-          <div class="variant-picker-footer">
-            <button class="variant-apply-btn" id="variant-apply-btn">Применить</button>
-          </div>
-        `;
-
-        document.getElementById('variant-apply-btn').onclick = () => {
-          const checked = el.querySelector('input[name="variant-pick"]:checked');
-          if (checked) {
-            const chosen    = variants[+checked.value];
-            const titleEl   = document.getElementById(`pf-${key}-focus`);
-            const goalEl    = document.getElementById(`pf-${key}-outcome`);
-            const riskEl    = document.getElementById(`pf-${key}-risk`);
-            const deadlineEl = document.getElementById(`pf-${key}-deadline`);
-            if (titleEl)    titleEl.value    = chosen.focus    || chosen.name || '';
-            if (goalEl)     goalEl.value     = chosen.outcome  || '';
-            if (riskEl)     riskEl.value     = chosen.risk     || '';
-            if (deadlineEl && chosen.deadline) deadlineEl.value = chosen.deadline;
-            const bar = document.getElementById('pf-manual-save-bar');
-            if (bar) bar.style.display = 'flex';
-          }
-          el.remove();
-          restoreGenBtn();
-        };
-
-      } catch(e) {
-        body.innerHTML = `
-          <div class="vp-error">
-            <div class="vp-error-text">${e.message}</div>
-            <button class="vp-retry-btn"
-              onclick="document.getElementById('pf-variant-picker').remove()">
-              Закрыть
-            </button>
-          </div>
-        `;
-        restoreGenBtn();
-      }
-    });
-
-    restoreGenBtn();
-  },
 
   async _renderAccountsTab() {
 
@@ -3751,7 +3538,13 @@ document.getElementById('pf-ai-mode-sw')
       + '    </div>'
       + '    <div><div style="font-size:13px;font-weight:600;color:#111827;margin-bottom:2px;">Сценарий</div><div style="font-size:11px;color:#9ca3af;">Прогноз 3–12 месяцев</div></div>'
       + '  </button>'
-      + '  </div></div>'
+      + '  <button id="pf-dap-review" style="display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:10px;border:1.5px solid #f0f0f5;background:#fff;cursor:pointer;text-align:left;width:100%;box-sizing:border-box;transition:all .15s;margin-bottom:8px;">'
+      + '    <div style="width:36px;height:36px;border-radius:8px;background:#fef3c7;color:#f59e0b;display:flex;align-items:center;justify-content:center;flex-shrink:0;">'
+      + '      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>'
+      + '    </div>'
+      + '    <div><div style="font-size:13px;font-weight:600;color:#111827;margin-bottom:2px;">Ревью стратегий</div><div style="font-size:11px;color:#9ca3af;">История и AI-анализ изменений</div></div>'
+      + '  </button>'
+      + '  </div></div>';
 
     document.body.appendChild(el);
     requestAnimationFrame(() =>
@@ -3806,11 +3599,11 @@ document.getElementById('pf-ai-mode-sw')
           + '  <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#9ca3af;margin-bottom:10px;">AI · Предварительный план</div>'
           + '  <div style="display:flex;flex-direction:column;gap:10px;">'
           + '    <div><div style="font-size:10px;color:#6366f1;font-weight:700;margin-bottom:4px;text-transform:uppercase;">Краткосрочно · 1–3 мес</div>'
-          + '    <textarea id="pf-dap-short" rows="4" style="width:100%;box-sizing:border-box;padding:8px 10px;border:1.5px solid #e0e7ff;border-radius:8px;font-size:12px;color:#374151;resize:none;font-family:inherit;line-height:1.6;min-height:80px;max-height:160px;overflow-y:auto;"></textarea></div>'
+          + '    <textarea id="pf-dap-short" rows="4" style="width:100%;box-sizing:border-box;padding:8px 10px;border:1.5px solid #e0e7ff;border-radius:8px;font-size:12px;color:#374151;resize:none;font-family:inherit;line-height:1.6;min-height:120px;max-height:260px;overflow-y:auto;"></textarea></div>'
           + '    <div><div style="font-size:10px;color:#8b5cf6;font-weight:700;margin-bottom:4px;text-transform:uppercase;">Среднесрочно · 3–6 мес</div>'
-          + '    <textarea id="pf-dap-mid" rows="4" style="width:100%;box-sizing:border-box;padding:8px 10px;border:1.5px solid #ede9fe;border-radius:8px;font-size:12px;color:#374151;resize:none;font-family:inherit;line-height:1.6;min-height:80px;max-height:160px;overflow-y:auto;"></textarea></div>'
+          + '    <textarea id="pf-dap-mid" rows="4" style="width:100%;box-sizing:border-box;padding:8px 10px;border:1.5px solid #ede9fe;border-radius:8px;font-size:12px;color:#374151;resize:none;font-family:inherit;line-height:1.6;min-height:120px;max-height:260px;overflow-y:auto;"></textarea></div>'
           + '    <div><div style="font-size:10px;color:#64748b;font-weight:700;margin-bottom:4px;text-transform:uppercase;">Долгосрочно · 6–12 мес</div>'
-          + '    <textarea id="pf-dap-long" rows="4" style="width:100%;box-sizing:border-box;padding:8px 10px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:12px;color:#374151;resize:none;font-family:inherit;line-height:1.6;min-height:80px;max-height:160px;overflow-y:auto;"></textarea></div>'
+          + '    <textarea id="pf-dap-long" rows="4" style="width:100%;box-sizing:border-box;padding:8px 10px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:12px;color:#374151;resize:none;font-family:inherit;line-height:1.6;min-height:120px;max-height:260px;overflow-y:auto;"></textarea></div>'
           + '  </div>'
           + '  <button id="pf-dap-save" style="margin-top:14px;width:100%;padding:11px;background:#10b981;color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;">Сохранить в горизонты</button>'
           + '</div>';
@@ -3910,17 +3703,29 @@ document.getElementById('pf-ai-mode-sw')
         });
 
         /* сохранение */
-        document.getElementById('pf-dap-save')?.addEventListener('click', () => {
-          ['short','mid','long'].forEach(key => {
-            const v = document.getElementById('pf-dap-' + key)?.value.trim() || '';
-            const f = document.getElementById('pf-focus-' + key);
-            const o = document.getElementById('pf-outcome-' + key);
-            if (f) f.value = v.split('\n')[0] || '';
-            if (o) o.value = v;
-          });
-          document.getElementById('pf-save-btn')?.click();
-          close();
-          window.App?.toast('Горизонты заполнены', 'success');
+        document.getElementById('pf-dap-save')?.addEventListener('click', async () => {
+          const saveBtn = document.getElementById('pf-dap-save');
+          saveBtn.textContent = 'Сохраняю...';
+          saveBtn.disabled = true;
+          try {
+            const vals = {
+              short: document.getElementById('pf-dap-short')?.value.trim() || '',
+              mid:   document.getElementById('pf-dap-mid')?.value.trim() || '',
+              long:  document.getElementById('pf-dap-long')?.value.trim() || '',
+            };
+            await Promise.all([
+              API.upsertPortfolioStrategy('short', { focus: vals.short.split('\n')[0] || '', outcome: vals.short, risk: '', status: 'on_track', deadline: '' }),
+              API.upsertPortfolioStrategy('mid',   { focus: vals.mid.split('\n')[0]   || '', outcome: vals.mid,   risk: '', status: 'on_track', deadline: '' }),
+              API.upsertPortfolioStrategy('long',  { focus: vals.long.split('\n')[0]  || '', outcome: vals.long,  risk: '', status: 'on_track', deadline: '' }),
+            ]);
+            window.App?.toast('Горизонты сохранены', 'success');
+            document.getElementById('pf-dap-backdrop')?.click();
+          } catch(e) {
+            window.App?.toast('Ошибка сохранения', 'error');
+          } finally {
+            saveBtn.textContent = 'Сохранить в горизонты';
+            saveBtn.disabled = false;
+          }
         });
       } else {
         strategyEl.style.display = 'block';
@@ -3998,29 +3803,152 @@ document.getElementById('pf-ai-mode-sw')
     });
 
         /* ── Сохранить в горизонты ── */
-    document.getElementById('pf-dap-save')?.addEventListener('click', async () => {
-      const saveBtn = document.getElementById('pf-dap-save');
-      const orig = saveBtn.textContent;
-      saveBtn.textContent = 'Сохраняю...';
-      saveBtn.disabled = true;
+    /* pf-dap-save handler moved to strategy click handler */
+
+    /* ── Ревью стратегий ── */
+    document.getElementById('pf-dap-review')?.addEventListener('click', async () => {
+      const reviewBtn = document.getElementById('pf-dap-review');
+      let reviewEl = document.getElementById('pf-dap-review-view');
+
+      collapseOthers('pf-dap-review-view');
+
+      if (reviewEl && reviewEl.style.display !== 'none') {
+        slideClose(reviewEl);
+        return;
+      }
+
+      reviewBtn.parentNode.appendChild(reviewBtn);
+
+      if (!reviewEl) {
+        reviewEl = document.createElement('div');
+        reviewEl.id = 'pf-dap-review-view';
+        reviewEl.style.cssText = 'display:none;overflow:hidden;max-height:0;opacity:0;transition:max-height .3s ease,opacity .25s ease;';
+        reviewEl.innerHTML = `
+          <div style="background:#f8f7ff;border:1px solid #e0e7ff;border-radius:12px;padding:14px;margin-bottom:8px;">
+            <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#6366f1;margin-bottom:12px;">История обязательств</div>
+            <div id="pf-dap-history-list" style="font-size:12px;color:#6b7280;">Загрузка...</div>
+            <button id="pf-dap-ai-review-btn" style="width:100%;padding:10px;background:#6366f1;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;margin-top:12px;display:none;">
+              ✨ Анализ с root causes
+            </button>
+            <div id="pf-dap-ai-review" style="display:none;margin-top:10px;padding:12px;background:#fff;border-radius:8px;border:1px solid #e0e7ff;">
+              <div style="font-size:11px;font-weight:700;color:#6366f1;margin-bottom:8px;">AI · Root cause analysis</div>
+              <div id="pf-dap-ai-review-text" style="font-size:12px;color:#374151;white-space:pre-wrap;line-height:1.6;"></div>
+            </div>
+          </div>
+        `;
+        reviewBtn.parentNode.appendChild(reviewEl);
+      }
+
+      slideOpen(reviewEl);
+
       try {
-        const vals = {
-          short: document.getElementById('pf-dap-short').value.trim(),
-          mid:   document.getElementById('pf-dap-mid').value.trim(),
-          long:  document.getElementById('pf-dap-long').value.trim(),
-        };
-        ['short', 'mid', 'long'].forEach(key => {
-          const focusEl   = document.getElementById('pf-focus-' + key);
-          const outcomeEl = document.getElementById('pf-outcome-' + key);
-          if (focusEl)   focusEl.value   = vals[key].split('\n')[0] || '';
-          if (outcomeEl) outcomeEl.value = vals[key];
+        const history = await API.getStrategyHistory(50);
+        const listEl  = document.getElementById('pf-dap-history-list');
+        const aiBtn   = document.getElementById('pf-dap-ai-review-btn');
+
+        const horizonLabel = { short: 'Краткосрочно', mid: 'Среднесрочно', long: 'Долгосрочно' };
+        const horizonColor = { short: '#ef4444', mid: '#f59e0b', long: '#10b981' };
+        const statusLabel  = { active: 'Активно', completed: 'Завершено', abandoned: 'Отменено', on_track: 'В работе' };
+        const statusColor  = { active: '#6366f1', completed: '#10b981', abandoned: '#9ca3af', on_track: '#6366f1' };
+
+        if (!history.length) {
+          listEl.innerHTML = `<div style="color:#9ca3af;font-size:12px;padding:12px 0;text-align:center;">
+            <div style="font-size:24px;margin-bottom:6px;">⏳</div>
+            Включи тумблер «Следовать» на горизонте чтобы зафиксировать обязательство
+          </div>`;
+        } else {
+          const active = history.filter(h => h.status === 'active');
+          const past   = history.filter(h => h.status !== 'active');
+          let html = '';
+
+          if (active.length) {
+            html += `<div style="margin-bottom:12px;">
+              <div style="font-size:10px;font-weight:700;color:#6366f1;letter-spacing:.06em;margin-bottom:6px;">СЕЙЧАС СЛЕДУЮ</div>
+              ${active.map(h => `
+                <div style="padding:8px 10px;background:#eef2ff;border-radius:8px;border-left:3px solid ${horizonColor[h.horizon]||'#6366f1'};margin-bottom:6px;">
+                  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+                    <span style="font-size:11px;font-weight:700;color:${horizonColor[h.horizon]||'#374151'}">${horizonLabel[h.horizon]||h.horizon}</span>
+                    <span style="font-size:10px;color:#6366f1;background:#e0e7ff;padding:2px 6px;border-radius:10px;">Следую</span>
+                  </div>
+                  <div style="font-size:12px;color:#1e1b4b;font-weight:500;">${(h.focus||'—').slice(0,90)}</div>
+                  ${h.outcome ? `<div style="font-size:11px;color:#4338ca;margin-top:3px;">${h.outcome.slice(0,80)}</div>` : ''}
+                  ${h.committed_at ? `<div style="font-size:10px;color:#9ca3af;margin-top:4px;">С ${new Date(h.committed_at).toLocaleDateString('ru-RU',{day:'numeric',month:'short'})}</div>` : ''}
+                </div>
+              `).join('')}
+            </div>`;
+          }
+
+          if (past.length) {
+            html += `<div>
+              <div style="font-size:10px;font-weight:700;color:#9ca3af;letter-spacing:.06em;margin-bottom:6px;">ИСТОРИЯ</div>
+              ${past.slice(0,15).map(h => `
+                <div style="padding:7px 10px;background:#fff;border-radius:8px;border-left:3px solid ${horizonColor[h.horizon]||'#e5e7eb'};margin-bottom:5px;opacity:${h.status==='abandoned'?'0.6':'1'};">
+                  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px;">
+                    <span style="font-size:11px;font-weight:600;color:${horizonColor[h.horizon]||'#374151'}">${horizonLabel[h.horizon]||h.horizon}</span>
+                    <span style="font-size:10px;color:${statusColor[h.status]||'#9ca3af'}">${statusLabel[h.status]||h.status}</span>
+                  </div>
+                  <div style="font-size:11px;color:#374151;">${(h.focus||'—').slice(0,80)}</div>
+                  ${h.committed_at ? `<div style="font-size:10px;color:#9ca3af;margin-top:3px;">
+                    ${new Date(h.committed_at).toLocaleDateString('ru-RU',{day:'numeric',month:'short'})}
+                    ${h.completed_at ? ' → ' + new Date(h.completed_at).toLocaleDateString('ru-RU',{day:'numeric',month:'short'}) : ''}
+                  </div>` : ''}
+                </div>
+              `).join('')}
+            </div>`;
+          }
+
+          listEl.innerHTML = html;
+          if (aiBtn && history.length >= 1) aiBtn.style.display = 'block';
+        }
+
+        aiBtn?.addEventListener('click', async () => {
+          const reviewDiv  = document.getElementById('pf-dap-ai-review');
+          const reviewText = document.getElementById('pf-dap-ai-review-text');
+          aiBtn.textContent = 'Анализирую...';
+          aiBtn.disabled = true;
+          reviewDiv.style.display = 'block';
+          reviewText.textContent = 'Генерирую анализ...';
+          try {
+            const historyText = history.slice(0,30).map(h => [
+                h.horizon.toUpperCase(),
+                h.focus ? 'Фокус: ' + h.focus : '',
+                h.outcome ? 'Цель: ' + h.outcome : '',
+                h.status ? 'Статус: ' + h.status : '',
+                h.committed_at ? 'Начало: ' + h.committed_at.slice(0,10) : '',
+                h.completed_at ? 'Конец: ' + h.completed_at.slice(0,10) : '',
+              ].filter(Boolean).join(' | ')).join('\n');
+
+            const resp = await API.callAI({
+              messages: [
+                {
+                  role: 'system',
+                  content: [
+                    'Ты стратегический адвайзер. Отвечай по структуре:',
+                    '1. ЧТО МЕНЯЛОСЬ: конкретные сдвиги в фокусе и целях',
+                    '2. ROOT CAUSES: почему обязательства менялись или отменялись — глубинные причины',
+                    '3. ПАТТЕРНЫ: что повторяется, что системно влияет на результаты',
+                    '4. РЕКОМЕНДАЦИИ: конкретные изменения для следующего периода',
+                    'Отвечай на русском, кратко, чётко, без воды.',
+                  ].join('\n'),
+                },
+                {
+                  role: 'user',
+                  content: 'История стратегических обязательств:\n\n' + historyText,
+                },
+              ],
+            });
+            const content = resp?.choices?.[0]?.message?.content || resp?.content || resp?.result || 'Нет ответа';
+            reviewText.textContent = content;
+          } catch(e) {
+            reviewText.textContent = 'Ошибка: ' + e.message;
+          } finally {
+            aiBtn.textContent = '✨ Анализ с root causes';
+            aiBtn.disabled = false;
+          }
         });
-        document.getElementById('pf-save-btn')?.click();
-        close();
-        window.App?.toast('Горизонты заполнены', 'success');
-      } catch (e) {
-        saveBtn.textContent = orig;
-        saveBtn.disabled = false;
+
+      } catch(e) {
+        document.getElementById('pf-dap-history-list').textContent = 'Ошибка загрузки: ' + e.message;
       }
     });
   },

@@ -674,6 +674,110 @@ async function buildMessages(body, env) {
 
 /* ── Fetch Handler ── */
 export default {
+
+// ══════════════════════════════════════════
+// CRON: каждое воскресенье — недельный саммари
+// ══════════════════════════════════════════
+async scheduled(event, env, ctx) {
+  ctx.waitUntil((async () => {
+    try {
+      const now = new Date().toISOString();
+      const ws  = _weekStart(now);
+      const we  = _weekEnd(ws);
+
+      // Считаем из истории за эту неделю
+      const rows = await env.DB.prepare(
+        `SELECT status, COUNT(*) as cnt FROM portfolio_strategy_history
+         WHERE committed_at >= ? OR completed_at >= ?
+         GROUP BY status`
+      ).bind(ws, ws).all();
+
+      const agg = { committed:0, completed:0, failed:0, abandoned:0, revised:0 };
+      for (const r of (rows.results||[])) {
+        if (r.status === 'active')    agg.committed  += r.cnt;
+        if (r.status === 'completed' || r.status === 'partial') agg.completed += r.cnt;
+        if (r.status === 'failed')    agg.failed     += r.cnt;
+        if (r.status === 'abandoned') agg.abandoned  += r.cnt;
+        if (r.status === 'revised')   agg.revised    += r.cnt;
+      }
+
+      // Читаем KPI
+      const kpiRow = await env.DB.prepare(
+        'SELECT * FROM portfolio_kpi_cache ORDER BY cached_at DESC LIMIT 1'
+      ).first();
+      const kpiJson = kpiRow ? JSON.stringify({
+        period:           kpiRow.period,
+        cached_at:        kpiRow.cached_at,
+        summary:          JSON.parse(kpiRow.summary        || '{}'),
+        kpi_snapshot:     JSON.parse(kpiRow.kpi_snapshot   || '{}'),
+        computed_clients: JSON.parse(kpiRow.computed_clients|| '[]'),
+      }) : null;
+
+      // Upsert weekly
+      const weekRow = await env.DB.prepare(
+        'SELECT id FROM portfolio_weekly_summary WHERE week_start=?'
+      ).bind(ws).first();
+      if (weekRow) {
+        await env.DB.prepare(
+          `UPDATE portfolio_weekly_summary SET
+            horizons_committed=?,horizons_completed=?,horizons_failed=?,
+            horizons_abandoned=?,horizons_revised=?,kpi_final=? WHERE week_start=?`
+        ).bind(agg.committed,agg.completed,agg.failed,agg.abandoned,agg.revised,kpiJson,ws).run();
+      } else {
+        await env.DB.prepare(
+          `INSERT INTO portfolio_weekly_summary
+            (id,week_start,week_end,horizons_committed,horizons_completed,horizons_failed,horizons_abandoned,horizons_revised,kpi_snapshot,kpi_final,notes)
+           VALUES (?,?,?,?,?,?,?,?,?,?,'')`
+        ).bind(crypto.randomUUID(),ws,we,
+          agg.committed,agg.completed,agg.failed,agg.abandoned,agg.revised,
+          kpiJson,kpiJson
+        ).run();
+      }
+
+      // Агрегируем месяц
+      const month = ws.slice(0,7);
+      const weeks = await env.DB.prepare(
+        'SELECT * FROM portfolio_weekly_summary WHERE week_start >= ? AND week_start <= ?'
+      ).bind(month+'-01', month+'-31').all();
+
+      if ((weeks.results||[]).length > 0) {
+        const ma = (weeks.results||[]).reduce((a,r) => ({
+          committed: a.committed + (r.horizons_committed||0),
+          completed: a.completed + (r.horizons_completed||0),
+          failed:    a.failed    + (r.horizons_failed||0),
+          abandoned: a.abandoned + (r.horizons_abandoned||0),
+          revised:   a.revised   + (r.horizons_revised||0),
+        }), {committed:0,completed:0,failed:0,abandoned:0,revised:0});
+
+        const firstSnap = weeks.results[weeks.results.length-1]?.kpi_snapshot || null;
+        const monthRow = await env.DB.prepare(
+          'SELECT id FROM portfolio_monthly_summary WHERE month=?'
+        ).bind(month).first();
+        if (monthRow) {
+          await env.DB.prepare(
+            `UPDATE portfolio_monthly_summary SET
+              horizons_committed=?,horizons_completed=?,horizons_failed=?,
+              horizons_abandoned=?,horizons_revised=?,kpi_final=? WHERE month=?`
+          ).bind(ma.committed,ma.completed,ma.failed,ma.abandoned,ma.revised,kpiJson,month).run();
+        } else {
+          await env.DB.prepare(
+            `INSERT INTO portfolio_monthly_summary
+              (id,month,horizons_committed,horizons_completed,horizons_failed,horizons_abandoned,horizons_revised,kpi_snapshot,kpi_final,notes)
+             VALUES (?,?,?,?,?,?,?,?,?,'')`
+          ).bind(crypto.randomUUID(),month,
+            ma.committed,ma.completed,ma.failed,ma.abandoned,ma.revised,
+            firstSnap,kpiJson
+          ).run();
+        }
+      }
+
+      console.log('[cron] weekly summary updated for', ws);
+    } catch(e) {
+      console.error('[cron] error:', e.message);
+    }
+  })());
+},
+
   async fetch(request, env) {
     if (request.method === 'OPTIONS') {
       return new Response(null, { headers: CORS });
@@ -1332,6 +1436,415 @@ export default {
 
     /* ── Tables CRUD ── */
     const match = path.match(/^\/tables\/([a-z_]+)(\/(.+))?$/);
+    // ══════════════════════════════════════════
+    // STRATEGY COMMIT  POST /portfolio/strategy/commit
+    // ══════════════════════════════════════════
+    if (path === '/portfolio/strategy/commit' && method === 'POST') {
+      try {
+        const { horizon } = await request.json();
+        if (!horizon) return json({ error: 'horizon required' }, 400);
+
+        // Читаем стратегию
+        const strategy = await env.DB.prepare(
+          'SELECT * FROM portfolio_strategies WHERE horizon = ? ORDER BY created_at DESC LIMIT 1'
+        ).bind(horizon).first();
+        if (!strategy) return json({ error: 'Strategy not found for horizon: ' + horizon }, 404);
+
+        // Читаем полный KPI из кэша
+        const kpiRow = await env.DB.prepare(
+          'SELECT * FROM portfolio_kpi_cache ORDER BY cached_at DESC LIMIT 1'
+        ).first();
+        const kpiSnapshot = kpiRow ? {
+          period:           kpiRow.period,
+          cached_at:        kpiRow.cached_at,
+          summary:          JSON.parse(kpiRow.summary           || '{}'),
+          kpi_snapshot:     JSON.parse(kpiRow.kpi_snapshot      || '{}'),
+          computed_clients: JSON.parse(kpiRow.computed_clients   || '[]'),
+        } : null;
+
+        const now = new Date().toISOString();
+
+        // Пишем в историю
+        await env.DB.prepare(
+          `INSERT INTO portfolio_strategy_history
+            (id, horizon, focus, outcome, risk, deadline, status, ai_generated, committed_at, kpi_snapshot, notes)
+           VALUES (?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, '')`
+        ).bind(
+          crypto.randomUUID(),
+          horizon,
+          strategy.focus    || '',
+          strategy.outcome  || '',
+          strategy.risk     || '',
+          strategy.deadline || '',
+          strategy.ai_generated || 0,
+          now,
+          kpiSnapshot ? JSON.stringify(kpiSnapshot) : null,
+        ).run();
+
+        // Помечаем стратегию как committed
+        await env.DB.prepare(
+          'UPDATE portfolio_strategies SET is_committed = 1, committed_at = ?, updated_at = ? WHERE id = ?'
+        ).bind(now, now, strategy.id).run();
+
+        return json({ success: true, committed_at: now, kpi_captured: !!kpiSnapshot });
+      } catch(e) { return json({ error: e.message }, 500); }
+    }
+
+    // ══════════════════════════════════════════
+    // STRATEGY UNCOMMIT  POST /portfolio/strategy/uncommit
+    // ══════════════════════════════════════════
+    if (path === '/portfolio/strategy/uncommit' && method === 'POST') {
+      try {
+        const { horizon, status = 'completed', notes = '' } = await request.json();
+        if (!horizon) return json({ error: 'horizon required' }, 400);
+
+        const validStatuses = ['completed', 'partial', 'failed', 'abandoned', 'revised'];
+        if (!validStatuses.includes(status)) {
+          return json({ error: 'Invalid status. Must be one of: ' + validStatuses.join(', ') }, 400);
+        }
+
+        const now = new Date().toISOString();
+
+        // Читаем финальный KPI
+        const kpiRow = await env.DB.prepare(
+          'SELECT * FROM portfolio_kpi_cache ORDER BY cached_at DESC LIMIT 1'
+        ).first();
+        const kpiFinal = kpiRow ? {
+          period:           kpiRow.period,
+          cached_at:        kpiRow.cached_at,
+          summary:          JSON.parse(kpiRow.summary           || '{}'),
+          kpi_snapshot:     JSON.parse(kpiRow.kpi_snapshot      || '{}'),
+          computed_clients: JSON.parse(kpiRow.computed_clients   || '[]'),
+        } : null;
+
+        // Закрываем активную запись в истории
+        const activeRecord = await env.DB.prepare(
+          `SELECT * FROM portfolio_strategy_history
+           WHERE horizon = ? AND status = 'active'
+           ORDER BY committed_at DESC LIMIT 1`
+        ).bind(horizon).first();
+
+        if (activeRecord) {
+          await env.DB.prepare(
+            `UPDATE portfolio_strategy_history
+             SET status = ?, completed_at = ?, kpi_final = ?, notes = ?
+             WHERE id = ?`
+          ).bind(
+            status,
+            now,
+            kpiFinal ? JSON.stringify(kpiFinal) : null,
+            notes,
+            activeRecord.id
+          ).run();
+        }
+
+        // Снимаем committed со стратегии
+        const strategy = await env.DB.prepare(
+          'SELECT id FROM portfolio_strategies WHERE horizon = ? ORDER BY created_at DESC LIMIT 1'
+        ).bind(horizon).first();
+        if (strategy) {
+          await env.DB.prepare(
+            'UPDATE portfolio_strategies SET is_committed = 0, updated_at = ? WHERE id = ?'
+          ).bind(now, strategy.id).run();
+        }
+
+        // Обновляем недельный саммари
+        const weekStart = new Date();
+        weekStart.setDate(weekStart.getDate() - weekStart.getDay() + 1);
+        weekStart.setHours(0,0,0,0);
+        const weekEnd = new Date(weekStart);
+        weekEnd.setDate(weekEnd.getDate() + 6);
+        const ws = weekStart.toISOString().slice(0,10);
+        const we = weekEnd.toISOString().slice(0,10);
+
+        const weekRow = await env.DB.prepare(
+          'SELECT * FROM portfolio_weekly_summary WHERE week_start = ?'
+        ).bind(ws).first();
+
+        const colMap = {
+          completed: 'horizons_completed',
+          partial:   'horizons_completed',
+          failed:    'horizons_failed',
+          abandoned: 'horizons_abandoned',
+          revised:   'horizons_revised',
+        };
+        const col = colMap[status] || 'horizons_completed';
+
+        if (weekRow) {
+          await env.DB.prepare(
+            `UPDATE portfolio_weekly_summary SET ${col} = ${col} + 1, kpi_final = ? WHERE week_start = ?`
+          ).bind(kpiFinal ? JSON.stringify(kpiFinal) : weekRow.kpi_final, ws).run();
+        } else {
+          const colVals = { horizons_completed:0, horizons_failed:0, horizons_abandoned:0, horizons_revised:0 };
+          colVals[col] = 1;
+          await env.DB.prepare(
+            `INSERT INTO portfolio_weekly_summary
+              (id, week_start, week_end, horizons_committed, horizons_completed, horizons_failed, horizons_abandoned, horizons_revised, kpi_snapshot, kpi_final, notes)
+             VALUES (?, ?, ?, 0, ?, ?, ?, ?, ?, ?, '')`
+          ).bind(
+            crypto.randomUUID(), ws, we,
+            colVals.horizons_completed,
+            colVals.horizons_failed,
+            colVals.horizons_abandoned,
+            colVals.horizons_revised,
+            kpiFinal ? JSON.stringify(kpiFinal) : null,
+            kpiFinal ? JSON.stringify(kpiFinal) : null,
+          ).run();
+        }
+
+        return json({ success: true, status, completed_at: now, kpi_captured: !!kpiFinal });
+      } catch(e) { return json({ error: e.message }, 500); }
+    }
+
+    // ══════════════════════════════════════════
+    // STRATEGY WEEKLY  GET /portfolio/strategy/weekly
+    // ══════════════════════════════════════════
+    if (path === '/portfolio/strategy/weekly' && method === 'GET') {
+      try {
+        const limit = parseInt(url.searchParams.get('limit') || '12');
+        const rows = await env.DB.prepare(
+          'SELECT * FROM portfolio_weekly_summary ORDER BY week_start DESC LIMIT ?'
+        ).bind(limit).all();
+
+        const weeks = (rows.results || []).map(r => ({
+          week_start:          r.week_start,
+          week_end:            r.week_end,
+          horizons_committed:  r.horizons_committed,
+          horizons_completed:  r.horizons_completed,
+          horizons_failed:     r.horizons_failed,
+          horizons_abandoned:  r.horizons_abandoned,
+          horizons_revised:    r.horizons_revised,
+          kpi_snapshot:        JSON.parse(r.kpi_snapshot || 'null'),
+          kpi_final:           JSON.parse(r.kpi_final    || 'null'),
+          notes:               r.notes || '',
+        }));
+
+        return json({ success: true, data: weeks });
+      } catch(e) { return json({ error: e.message }, 500); }
+    }
+
+    // ══════════════════════════════════════════
+    // POST /portfolio/strategy/commit
+    // ══════════════════════════════════════════
+    if (path === '/portfolio/strategy/commit' && method === 'POST') {
+      try {
+        const { horizon } = await request.json();
+        if (!horizon) return json({ error: 'horizon required' }, 400);
+
+        const strategy = await env.DB.prepare(
+          'SELECT * FROM portfolio_strategies WHERE horizon = ? ORDER BY created_at DESC LIMIT 1'
+        ).bind(horizon).first();
+        if (!strategy) return json({ error: 'Strategy not found: ' + horizon }, 404);
+
+        const kpiRow = await env.DB.prepare(
+          'SELECT * FROM portfolio_kpi_cache ORDER BY cached_at DESC LIMIT 1'
+        ).first();
+        const kpiSnapshot = kpiRow ? {
+          period:           kpiRow.period,
+          cached_at:        kpiRow.cached_at,
+          summary:          JSON.parse(kpiRow.summary            || '{}'),
+          kpi_snapshot:     JSON.parse(kpiRow.kpi_snapshot       || '{}'),
+          computed_clients: JSON.parse(kpiRow.computed_clients    || '[]'),
+        } : null;
+
+        const now = new Date().toISOString();
+
+        await env.DB.prepare(
+          `INSERT INTO portfolio_strategy_history
+            (id, horizon, focus, outcome, risk, deadline, status, ai_generated, committed_at, kpi_snapshot, notes)
+           VALUES (?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, '')`
+        ).bind(
+          crypto.randomUUID(), horizon,
+          strategy.focus || '', strategy.outcome || '',
+          strategy.risk  || '', strategy.deadline || '',
+          strategy.ai_generated || 0, now,
+          kpiSnapshot ? JSON.stringify(kpiSnapshot) : null,
+        ).run();
+
+        await env.DB.prepare(
+          'UPDATE portfolio_strategies SET is_committed=1, committed_at=?, updated_at=? WHERE id=?'
+        ).bind(now, now, strategy.id).run();
+
+        // Обновляем недельный счётчик committed
+        const ws = _weekStart(now);
+        const we = _weekEnd(ws);
+        const weekRow = await env.DB.prepare(
+          'SELECT id FROM portfolio_weekly_summary WHERE week_start=?'
+        ).bind(ws).first();
+        if (weekRow) {
+          await env.DB.prepare(
+            'UPDATE portfolio_weekly_summary SET horizons_committed=horizons_committed+1, kpi_snapshot=COALESCE(kpi_snapshot,?) WHERE week_start=?'
+          ).bind(kpiSnapshot ? JSON.stringify(kpiSnapshot) : null, ws).run();
+        } else {
+          await env.DB.prepare(
+            `INSERT INTO portfolio_weekly_summary
+              (id,week_start,week_end,horizons_committed,horizons_completed,horizons_failed,horizons_abandoned,horizons_revised,kpi_snapshot,kpi_final,notes)
+             VALUES (?,?,?,1,0,0,0,0,?,null,'')`
+          ).bind(crypto.randomUUID(), ws, we, kpiSnapshot ? JSON.stringify(kpiSnapshot) : null).run();
+        }
+
+        return json({ success: true, committed_at: now, kpi_captured: !!kpiSnapshot });
+      } catch(e) { return json({ error: e.message }, 500); }
+    }
+
+    // ══════════════════════════════════════════
+    // POST /portfolio/strategy/uncommit
+    // ══════════════════════════════════════════
+    if (path === '/portfolio/strategy/uncommit' && method === 'POST') {
+      try {
+        const { horizon, status = 'completed', notes = '' } = await request.json();
+        if (!horizon) return json({ error: 'horizon required' }, 400);
+        const valid = ['completed','partial','failed','abandoned','revised'];
+        if (!valid.includes(status)) return json({ error: 'status must be one of: ' + valid.join(', ') }, 400);
+
+        const now = new Date().toISOString();
+
+        const kpiRow = await env.DB.prepare(
+          'SELECT * FROM portfolio_kpi_cache ORDER BY cached_at DESC LIMIT 1'
+        ).first();
+        const kpiFinal = kpiRow ? {
+          period:           kpiRow.period,
+          cached_at:        kpiRow.cached_at,
+          summary:          JSON.parse(kpiRow.summary            || '{}'),
+          kpi_snapshot:     JSON.parse(kpiRow.kpi_snapshot       || '{}'),
+          computed_clients: JSON.parse(kpiRow.computed_clients    || '[]'),
+        } : null;
+        const kpiFinalStr = kpiFinal ? JSON.stringify(kpiFinal) : null;
+
+        // Закрываем активную запись истории
+        const active = await env.DB.prepare(
+          `SELECT id FROM portfolio_strategy_history
+           WHERE horizon=? AND status='active' ORDER BY committed_at DESC LIMIT 1`
+        ).bind(horizon).first();
+        if (active) {
+          await env.DB.prepare(
+            `UPDATE portfolio_strategy_history
+             SET status=?, completed_at=?, kpi_final=?, notes=? WHERE id=?`
+          ).bind(status, now, kpiFinalStr, notes, active.id).run();
+        }
+
+        // Снимаем committed
+        const strat = await env.DB.prepare(
+          'SELECT id FROM portfolio_strategies WHERE horizon=? ORDER BY created_at DESC LIMIT 1'
+        ).bind(horizon).first();
+        if (strat) {
+          await env.DB.prepare(
+            'UPDATE portfolio_strategies SET is_committed=0, updated_at=? WHERE id=?'
+          ).bind(now, strat.id).run();
+        }
+
+        // Обновляем недельный саммари
+        const ws = _weekStart(now);
+        const we = _weekEnd(ws);
+        const colMap = { completed:'horizons_completed', partial:'horizons_completed',
+                         failed:'horizons_failed', abandoned:'horizons_abandoned', revised:'horizons_revised' };
+        const col = colMap[status];
+        const weekRow = await env.DB.prepare(
+          'SELECT id FROM portfolio_weekly_summary WHERE week_start=?'
+        ).bind(ws).first();
+        if (weekRow) {
+          await env.DB.prepare(
+            `UPDATE portfolio_weekly_summary SET ${col}=${col}+1, kpi_final=? WHERE week_start=?`
+          ).bind(kpiFinalStr, ws).run();
+        } else {
+          const vals = {horizons_completed:0,horizons_failed:0,horizons_abandoned:0,horizons_revised:0};
+          vals[col] = 1;
+          await env.DB.prepare(
+            `INSERT INTO portfolio_weekly_summary
+              (id,week_start,week_end,horizons_committed,horizons_completed,horizons_failed,horizons_abandoned,horizons_revised,kpi_snapshot,kpi_final,notes)
+             VALUES (?,?,?,0,?,?,?,?,null,?,'')`
+          ).bind(crypto.randomUUID(),ws,we,
+            vals.horizons_completed, vals.horizons_failed,
+            vals.horizons_abandoned, vals.horizons_revised,
+            kpiFinalStr
+          ).run();
+        }
+
+        // Агрегируем месяц из недель
+        const month = now.slice(0,7);
+        const weeks = await env.DB.prepare(
+          `SELECT * FROM portfolio_weekly_summary WHERE week_start >= ? AND week_start <= ?`
+        ).bind(month + '-01', month + '-31').all();
+        if ((weeks.results||[]).length > 0) {
+          const agg = (weeks.results||[]).reduce((a,r) => ({
+            horizons_committed: a.horizons_committed + (r.horizons_committed||0),
+            horizons_completed: a.horizons_completed + (r.horizons_completed||0),
+            horizons_failed:    a.horizons_failed    + (r.horizons_failed||0),
+            horizons_abandoned: a.horizons_abandoned + (r.horizons_abandoned||0),
+            horizons_revised:   a.horizons_revised   + (r.horizons_revised||0),
+          }), {horizons_committed:0,horizons_completed:0,horizons_failed:0,horizons_abandoned:0,horizons_revised:0});
+
+          const monthRow = await env.DB.prepare(
+            'SELECT id FROM portfolio_monthly_summary WHERE month=?'
+          ).bind(month).first();
+          if (monthRow) {
+            await env.DB.prepare(
+              `UPDATE portfolio_monthly_summary SET
+                horizons_committed=?,horizons_completed=?,horizons_failed=?,
+                horizons_abandoned=?,horizons_revised=?,kpi_final=? WHERE month=?`
+            ).bind(agg.horizons_committed,agg.horizons_completed,agg.horizons_failed,
+                   agg.horizons_abandoned,agg.horizons_revised,kpiFinalStr,month).run();
+          } else {
+            const firstWeek = weeks.results[weeks.results.length-1];
+            await env.DB.prepare(
+              `INSERT INTO portfolio_monthly_summary
+                (id,month,horizons_committed,horizons_completed,horizons_failed,horizons_abandoned,horizons_revised,kpi_snapshot,kpi_final,notes)
+               VALUES (?,?,?,?,?,?,?,?,?,'')`
+            ).bind(crypto.randomUUID(),month,
+              agg.horizons_committed,agg.horizons_completed,agg.horizons_failed,
+              agg.horizons_abandoned,agg.horizons_revised,
+              firstWeek.kpi_snapshot||null, kpiFinalStr
+            ).run();
+          }
+        }
+
+        return json({ success: true, status, completed_at: now, kpi_captured: !!kpiFinal });
+      } catch(e) { return json({ error: e.message }, 500); }
+    }
+
+    // ══════════════════════════════════════════
+    // GET /portfolio/strategy/weekly
+    // GET /portfolio/strategy/monthly
+    // ══════════════════════════════════════════
+    if (path === '/portfolio/strategy/weekly' && method === 'GET') {
+      try {
+        const limit = parseInt(url.searchParams.get('limit') || '12');
+        const rows = await env.DB.prepare(
+          'SELECT * FROM portfolio_weekly_summary ORDER BY week_start DESC LIMIT ?'
+        ).bind(limit).all();
+        return json({ success: true, data: (rows.results||[]).map(r => ({
+          week_start:         r.week_start,
+          week_end:           r.week_end,
+          horizons_committed: r.horizons_committed,
+          horizons_completed: r.horizons_completed,
+          horizons_failed:    r.horizons_failed,
+          horizons_abandoned: r.horizons_abandoned,
+          horizons_revised:   r.horizons_revised,
+          kpi_snapshot:       JSON.parse(r.kpi_snapshot || 'null'),
+          kpi_final:          JSON.parse(r.kpi_final    || 'null'),
+        }))});
+      } catch(e) { return json({ error: e.message }, 500); }
+    }
+
+    if (path === '/portfolio/strategy/monthly' && method === 'GET') {
+      try {
+        const limit = parseInt(url.searchParams.get('limit') || '12');
+        const rows = await env.DB.prepare(
+          'SELECT * FROM portfolio_monthly_summary ORDER BY month DESC LIMIT ?'
+        ).bind(limit).all();
+        return json({ success: true, data: (rows.results||[]).map(r => ({
+          month:              r.month,
+          horizons_committed: r.horizons_committed,
+          horizons_completed: r.horizons_completed,
+          horizons_failed:    r.horizons_failed,
+          horizons_abandoned: r.horizons_abandoned,
+          horizons_revised:   r.horizons_revised,
+          kpi_snapshot:       JSON.parse(r.kpi_snapshot || 'null'),
+          kpi_final:          JSON.parse(r.kpi_final    || 'null'),
+        }))});
+      } catch(e) { return json({ error: e.message }, 500); }
+    }
+
     if (!match) return json({ error: 'Not found' }, 404);
 
     const table = match[1];

@@ -4843,7 +4843,6 @@ body {
   border-radius: 16px 0 0 16px;
 }
 .variant-picker-panel.visible { transform: translateX(0); }
-.variant-picker-body { overflow-y: auto; flex: 1; min-height: 0; overscroll-behavior: contain; }
 .variant-picker-panel { max-height: 100vh; overflow: hidden; }
 
 .variant-picker-header {
@@ -5069,6 +5068,8 @@ body {
 .variant-picker-body {
   flex: 1;
   overflow-y: auto;
+  min-height: 0;
+  overscroll-behavior: contain;
   padding: 16px 20px;
   display: flex;
   flex-direction: column;

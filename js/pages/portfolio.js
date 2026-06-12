@@ -1,3 +1,49 @@
+function _mdToHtml(t) {
+  if (!t) return '';
+  const sectionColors = ['#6366f1', '#ef4444', '#f59e0b', '#10b981'];
+  const sections = [];
+  let cur = null;
+
+  t.split('\n').forEach(line => {
+    const trimmed = line.trim();
+    // Секция: строка вида "1. ЧТО-ТО" или "## 1. ЧТО-ТО"
+    const secMatch = trimmed.match(/^#*\s*(\d+)[\.):]\s+(.+)/);
+    if (secMatch) {
+      if (cur) sections.push(cur);
+      const idx = parseInt(secMatch[1]) - 1;
+      cur = { title: secMatch[2].replace(/\*\*/g,''), items: [], color: sectionColors[idx % sectionColors.length] };
+      return;
+    }
+    if (!trimmed) return;
+    if (!cur) { cur = { title: '', items: [], color: '#6b7280' }; }
+    const clean = trimmed.replace(/^[-·•]\s*/, '').replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>').trim();
+    if (clean.length > 2) cur.items.push(clean);
+  });
+  if (cur) sections.push(cur);
+
+  if (!sections.length) {
+    const esc = t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    return '<div style="font-size:12px;color:#374151;line-height:1.7;">' + esc.replace(/\n/g,'<br>') + '</div>';
+  }
+
+  return sections.map(sec => {
+    const dot = '<span style="color:' + sec.color + ';flex-shrink:0;font-size:14px;line-height:1;">·</span>';
+    const items = sec.items.map(item =>
+      '<div style="display:flex;gap:8px;margin-bottom:6px;align-items:flex-start;">'
+      + dot
+      + '<span style="font-size:12px;color:#374151;line-height:1.6;">' + item + '</span>'
+      + '</div>'
+    ).join('');
+    const header = sec.title
+      ? '<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:'
+        + sec.color + ';margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid ' + sec.color + '20;">'
+        + sec.title + '</div>'
+      : '';
+    return '<div style="background:#fff;border:1.5px solid ' + sec.color + '22;border-radius:10px;padding:12px 14px;margin-bottom:10px;">'
+      + header + items + '</div>';
+  }).join('');
+}
+
 /* ============================================
    js/pages/portfolio.js — Portfolio Page (ES Module)
    Portfolio BCHS v7.0
@@ -406,6 +452,18 @@ export const PortfolioPage = {
         if (s.horizon === 'long')  this._portfolioData.long  = s;
       });
 
+      // Автотриггер недельного саммари — раз в неделю
+      try {
+        const lastWeekKey = 'pf_weekly_trigger_' + new Date().toISOString().slice(0,10).slice(0,7);
+        const lastRun = localStorage.getItem('pf_weekly_last');
+        const weekStart = (() => { const d = new Date(); d.setDate(d.getDate() - (d.getDay()||7) + 1); return d.toISOString().slice(0,10); })();
+        if (lastRun !== weekStart) {
+          API.getWeeklySummary(1).then(() => {
+            localStorage.setItem('pf_weekly_last', weekStart);
+          }).catch(() => {});
+        }
+      } catch(e) {}
+
       el.innerHTML = `
   ${this._summaryHTML(summary, computed)}
 
@@ -414,9 +472,9 @@ export const PortfolioPage = {
 
   </div>
 
-  ${this._horizonFormHTML('short', 'Краткосрочная', '1 месяц',      '#ef4444', this._portfolioData.short)}
-  ${this._horizonFormHTML('mid',   'Среднесрочная', '1–2 квартала', '#f59e0b', this._portfolioData.mid)}
-  ${this._horizonFormHTML('long',  'Долгосрочная',  '4 квартала',   '#10b981', this._portfolioData.long)}
+  ${this._horizonFormHTML('short', 'Краткосрочная', '1 месяц',      '#ef4444', this._portfolioData.short, summary)}
+  ${this._horizonFormHTML('mid',   'Среднесрочная', '1–2 квартала', '#f59e0b', this._portfolioData.mid,   summary)}
+  ${this._horizonFormHTML('long',  'Долгосрочная',  '4 квартала',   '#10b981', this._portfolioData.long,  summary)}
 
   <div id="pf-manual-save-bar" class="pf-manual-save-bar" style="display:none">
     <span class="pf-save-hint">Есть несохранённые изменения</span>
@@ -1356,46 +1414,45 @@ export const PortfolioPage = {
       });
 
 
-  // Сохранение по кнопке в каждом горизонте
-['short', 'mid', 'long'].forEach(key => {
-  document.getElementById(`pf-hz-commit-${key}`)?.addEventListener('change', async (e) => {
-    const cb    = e.target;
-    const label = cb.closest('.pf-hz-commit-toggle')?.querySelector('.pf-hz-commit-label');
-    cb.disabled = true;
-    try {
-      if (cb.checked) {
-        await API.commitStrategy(key);
-        if (label) label.textContent = 'Следую';
-        document.getElementById(`pf-horizon-${key}`)?.classList.add('pf-hz--committed');
-        window.App.toast('Обязательство зафиксировано ✓', 'success');
-      } else {
-        await API.uncommitStrategy(key, { abandoned: true });
-        if (label) label.textContent = 'Следовать';
-        document.getElementById(`pf-horizon-${key}`)?.classList.remove('pf-hz--committed');
-        window.App.toast('Обязательство снято', 'info');
-      }
-    } catch (err) {
-      console.error('commit error', err);
-      cb.checked = !cb.checked;
-      window.App.toast('Ошибка', 'error');
-    } finally {
-      cb.disabled = false;
-    }
-  });
+      // Сохранение по кнопке в каждом горизонте
+      ['short', 'mid', 'long'].forEach(key => {
+        document.getElementById(`pf-hz-commit-${key}`)?.addEventListener('change', async (e) => {
+          const cb    = e.target;
+          const label = cb.closest('.pf-hz-commit-toggle')?.querySelector('.pf-hz-commit-label');
+          cb.disabled = true;
+          try {
+            if (cb.checked) {
+              await API.commitStrategy(key);
+              if (label) label.textContent = 'Следую';
+              document.getElementById(`pf-horizon-${key}`)?.classList.add('pf-hz--committed');
+              window.App.toast('Обязательство зафиксировано ✓', 'success');
+            } else {
+              await API.uncommitStrategy(key, { abandoned: true });
+              if (label) label.textContent = 'Следовать';
+              document.getElementById(`pf-horizon-${key}`)?.classList.remove('pf-hz--committed');
+              window.App.toast('Обязательство снято', 'info');
+            }
+          } catch (err) {
+            console.error('commit error', err);
+            cb.checked = !cb.checked;
+            window.App.toast('Ошибка', 'error');
+          } finally {
+            cb.disabled = false;
+          }
+        });
 
-  document.getElementById(`pf-save-btn-${key}`)
-    ?.addEventListener('click', async () => {
-      await this._savePortfolioStrats();
-      // После сохранения — обновляем view и переключаемся в него
-      const view   = document.getElementById(`pf-hz-view-${key}`);
-      const edit   = document.getElementById(`pf-hz-edit-${key}`);
-      const subEl  = document.querySelector(`#pf-horizon-${key} .pf-hz-subtitle`);
-      const titleVal = document.getElementById(`pf-${key}-focus`)?.value || '';
-      if (subEl) subEl.textContent = titleVal.slice(0, 50) + (titleVal.length > 50 ? '…' : '');
-      if (view) view.style.display = 'block';
-      if (edit) edit.style.display = 'none';
-    });
-});
+        document.getElementById(`pf-save-btn-${key}`)
+          ?.addEventListener('click', async () => {
+            await this._savePortfolioStrats();
+            const view   = document.getElementById(`pf-hz-view-${key}`);
+            const edit   = document.getElementById(`pf-hz-edit-${key}`);
+            const subEl  = document.querySelector(`#pf-horizon-${key} .pf-hz-subtitle`);
+            const titleVal = document.getElementById(`pf-${key}-focus`)?.value || '';
+            if (subEl) subEl.textContent = titleVal.slice(0, 50) + (titleVal.length > 50 ? '…' : '');
+            if (view) view.style.display = 'block';
+            if (edit) edit.style.display = 'none';
+          });
+      });
 
 
     } catch (e) {
@@ -2358,7 +2415,7 @@ export const PortfolioPage = {
     return '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">' + '<span style="font-size:13px;font-weight:600;color:#64748b">KPI портфеля</span>' + '</div>' + '<div id="pf-ai-insight-panel" style="display:none;background:#f8f7ff;border:1px solid #e0e7ff;border-radius:10px;padding:14px;margin-bottom:14px">' + '<div style="font-size:11px;font-weight:600;color:#6366f1;margin-bottom:6px">AI · Анализ портфеля</div>' + '<div id="pf-ai-insight-text" style="font-size:12px;color:#374151;line-height:1.6;white-space:pre-wrap"></div>' + '</div>' + '<div class="pf-kpi-grid-new">' + cardsHTML + '</div>';
   },
 
-  _horizonFormHTML(key, label, period, dotColor, saved) {
+  _horizonFormHTML(key, label, period, dotColor, saved, summary = null) {
     const v = f => saved ? (saved[f] || '') : '';
     const hasData = !!(v('focus') || v('outcome'));
     const deadlineStr = v('deadline')
@@ -2394,6 +2451,34 @@ export const PortfolioPage = {
               </span>
               <span class="pf-hz-commit-label">${saved?.is_committed ? 'Следую' : 'Следовать'}</span>
             </label>
+            ${(() => {
+              if (!summary || !saved?.is_committed) return '';
+              const kpiMap = {
+                short: [
+                  { label: 'Лояльность', raw: summary.avgLoyalty, fmt: v => v + '%', good: v => v >= 70, warn: v => v >= 50 },
+                  { label: 'В риске',    raw: summary.atRiskCount, fmt: v => v + ' кл.', good: v => v === 0, warn: v => v <= 2 },
+                  { label: 'Risk',       raw: summary.totalRisk,   fmt: v => '$' + Math.round(v/1000) + 'k', good: v => v === 0, warn: v => v <= 10000 },
+                ],
+                mid: [
+                  { label: 'Потенциал', raw: summary.avgPotential, fmt: v => v + '%', good: v => v >= 85, warn: v => v >= 65 },
+                  { label: 'bCHS',      raw: summary.avgBchs,      fmt: v => Math.round(v) + '', good: v => v >= 75, warn: v => v >= 55 },
+                  { label: 'Risk',      raw: summary.totalRisk,    fmt: v => '$' + Math.round(v/1000) + 'k', good: v => v === 0, warn: v => v <= 10000 },
+                ],
+                long: [
+                  { label: 'bCHS',      raw: summary.avgBchs,      fmt: v => Math.round(v) + '', good: v => v >= 75, warn: v => v >= 55 },
+                  { label: 'Потенциал', raw: summary.avgPotential, fmt: v => v + '%', good: v => v >= 85, warn: v => v >= 65 },
+                  { label: 'Risk',      raw: summary.totalRisk,    fmt: v => '$' + Math.round(v/1000) + 'k', good: v => v === 0, warn: v => v <= 10000 },
+                ],
+              };
+              const chips = (kpiMap[key] || [])
+                .filter(m => m.raw != null)
+                .map(m => {
+                  const col = m.good(m.raw) ? '#059669' : m.warn(m.raw) ? '#d97706' : '#dc2626';
+                  const bg  = m.good(m.raw) ? '#d1fae5' : m.warn(m.raw) ? '#fef3c7' : '#fee2e2';
+                  return '<span style="font-size:10px;font-weight:600;padding:2px 7px;border-radius:20px;background:' + bg + ';color:' + col + ';white-space:nowrap;">' + m.label + ' ' + m.fmt(m.raw) + '</span>';
+                }).join('');
+              return chips ? '<div style="display:flex;gap:4px;flex-wrap:wrap;margin-right:4px;">' + chips + '</div>' : '';
+            })()}
             <button class="pf-hz-edit-btn" data-editkey="${key}" title="Редактировать">
               ${ic.edit}
             </button>
@@ -2436,6 +2521,37 @@ export const PortfolioPage = {
               </div>
             `}
           </div>
+
+          <!-- KPI блок горизонта -->
+          ${summary && saved?.is_committed ? `
+            <div style="margin-top:12px;padding-top:12px;border-top:1px solid #f1f5f9;">
+              <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#9ca3af;margin-bottom:8px;">Метрики сейчас</div>
+              <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;">
+                ${[
+                  ...(key === 'short' ? [
+                    { label: 'Лояльность', val: summary.avgLoyalty != null ? summary.avgLoyalty + '%' : '—', good: summary.avgLoyalty >= 70, warn: summary.avgLoyalty >= 50 },
+                    { label: 'В риске',    val: summary.atRiskCount != null ? summary.atRiskCount + ' кл.' : '—', good: summary.atRiskCount === 0, warn: summary.atRiskCount <= 2 },
+                    { label: 'Risk $',     val: summary.totalRisk != null ? '$' + Math.round(summary.totalRisk/1000) + 'k' : '—', good: summary.totalRisk === 0, warn: summary.totalRisk <= 10000 },
+                  ] : key === 'mid' ? [
+                    { label: 'Потенциал', val: summary.avgPotential != null ? summary.avgPotential + '%' : '—', good: summary.avgPotential >= 85, warn: summary.avgPotential >= 65 },
+                    { label: 'bCHS',      val: summary.avgBchs != null ? Math.round(summary.avgBchs) + '' : '—', good: summary.avgBchs >= 75, warn: summary.avgBchs >= 55 },
+                    { label: 'Risk $',    val: summary.totalRisk != null ? '$' + Math.round(summary.totalRisk/1000) + 'k' : '—', good: summary.totalRisk === 0, warn: summary.totalRisk <= 10000 },
+                  ] : [
+                    { label: 'bCHS',      val: summary.avgBchs != null ? Math.round(summary.avgBchs) + '' : '—', good: summary.avgBchs >= 75, warn: summary.avgBchs >= 55 },
+                    { label: 'Потенциал', val: summary.avgPotential != null ? summary.avgPotential + '%' : '—', good: summary.avgPotential >= 85, warn: summary.avgPotential >= 65 },
+                    { label: 'Risk $',    val: summary.totalRisk != null ? '$' + Math.round(summary.totalRisk/1000) + 'k' : '—', good: summary.totalRisk === 0, warn: summary.totalRisk <= 10000 },
+                  ])
+                ].map(m => {
+                  const col = m.good ? '#059669' : m.warn ? '#d97706' : '#dc2626';
+                  const bg  = m.good ? '#f0fdf4' : m.warn ? '#fffbeb' : '#fef2f2';
+                  return '<div style="background:' + bg + ';border-radius:8px;padding:8px 10px;text-align:center;">'
+                    + '<div style="font-size:13px;font-weight:700;color:' + col + ';">' + m.val + '</div>'
+                    + '<div style="font-size:10px;color:#6b7280;margin-top:2px;">' + m.label + '</div>'
+                    + '</div>';
+                }).join('')}
+              </div>
+            </div>
+          ` : ''}
 
           <!-- EDIT режим (скрыт по умолчанию) -->
           <div class="pf-hz-edit" id="pf-hz-edit-${key}" style="display:none">
@@ -3813,122 +3929,156 @@ export const PortfolioPage = {
       collapseOthers('pf-dap-review-view');
 
       if (reviewEl && reviewEl.style.display !== 'none') {
-        slideClose(reviewEl);
+        reviewEl.style.display = 'none';
         return;
       }
-
-      reviewBtn.parentNode.appendChild(reviewBtn);
 
       if (!reviewEl) {
         reviewEl = document.createElement('div');
         reviewEl.id = 'pf-dap-review-view';
-        reviewEl.style.cssText = 'display:none;overflow:hidden;max-height:0;opacity:0;transition:max-height .3s ease,opacity .25s ease;';
-        reviewEl.innerHTML = `
-          <div style="background:#f8f7ff;border:1px solid #e0e7ff;border-radius:12px;padding:14px;margin-bottom:8px;">
-            <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#6366f1;margin-bottom:12px;">История обязательств</div>
-            <div id="pf-dap-history-list" style="font-size:12px;color:#6b7280;">Загрузка...</div>
-            <button id="pf-dap-ai-review-btn" style="width:100%;padding:10px;background:#6366f1;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;margin-top:12px;display:none;">
-              ✨ Анализ с root causes
-            </button>
-            <div id="pf-dap-ai-review" style="display:none;margin-top:10px;padding:12px;background:#fff;border-radius:8px;border:1px solid #e0e7ff;">
-              <div style="font-size:11px;font-weight:700;color:#6366f1;margin-bottom:8px;">AI · Root cause analysis</div>
-              <div id="pf-dap-ai-review-text" style="font-size:12px;color:#374151;white-space:pre-wrap;line-height:1.6;"></div>
-            </div>
-          </div>
-        `;
-        reviewBtn.parentNode.appendChild(reviewEl);
+        reviewEl.style.cssText = 'display:block;';
+        const body = document.querySelector('#pf-dap-panel .variant-picker-body');
+        (body || reviewBtn.parentNode).appendChild(reviewEl);
       }
 
-      slideOpen(reviewEl);
+      reviewEl.style.display = 'block';
 
+      // Хелпер рендера состояний
+      const hz_label = { short: 'Краткосрочно', mid: 'Среднесрочно', long: 'Долгосрочно' };
+      const hz_color = { short: '#059669', mid: '#d97706', long: '#4f46e5' };
+      const hz_bg    = { short: '#d1fae5', mid: '#fef3c7', long: '#e0e7ff' };
+
+      function cardStyle(color) {
+        return 'background:#fff;border:1.5px solid ' + color + '20;border-radius:10px;padding:10px 12px;margin-bottom:8px;';
+      }
+
+      function showState(state) {
+        const s1 = document.getElementById('rv-state-history');
+        const s2 = document.getElementById('rv-state-analysis');
+        const s3 = document.getElementById('rv-state-recs');
+        if (s1) s1.style.display = state === 'history'  ? 'block' : 'none';
+        if (s2) s2.style.display = state === 'analysis' ? 'block' : 'none';
+        if (s3) s3.style.display = state === 'recs'     ? 'block' : 'none';
+      }
+
+      // Строим skeleton если первый раз
+      if (!reviewEl.dataset.built) {
+        reviewEl.dataset.built = '1';
+        reviewEl.innerHTML =
+          // ── Состояние 1: История ──
+          '<div id="rv-state-history">'
+          + '<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#6366f1;margin-bottom:10px;">Сейчас следую</div>'
+          + '<div id="rv-committed-list"><div style="color:#9ca3af;font-size:12px;">Загрузка...</div></div>'
+          + '<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#9ca3af;margin:12px 0 8px;">История</div>'
+          + '<div id="rv-history-list"><div style="color:#9ca3af;font-size:12px;">Загрузка...</div></div>'
+          + '<button id="rv-btn-analyze" style="width:100%;margin-top:14px;padding:10px;background:#6366f1;color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:600;cursor:pointer;">✨ Анализ с root causes</button>'
+          + '</div>'
+          // ── Состояние 2: AI анализ ──
+          + '<div id="rv-state-analysis" style="display:none;">'
+          + '<button id="rv-btn-back-1" style="display:inline-flex;align-items:center;gap:5px;background:#f5f3ff;border:none;color:#6366f1;font-size:12px;font-weight:600;cursor:pointer;padding:6px 12px;border-radius:8px;margin-bottom:14px;">История</button>'
+          + '<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#6366f1;margin-bottom:10px;">AI · Root cause analysis</div>'
+          + '<div id="rv-analysis-text" style="font-size:12px;color:#374151;line-height:1.7;">Генерирую анализ...</div>'
+          + '<button id="rv-btn-to-recs" style="width:100%;margin-top:14px;padding:10px;background:#eef2ff;color:#4f46e5;border:1.5px solid #c7d2fe;border-radius:10px;font-size:13px;font-weight:600;cursor:pointer;display:none;">Взять в стратегию</button>'
+          + '</div>'
+          // ── Состояние 3: Рекомендации ──
+          + '<div id="rv-state-recs" style="display:none;">'
+          + '<button id="rv-btn-back-2" style="display:inline-flex;align-items:center;gap:5px;background:#f5f3ff;border:none;color:#6366f1;font-size:12px;font-weight:600;cursor:pointer;padding:6px 12px;border-radius:8px;margin-bottom:14px;">К анализу</button>'
+          + '<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#6366f1;margin-bottom:10px;">Выбери горизонт для каждого шага</div>'
+          + '<div id="rv-recs-list"></div>'
+          + '</div>';
+
+        // Навигация
+        document.getElementById('rv-btn-back-1')?.addEventListener('click', () => showState('history'));
+        document.getElementById('rv-btn-back-2')?.addEventListener('click', () => showState('analysis'));
+        document.getElementById('rv-btn-to-recs')?.addEventListener('click', () => showState('recs'));
+      }
+
+      showState('history');
+
+      // Загружаем историю
       try {
         const history = await API.getStrategyHistory(50);
-        const listEl  = document.getElementById('pf-dap-history-list');
-        const aiBtn   = document.getElementById('pf-dap-ai-review-btn');
+        const committedEl = document.getElementById('rv-committed-list');
+        const historyEl   = document.getElementById('rv-history-list');
 
-        const horizonLabel = { short: 'Краткосрочно', mid: 'Среднесрочно', long: 'Долгосрочно' };
-        const horizonColor = { short: '#ef4444', mid: '#f59e0b', long: '#10b981' };
-        const statusLabel  = { active: 'Активно', completed: 'Завершено', abandoned: 'Отменено', on_track: 'В работе' };
-        const statusColor  = { active: '#6366f1', completed: '#10b981', abandoned: '#9ca3af', on_track: '#6366f1' };
+        const committed  = history.filter(r => r.status === 'active');
+        const completed  = history.filter(r => r.status !== 'active');
 
-        if (!history.length) {
-          listEl.innerHTML = `<div style="color:#9ca3af;font-size:12px;padding:12px 0;text-align:center;">
-            <div style="font-size:24px;margin-bottom:6px;">⏳</div>
-            Включи тумблер «Следовать» на горизонте чтобы зафиксировать обязательство
-          </div>`;
+        // Рендер committed
+        if (committed.length === 0) {
+          committedEl.innerHTML = '<div style="color:#9ca3af;font-size:12px;padding:8px 0;">Нет активных обязательств</div>';
         } else {
-          const active = history.filter(h => h.status === 'active');
-          const past   = history.filter(h => h.status !== 'active');
-          let html = '';
-
-          if (active.length) {
-            html += `<div style="margin-bottom:12px;">
-              <div style="font-size:10px;font-weight:700;color:#6366f1;letter-spacing:.06em;margin-bottom:6px;">СЕЙЧАС СЛЕДУЮ</div>
-              ${active.map(h => `
-                <div style="padding:8px 10px;background:#eef2ff;border-radius:8px;border-left:3px solid ${horizonColor[h.horizon]||'#6366f1'};margin-bottom:6px;">
-                  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
-                    <span style="font-size:11px;font-weight:700;color:${horizonColor[h.horizon]||'#374151'}">${horizonLabel[h.horizon]||h.horizon}</span>
-                    <span style="font-size:10px;color:#6366f1;background:#e0e7ff;padding:2px 6px;border-radius:10px;">Следую</span>
-                  </div>
-                  <div style="font-size:12px;color:#1e1b4b;font-weight:500;">${(h.focus||'—').slice(0,90)}</div>
-                  ${h.outcome ? `<div style="font-size:11px;color:#4338ca;margin-top:3px;">${h.outcome.slice(0,80)}</div>` : ''}
-                  ${h.committed_at ? `<div style="font-size:10px;color:#9ca3af;margin-top:4px;">С ${new Date(h.committed_at).toLocaleDateString('ru-RU',{day:'numeric',month:'short'})}</div>` : ''}
-                </div>
-              `).join('')}
-            </div>`;
-          }
-
-          if (past.length) {
-            html += `<div>
-              <div style="font-size:10px;font-weight:700;color:#9ca3af;letter-spacing:.06em;margin-bottom:6px;">ИСТОРИЯ</div>
-              ${past.slice(0,15).map(h => `
-                <div style="padding:7px 10px;background:#fff;border-radius:8px;border-left:3px solid ${horizonColor[h.horizon]||'#e5e7eb'};margin-bottom:5px;opacity:${h.status==='abandoned'?'0.6':'1'};">
-                  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px;">
-                    <span style="font-size:11px;font-weight:600;color:${horizonColor[h.horizon]||'#374151'}">${horizonLabel[h.horizon]||h.horizon}</span>
-                    <span style="font-size:10px;color:${statusColor[h.status]||'#9ca3af'}">${statusLabel[h.status]||h.status}</span>
-                  </div>
-                  <div style="font-size:11px;color:#374151;">${(h.focus||'—').slice(0,80)}</div>
-                  ${h.committed_at ? `<div style="font-size:10px;color:#9ca3af;margin-top:3px;">
-                    ${new Date(h.committed_at).toLocaleDateString('ru-RU',{day:'numeric',month:'short'})}
-                    ${h.completed_at ? ' → ' + new Date(h.completed_at).toLocaleDateString('ru-RU',{day:'numeric',month:'short'}) : ''}
-                  </div>` : ''}
-                </div>
-              `).join('')}
-            </div>`;
-          }
-
-          listEl.innerHTML = html;
-          if (aiBtn && history.length >= 1) aiBtn.style.display = 'block';
+          committedEl.innerHTML = committed.map(r => {
+            const col = hz_color[r.horizon] || '#6366f1';
+            const bg  = hz_bg[r.horizon]    || '#e0e7ff';
+            const dt  = r.committed_at ? 'С ' + new Date(r.committed_at).toLocaleDateString('ru',{day:'numeric',month:'short'}) : '';
+            const focusShort = (r.focus || '').slice(0, 90) + ((r.focus||'').length > 90 ? '…' : '');
+            return '<div style="' + cardStyle(col) + '">'
+              + '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">'
+              + '<span style="font-size:11px;font-weight:700;color:' + col + ';">' + (hz_label[r.horizon] || r.horizon) + '</span>'
+              + '<span style="font-size:10px;background:' + bg + ';color:' + col + ';padding:2px 7px;border-radius:20px;font-weight:600;">Следую</span>'
+              + '</div>'
+              + '<div style="font-size:12px;color:#374151;line-height:1.5;margin-bottom:4px;">' + focusShort + '</div>'
+              + (dt ? '<div style="font-size:10px;color:#9ca3af;">' + dt + '</div>' : '')
+              + '</div>';
+          }).join('');
         }
 
-        aiBtn?.addEventListener('click', async () => {
-          const reviewDiv  = document.getElementById('pf-dap-ai-review');
-          const reviewText = document.getElementById('pf-dap-ai-review-text');
-          aiBtn.textContent = 'Анализирую...';
-          aiBtn.disabled = true;
-          reviewDiv.style.display = 'block';
-          reviewText.textContent = 'Генерирую анализ...';
+        // Рендер истории
+        if (completed.length === 0) {
+          historyEl.innerHTML = '<div style="color:#9ca3af;font-size:12px;padding:8px 0;">История пуста</div>';
+        } else {
+          historyEl.innerHTML = completed.slice(0, 10).map(r => {
+            const col     = hz_color[r.horizon] || '#9ca3af';
+            const bg      = hz_bg[r.horizon]    || '#f3f4f6';
+            const statusL = { completed: 'Завершено', abandoned: 'Отменено', on_track: 'В работе' }[r.status] || r.status;
+            const from    = r.committed_at ? new Date(r.committed_at).toLocaleDateString('ru',{day:'numeric',month:'short'}) : '';
+            const to      = r.completed_at ? new Date(r.completed_at).toLocaleDateString('ru',{day:'numeric',month:'short'}) : '';
+            const period  = from && to ? from + ' → ' + to : from || '';
+            const focusShort = (r.focus || '').slice(0, 70) + ((r.focus||'').length > 70 ? '…' : '');
+            return '<div style="' + cardStyle(col) + 'opacity:0.85;">'
+              + '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:5px;">'
+              + '<span style="font-size:11px;font-weight:700;color:' + col + ';">' + (hz_label[r.horizon] || r.horizon) + '</span>'
+              + '<span style="font-size:10px;background:' + bg + ';color:' + col + ';padding:2px 7px;border-radius:20px;font-weight:600;">' + statusL + '</span>'
+              + '</div>'
+              + '<div style="font-size:12px;color:#374151;line-height:1.5;margin-bottom:4px;">' + focusShort + '</div>'
+              + (period ? '<div style="font-size:10px;color:#9ca3af;">' + period + '</div>' : '')
+              + '</div>';
+          }).join('');
+        }
+
+        // Кнопка анализа
+        const analyzeBtn = document.getElementById('rv-btn-analyze');
+        analyzeBtn.onclick = async () => {
+          showState('analysis');
+          const analysisText = document.getElementById('rv-analysis-text');
+          const toRecsBtn    = document.getElementById('rv-btn-to-recs');
+          analysisText.innerHTML = '<div style="color:#9ca3af;font-size:12px;">Генерирую анализ...</div>';
+          toRecsBtn.style.display = 'none';
+          analyzeBtn.disabled = true;
+          analyzeBtn.textContent = '⏳ Анализирую...';
+
           try {
-            const historyText = history.slice(0,30).map(h => [
-                h.horizon.toUpperCase(),
-                h.focus ? 'Фокус: ' + h.focus : '',
-                h.outcome ? 'Цель: ' + h.outcome : '',
-                h.status ? 'Статус: ' + h.status : '',
-                h.committed_at ? 'Начало: ' + h.committed_at.slice(0,10) : '',
-                h.completed_at ? 'Конец: ' + h.completed_at.slice(0,10) : '',
-              ].filter(Boolean).join(' | ')).join('\n');
+            const historyText = history.slice(0, 20).map(r =>
+              '[' + (hz_label[r.horizon]||r.horizon) + ' · ' + (r.status||'') + '] ' + (r.focus||'').slice(0,120)
+            ).join('\n');
 
             const resp = await API.callAI({
               messages: [
                 {
                   role: 'system',
                   content: [
-                    'Ты стратегический адвайзер. Отвечай по структуре:',
-                    '1. ЧТО МЕНЯЛОСЬ: конкретные сдвиги в фокусе и целях',
-                    '2. ROOT CAUSES: почему обязательства менялись или отменялись — глубинные причины',
-                    '3. ПАТТЕРНЫ: что повторяется, что системно влияет на результаты',
-                    '4. РЕКОМЕНДАЦИИ: конкретные изменения для следующего периода',
-                    'Отвечай на русском, кратко, чётко, без воды.',
+                    'Ты стратегический советник. Анализируй историю обязательств и давай структурированный ответ.',
+                    'Формат ответа (строго):',
+                    '1. ЧТО МЕНЯЛОСЬ',
+                    '- [пункт]',
+                    '2. ROOT CAUSES',
+                    '- [пункт]',
+                    '3. ПАТТЕРНЫ',
+                    '- [пункт]',
+                    '4. РЕКОМЕНДАЦИИ',
+                    '- [конкретное действие]',
+                    'Каждый пункт с новой строки, начинается с "- ".',
                   ].join('\n'),
                 },
                 {
@@ -3937,18 +4087,94 @@ export const PortfolioPage = {
                 },
               ],
             });
+
             const content = resp?.choices?.[0]?.message?.content || resp?.content || resp?.result || 'Нет ответа';
-            reviewText.textContent = content;
+            analysisText.innerHTML = _mdToHtml(content);
+
+            // Парсим рекомендации
+            const lines = content.split('\n');
+            let inRec = false;
+            const recItems = [];
+            for (const line of lines) {
+              if (/РЕК/i.test(line)) { inRec = true; continue; }
+              if (inRec && /^\d+\.\s+[А-ЯA-Z]/.test(line) && !/РЕК/i.test(line)) { inRec = false; }
+              if (inRec && line.trim() && line.trim() !== '·') {
+                const clean = line.replace(/^[-·•]\s*/,'').replace(/^\d+\.\s*/,'').trim();
+                if (clean.length > 5) recItems.push(clean);
+              }
+            }
+            console.log('[review] recItems:', recItems.length, recItems.slice(0,2));
+
+            // Рендерим карточки рекомендаций
+            const recsList = document.getElementById('rv-recs-list');
+            recsList.innerHTML = '';
+            recItems.forEach((rec, i) => {
+              if (!rec) return;
+              const row = document.createElement('div');
+              row.style.cssText = 'background:#f8f7ff;border:1px solid #e0e7ff;border-radius:10px;padding:10px 12px;margin-bottom:10px;';
+              const enc = encodeURIComponent(rec);
+              row.innerHTML = '<div style="font-size:12px;color:#374151;line-height:1.6;margin-bottom:8px;">' + (i+1) + '. ' + rec + '</div>'
+                + '<div style="display:flex;gap:6px;">'
+                + '<button data-rec="' + enc + '" data-hz="short" style="flex:1;padding:5px 0;font-size:11px;font-weight:600;background:#d1fae5;color:#059669;border:none;border-radius:6px;cursor:pointer;">1 мес.</button>'
+                + '<button data-rec="' + enc + '" data-hz="mid"   style="flex:1;padding:5px 0;font-size:11px;font-weight:600;background:#fef3c7;color:#d97706;border:none;border-radius:6px;cursor:pointer;">1-2 кв.</button>'
+                + '<button data-rec="' + enc + '" data-hz="long"  style="flex:1;padding:5px 0;font-size:11px;font-weight:600;background:#e0e7ff;color:#4f46e5;border:none;border-radius:6px;cursor:pointer;">3-4 кв.</button>'
+                + '</div>';
+              row.querySelectorAll('button[data-hz]').forEach(btn => {
+                btn.addEventListener('click', async () => {
+                  const text    = decodeURIComponent(btn.dataset.rec);
+                  const hz      = btn.dataset.hz;
+                  const hzLabel = { short: 'Краткосрочно', mid: 'Среднесрочно', long: 'Долгосрочно' }[hz];
+                  btn.textContent = '...';
+                  btn.disabled = true;
+                  try {
+                    const strategies = await API.getPortfolioStrategies();
+                    const cur = strategies.find(s => s.horizon === hz) || {};
+                    if (cur.is_committed) {
+                      await API.uncommitStrategy(hz, { abandoned: false, kpiFinal: null });
+                    }
+                    await API.upsertPortfolioStrategy(hz, {
+                      ...cur,
+                      focus:      text,
+                      notes:      cur.focus ? '[AI рек.] Предыдущий фокус: ' + cur.focus : '',
+                      updated_at: new Date().toISOString(),
+                    });
+                    if (cur.is_committed) {
+                      await API.commitStrategy(hz);
+                      const cb = document.getElementById('pf-hz-commit-' + hz);
+                      if (cb) {
+                        cb.checked = true;
+                        const lbl = cb.closest('label')?.querySelector('.pf-hz-commit-label');
+                        if (lbl) lbl.textContent = 'Следую';
+                        document.getElementById('pf-horizon-' + hz)?.classList.add('pf-hz--committed');
+                      }
+                    }
+                    btn.textContent = '✓ ' + hzLabel;
+                    btn.style.background = '#d1fae5';
+                    btn.style.color = '#059669';
+                  } catch(e) {
+                    btn.textContent = '✗';
+                    btn.disabled = false;
+                    console.error('apply rec error:', e);
+                  }
+                });
+              });
+              recsList.appendChild(row);
+            });
+
+            if (recItems.length > 0) {
+              toRecsBtn.style.display = 'block';
+            }
+
           } catch(e) {
-            reviewText.textContent = 'Ошибка: ' + e.message;
+            document.getElementById('rv-analysis-text').textContent = 'Ошибка: ' + e.message;
           } finally {
-            aiBtn.textContent = '✨ Анализ с root causes';
-            aiBtn.disabled = false;
+            analyzeBtn.textContent = '✨ Анализ с root causes';
+            analyzeBtn.disabled = false;
           }
-        });
+        };
 
       } catch(e) {
-        document.getElementById('pf-dap-history-list').textContent = 'Ошибка загрузки: ' + e.message;
+        document.getElementById('rv-committed-list').textContent = 'Ошибка загрузки: ' + e.message;
       }
     });
   },

@@ -18,6 +18,8 @@ export const DashboardPage = {
   searchQ:     '',
 
   async render() {
+    this._renderVersion = (this._renderVersion || 0) + 1;
+    const myVersion = this._renderVersion;
     const main = document.getElementById('main-content');
     main.innerHTML = `
       <div class="page-header">
@@ -47,10 +49,10 @@ export const DashboardPage = {
         this.renderList();
       });
 
-    await this.load();
+    await this.load(myVersion);
   },
 
-  async load() {
+  async load(myVersion) {
     try {
       [this.allClients, this.allBCHS, this.allPC, this.touchPoints] = await Promise.all([
         API.getClients(),
@@ -64,6 +66,7 @@ export const DashboardPage = {
         ...Calc.computeClient(c, this.allBCHS, this.allPC),
       }));
 
+      if (this._renderVersion !== myVersion) return;
       this._renderTabs();
       this.renderList();
 

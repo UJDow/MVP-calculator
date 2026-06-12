@@ -1029,6 +1029,31 @@ _bindTouchesEvents(touchPoints) {
               <div class="dap-action-sub">Прогноз 3–12 месяцев</div>
             </div>
           </button>
+          <button class="dap-action-btn" id="dap-strategy-now">
+            <div class="dap-action-icon" style="background:#eef2ff;color:#6366f1">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+                   stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+              </svg>
+            </div>
+            <div>
+              <div class="dap-action-title">Стратегия сейчас</div>
+              <div class="dap-action-sub">AI строит план по портфелю</div>
+            </div>
+          </button>
+          <button class="dap-action-btn" id="dap-scenario">
+            <div class="dap-action-icon" style="background:#f0fdf4;color:#10b981">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+                   stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                <path d="M3 3v18h18"/>
+                <path d="M7 16l4-4 4 4 4-6"/>
+              </svg>
+            </div>
+            <div>
+              <div class="dap-action-title">Сценарий</div>
+              <div class="dap-action-sub">Прогноз 3–12 месяцев</div>
+            </div>
+          </button>
         </div>
       </div>
     `;
@@ -1061,6 +1086,16 @@ _bindTouchesEvents(touchPoints) {
     document.getElementById('dap-touches')?.addEventListener('click',  () => goTab('touches'));
     document.getElementById('dap-notes')?.addEventListener('click',    () => goTab('notes'));
     document.getElementById('dap-delivery')?.addEventListener('click', () => goTab('delivery'));
+    document.getElementById('dap-strategy-now')?.addEventListener('click', () => {
+      close();
+      if (window.App) window.App.navigate('portfolio');
+      setTimeout(() => document.getElementById('pf-strategy-now-btn')?.click(), 600);
+    });
+    document.getElementById('dap-scenario')?.addEventListener('click', () => {
+      close();
+      if (window.App) window.App.navigate('portfolio');
+      setTimeout(() => document.getElementById('pf-scenario-btn')?.click(), 600);
+    });
     document.getElementById('dap-mc')?.addEventListener('click',       () => goTab('mc'));
   },
 

@@ -303,18 +303,24 @@ export const PortfolioPage = {
         </div>
       </div>
 
-      <div class="pf-tabs" id="pf-tabs">
-        <button class="pf-tab active" data-pftab="portfolio">
-          Стратегия портфеля
-        </button>
-        <button class="pf-tab" data-pftab="accounts">
-          Стратегия по аккаунтам
-        </button>
-        <button class="pf-tab" data-pftab="coverage">
-          Покрытие
-        </button>
-        <button class="pf-tab" data-pftab="history">
-          История
+      <div style="display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border);">
+        <div class="pf-tabs" id="pf-tabs" style="border-bottom:none;">
+          <button class="pf-tab active" data-pftab="portfolio">
+            Стратегия портфеля
+          </button>
+          <button class="pf-tab" data-pftab="accounts">
+            Стратегия по аккаунтам
+          </button>
+          <button class="pf-tab" data-pftab="coverage">
+            Покрытие
+          </button>
+          <button class="pf-tab" data-pftab="history">
+            История
+          </button>
+        </div>
+        <button id="pf-actions-btn" style="display:flex;align-items:center;gap:6px;padding:6px 14px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;font-size:12px;font-weight:600;color:#475569;cursor:pointer;margin-right:4px;white-space:nowrap;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>
+          Действия
         </button>
       </div>
 
@@ -404,7 +410,6 @@ export const PortfolioPage = {
   ${this._summaryHTML(summary, computed)}
 
   <div class="pf-section-head" style="margin-top:28px">
-    <div id="pf-mc-planner"></div>
   <div class="pf-section-title">Стратегические горизонты</div>
     <label class="pf-ai-mode-toggle">
       <input type="checkbox" id="pf-ai-mode-sw">
@@ -435,7 +440,8 @@ export const PortfolioPage = {
 
       // Рендерим графики
       this._renderPortfolioCharts(computed);
-      this._renderMCPlanner(computed);
+      this._computed = computed; this._summary = summary;
+      this._renderMCPlanner(computed, summary);
 
       // Загружаем кеш инсайтов один раз
       let _cachedInsights = {};
@@ -469,6 +475,9 @@ export const PortfolioPage = {
       } catch(e) {}
 
       // Кнопка ручного обновления кеша
+      document.getElementById('pf-actions-btn')?.addEventListener('click', () => {
+        this._showPortfolioActions(summary, computed);
+      });
       document.getElementById('pf-refresh-kpi-btn')?.addEventListener('click', async () => {
         const btn = document.getElementById('pf-refresh-kpi-btn');
         btn.disabled = true;
@@ -1577,7 +1586,10 @@ document.getElementById('pf-ai-mode-sw')
     const avgPotential  = withPotential.length
       ? Math.round(withPotential.reduce((s, r) => s + r.potential, 0) / withPotential.length)
       : null;
-    return { total, avgBchs, avgLoyalty, totalRisk, bcgCount, top3Risk, avgPotential };
+    const atRiskCount = computed.filter(r => (r.bchs != null && r.bchs < 30) || (r.revenueAtRisk||0) > 0).length;
+    const avgHours = computed.length ? Math.round(computed.reduce((s,r) => s + (r.total_hours||0), 0) / computed.length * 10) / 10 : 0;
+    const topPriority = computed.length ? Math.round(Math.max(...computed.map(r => r.priority_score||0)) * 100) / 100 : 0;
+    return { total, avgBchs, avgLoyalty, totalRisk, bcgCount, top3Risk, avgPotential, atRiskCount, avgHours, topPriority };
   },
 
   _summaryHTML(s, computed = []) {
@@ -2338,7 +2350,7 @@ document.getElementById('pf-ai-mode-sw')
         <div class="pf-kpi-card-detail" style="display:none">${c.detail}</div>
       </div>`).join('');
 
-    return '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">' + '<span style="font-size:13px;font-weight:600;color:#64748b">KPI портфеля</span>' + '<div style="display:flex;gap:8px">' + '<button id="pf-refresh-kpi-btn" style="display:flex;align-items:center;gap:5px;padding:5px 11px;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:7px;font-size:11px;font-weight:600;color:#64748b;cursor:pointer">' + '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>' + '</svg> Обновить кеш</button>' + '<button id="pf-ai-analyze-btn" style="display:flex;align-items:center;gap:5px;padding:5px 11px;border:1px solid #6366f1;border-radius:7px;background:#fff;color:#6366f1;font-size:11px;font-weight:600;cursor:pointer">' + '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/>' + '</svg> AI-анализ</button>' + '</div></div>' + '<div id="pf-ai-insight-panel" style="display:none;background:#f8f7ff;border:1px solid #e0e7ff;border-radius:10px;padding:14px;margin-bottom:14px">' + '<div style="font-size:11px;font-weight:600;color:#6366f1;margin-bottom:6px">AI · Анализ портфеля</div>' + '<div id="pf-ai-insight-text" style="font-size:12px;color:#374151;line-height:1.6;white-space:pre-wrap"></div>' + '</div>' + '<div class="pf-kpi-grid-new">' + cardsHTML + '</div>';
+    return '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">' + '<span style="font-size:13px;font-weight:600;color:#64748b">KPI портфеля</span>' + '</div>' + '<div id="pf-ai-insight-panel" style="display:none;background:#f8f7ff;border:1px solid #e0e7ff;border-radius:10px;padding:14px;margin-bottom:14px">' + '<div style="font-size:11px;font-weight:600;color:#6366f1;margin-bottom:6px">AI · Анализ портфеля</div>' + '<div id="pf-ai-insight-text" style="font-size:12px;color:#374151;line-height:1.6;white-space:pre-wrap"></div>' + '</div>' + '<div class="pf-kpi-grid-new">' + cardsHTML + '</div>';
   },
 
   _horizonFormHTML(key, label, period, dotColor, saved) {
@@ -3706,24 +3718,330 @@ document.getElementById('pf-ai-mode-sw')
   /* ══════════════════════════════════════════
      MC СЦЕНАРНЫЙ ПЛАНИРОВЩИК
   ══════════════════════════════════════════ */
-  _renderMCPlanner(computed) {
+  _showPortfolioActions(summary, computed = []) {
+    document.getElementById('pf-actions-el')?.remove();
+    const el = document.createElement('div');
+    el.id = 'pf-actions-el';
+
+    const s = summary;
+
+    el.innerHTML = ''
+      + '<div class="variant-picker-backdrop" id="pf-dap-backdrop"></div>'
+      + '<div class="variant-picker-panel" id="pf-dap-panel" style="width:380px;">'
+      + '  <div class="variant-picker-header">'
+      + '    <span style="font-size:15px;font-weight:700;color:#111827;">Действия</span>'
+      + '    <button class="variant-picker-close" id="pf-dap-close">'
+      + '      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>'
+      + '    </button>'
+      + '  </div>'
+      + '  <div class="variant-picker-body"><div class="variant-picker-list">'
+
+      + '  <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#9ca3af;margin-bottom:8px;">Аналитика</div>'
+
+      + '  <button id="pf-dap-strategy" style="display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:10px;border:1.5px solid #f0f0f5;background:#fff;cursor:pointer;text-align:left;width:100%;box-sizing:border-box;transition:all .15s;margin-bottom:8px;">'
+      + '    <div style="width:36px;height:36px;border-radius:8px;background:#eef2ff;color:#6366f1;display:flex;align-items:center;justify-content:center;flex-shrink:0;">'
+      + '      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>'
+      + '    </div>'
+      + '    <div><div style="font-size:13px;font-weight:600;color:#111827;margin-bottom:2px;">Стратегия сейчас</div><div style="font-size:11px;color:#9ca3af;">AI строит план по портфелю</div></div>'
+      + '  </button>'
+
+      + '  <button id="pf-dap-scenario" style="display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:10px;border:1.5px solid #f0f0f5;background:#fff;cursor:pointer;text-align:left;width:100%;box-sizing:border-box;transition:all .15s;margin-bottom:8px;">'
+      + '    <div style="width:36px;height:36px;border-radius:8px;background:#f0fdf4;color:#10b981;display:flex;align-items:center;justify-content:center;flex-shrink:0;">'
+      + '      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="M7 16l4-4 4 4 4-6"/></svg>'
+      + '    </div>'
+      + '    <div><div style="font-size:13px;font-weight:600;color:#111827;margin-bottom:2px;">Сценарий</div><div style="font-size:11px;color:#9ca3af;">Прогноз 3–12 месяцев</div></div>'
+      + '  </button>'
+      + '  </div></div>'
+
+    document.body.appendChild(el);
+    requestAnimationFrame(() =>
+      document.getElementById('pf-dap-panel')?.classList.add('visible')
+    );
+
+    const close = () => {
+      document.getElementById('pf-dap-panel')?.classList.remove('visible');
+      setTimeout(() => el.remove(), 300);
+    };
+    document.getElementById('pf-dap-backdrop')?.addEventListener('click', close);
+    document.getElementById('pf-dap-close')?.addEventListener('click', close);
+
+    /* ── Стратегия сейчас — сначала цифры, потом AI ── */
+    document.getElementById('pf-dap-strategy')?.addEventListener('click', () => {
+      const strategyEl = document.getElementById('pf-dap-strategy-view');
+
+      // Если уже открыто — закрываем плавно
+      if (strategyEl && strategyEl.style.maxHeight && strategyEl.style.maxHeight !== '0px') {
+        strategyEl.style.maxHeight = '0px';
+        strategyEl.style.opacity  = '0';
+        setTimeout(() => { strategyEl.style.display = 'none'; }, 300);
+        return;
+      }
+      collapseOthers('pf-dap-strategy-view');
+
+      // Показываем KPI-сводку сразу
+      if (!strategyEl) {
+        const btn = document.getElementById('pf-dap-strategy');
+        const div = document.createElement('div');
+        div.id = 'pf-dap-strategy-view';
+        div.style.cssText = 'margin-top:12px;max-height:0px;opacity:0;overflow:hidden;transition:max-height .35s ease,opacity .25s ease;';
+
+        const loyColor = s.avgLoyalty == null ? '#6b7280' : s.avgLoyalty >= 70 ? '#10b981' : s.avgLoyalty >= 50 ? '#f59e0b' : '#ef4444';
+        const riskColor = s.totalRisk === 0 ? '#10b981' : s.totalRisk > 50000 ? '#ef4444' : '#f59e0b';
+        const totalMR = computed.reduce((a,r) => a + (r.client.monthly_revenue||0), 0);
+
+        div.innerHTML = ''
+          + '<div style="background:#f8fafc;border-radius:12px;padding:14px 16px;margin-bottom:12px;">'
+          + '  <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#9ca3af;margin-bottom:10px;">Портфель · сейчас</div>'
+          + '  <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">'
+          + '    <div><div style="font-size:10px;color:#94a3b8;">MR портфеля</div><div style="font-size:15px;font-weight:700;color:#1e293b;">$' + Math.round(totalMR/1000) + 'K</div></div>'
+          + '    <div><div style="font-size:10px;color:#94a3b8;">Лояльность</div><div style="font-size:15px;font-weight:700;color:' + loyColor + ';">' + (s.avgLoyalty ?? '—') + '%</div></div>'
+          + '    <div><div style="font-size:10px;color:#94a3b8;">В риске</div><div style="font-size:15px;font-weight:700;color:#f59e0b;">' + s.atRiskCount + ' кл.</div></div>'
+          + '    <div><div style="font-size:10px;color:#94a3b8;">Rev at Risk</div><div style="font-size:15px;font-weight:700;color:' + riskColor + ';">$' + Math.round((s.totalRisk||0)/1000) + 'K</div></div>'
+          + '    <div><div style="font-size:10px;color:#94a3b8;">Реализация</div><div style="font-size:15px;font-weight:700;color:#6366f1;">' + (s.avgPotential ?? '—') + '%</div></div>'
+          + '    <div><div style="font-size:10px;color:#94a3b8;">Топ Priority</div><div style="font-size:15px;font-weight:700;color:#8b5cf6;">' + (s.topPriority || '—') + '</div></div>'
+          + '  </div>'
+          + '</div>'
+          + '<button id="pf-dap-gen-btn" style="width:100%;padding:10px;background:#6366f1;color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;margin-bottom:12px;">Сгенерировать план</button>'
+          + '<div id="pf-dap-ai-result" style="display:none;">'
+          + '  <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#9ca3af;margin-bottom:10px;">AI · Предварительный план</div>'
+          + '  <div style="display:flex;flex-direction:column;gap:10px;">'
+          + '    <div><div style="font-size:10px;color:#6366f1;font-weight:700;margin-bottom:4px;text-transform:uppercase;">Краткосрочно · 1–3 мес</div>'
+          + '    <textarea id="pf-dap-short" rows="4" style="width:100%;box-sizing:border-box;padding:8px 10px;border:1.5px solid #e0e7ff;border-radius:8px;font-size:12px;color:#374151;resize:none;font-family:inherit;line-height:1.6;min-height:80px;max-height:160px;overflow-y:auto;"></textarea></div>'
+          + '    <div><div style="font-size:10px;color:#8b5cf6;font-weight:700;margin-bottom:4px;text-transform:uppercase;">Среднесрочно · 3–6 мес</div>'
+          + '    <textarea id="pf-dap-mid" rows="4" style="width:100%;box-sizing:border-box;padding:8px 10px;border:1.5px solid #ede9fe;border-radius:8px;font-size:12px;color:#374151;resize:none;font-family:inherit;line-height:1.6;min-height:80px;max-height:160px;overflow-y:auto;"></textarea></div>'
+          + '    <div><div style="font-size:10px;color:#64748b;font-weight:700;margin-bottom:4px;text-transform:uppercase;">Долгосрочно · 6–12 мес</div>'
+          + '    <textarea id="pf-dap-long" rows="4" style="width:100%;box-sizing:border-box;padding:8px 10px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:12px;color:#374151;resize:none;font-family:inherit;line-height:1.6;min-height:80px;max-height:160px;overflow-y:auto;"></textarea></div>'
+          + '  </div>'
+          + '  <button id="pf-dap-save" style="margin-top:14px;width:100%;padding:11px;background:#10b981;color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;">Сохранить в горизонты</button>'
+          + '</div>';
+
+        // Перемещаем кнопку + контент вниз (открытая секция всегда внизу)
+        const _parent = btn.parentNode;
+        _parent.appendChild(btn);
+        _parent.appendChild(div);
+        // Запускаем анимацию открытия
+        requestAnimationFrame(() => {
+          div.style.maxHeight = '2000px';
+          div.style.opacity   = '1';
+        });
+
+        /* кнопка генерации */
+        document.getElementById('pf-dap-gen-btn')?.addEventListener('click', async () => {
+          const genBtn = document.getElementById('pf-dap-gen-btn');
+          genBtn.textContent = 'Генерирую...';
+          genBtn.disabled = true;
+          try {
+            const clientList = computed.slice(0, 8).map(r =>
+              r.client.name + '|л:' + (r.loyalty??'?') + '%|bchs:' + (r.bchs??'?') + '|MR:' + (r.client.monthly_revenue||0) + '|риск:' + (r.revenueAtRisk||0)
+            ).join('; ');
+            const resp = await API.callAI({
+              type: 'portfolio_analysis',
+              summary: {
+                total: s.total,
+                avgLoyalty: s.avgLoyalty,
+                atRiskCount: s.atRiskCount,
+                totalRisk: s.totalRisk,
+                avgPotential: s.avgPotential,
+                topPriority: s.topPriority
+              },
+              clients_snapshot: computed.slice(0, 10).map(r => ({
+                name: r.client.name,
+                loyalty: r.loyalty,
+                bchs: r.bchs,
+                monthly_revenue: r.client.monthly_revenue,
+                revenueAtRisk: r.revenueAtRisk
+              })),
+              instruction: 'Дай конкретный план в формате [КРАТКОСРОЧНО] 1-3 мес [СРЕДНЕСРОЧНО] 3-6 мес [ДОЛГОСРОЧНО] 6-12 мес'
+            });
+            // Парсим ответ — поддерживаем все форматы
+            let shortText = '', midText = '', longText = '';
+            const rawText = (resp?.choices?.[0]?.message?.content)
+              || resp?.result || resp?.text || '';
+            // Пробуем JSON
+            let parsed = null;
+            try {
+              const jsonStr = rawText.includes('{') ? rawText.slice(rawText.indexOf('{'), rawText.lastIndexOf('}')+1) : '';
+              if (jsonStr) parsed = JSON.parse(jsonStr);
+            } catch(pe) { parsed = null; }
+
+            if (parsed) {
+              // Формат JSON: поля bcg, revenue, loyalty, risk, potential, priority
+              const lines = [];
+              if (parsed.loyalty)   lines.push('Лояльность: ' + parsed.loyalty);
+              if (parsed.risk)      lines.push('\nРиски: ' + parsed.risk);
+              if (parsed.potential) lines.push('\nПотенциал: ' + parsed.potential);
+              shortText = lines.join('\n');
+              midText   = parsed.revenue || '';
+              if (Array.isArray(parsed.priority)) {
+                longText = parsed.priority.map((p,i) => (i+1) + '. ' + p).join('\n');
+              } else {
+                longText = parsed.bcg || '';
+              }
+            } else {
+              // Формат [СЕКЦИЯ]
+              const extract = (tag) => {
+                const m = rawText.match(new RegExp('\\[' + tag + '\\]([\\s\\S]*?)(?=\\[|$)', 'i'));
+                return m ? m[1].trim() : '';
+              };
+              shortText = extract('КРАТКОСРОЧНО');
+              midText   = extract('СРЕДНЕСРОЧНО');
+              longText  = extract('ДОЛГОСРОЧНО');
+            }
+
+            const setTA = (id, val) => {
+              const el = document.getElementById(id);
+              if (!el) return;
+              el.value = val;
+              el.style.height = 'auto';
+              el.style.height = Math.min(el.scrollHeight, 160) + 'px';
+            };
+            setTA('pf-dap-short', shortText);
+            setTA('pf-dap-mid',   midText);
+            setTA('pf-dap-long',  longText);
+            document.getElementById('pf-dap-ai-result').style.display = 'block';
+            const _panel = document.getElementById('pf-dap-panel');
+            if (_panel) _panel.scrollTo({ top: 99999, behavior: 'smooth' });
+          } catch(e) {
+            window.App?.toast('Ошибка AI: ' + e.message, 'error');
+          } finally {
+            genBtn.textContent = 'Сгенерировать план';
+            genBtn.disabled = false;
+          }
+        });
+
+        /* сохранение */
+        document.getElementById('pf-dap-save')?.addEventListener('click', () => {
+          ['short','mid','long'].forEach(key => {
+            const v = document.getElementById('pf-dap-' + key)?.value.trim() || '';
+            const f = document.getElementById('pf-focus-' + key);
+            const o = document.getElementById('pf-outcome-' + key);
+            if (f) f.value = v.split('\n')[0] || '';
+            if (o) o.value = v;
+          });
+          document.getElementById('pf-save-btn')?.click();
+          close();
+          window.App?.toast('Горизонты заполнены', 'success');
+        });
+      } else {
+        strategyEl.style.display = 'block';
+        requestAnimationFrame(() => {
+          strategyEl.style.maxHeight = '2000px';
+          strategyEl.style.opacity   = '1';
+        });
+      }
+      const _panel = document.getElementById('pf-dap-panel');
+            if (_panel) _panel.scrollTo({ top: 99999, behavior: 'smooth' });
+    });
+
+
+    /* ── Сценарий — показываем студию внутри drawer ── */
+    /* helper — сворачивает все открытые панели кроме указанной */
+    const slideOpen = (el) => {
+      el.style.display = 'block';
+      el.style.overflow = 'hidden';
+      el.style.transition = 'max-height .3s ease, opacity .25s ease';
+      el.style.maxHeight = '0px';
+      el.style.opacity = '0';
+      requestAnimationFrame(() => {
+        el.style.maxHeight = '2000px';
+        el.style.opacity = '1';
+      });
+    };
+
+    const slideClose = (el, cb) => {
+      el.style.transition = 'max-height .25s ease, opacity .2s ease';
+      el.style.maxHeight = '0px';
+      el.style.opacity = '0';
+      setTimeout(() => { el.style.display = 'none'; if (cb) cb(); }, 260);
+    };
+
+    const collapseOthers = (keepId) => {
+      ['pf-dap-strategy-view', 'pf-dap-studio'].forEach(id => {
+        if (id !== keepId) {
+          const el = document.getElementById(id);
+          if (el && el.style.display !== 'none') slideClose(el);
+        }
+      });
+    };
+
+    /* ── Сценарий — показываем студию внутри drawer ── */
+    document.getElementById('pf-dap-scenario')?.addEventListener('click', () => {
+      const scenBtn  = document.getElementById('pf-dap-scenario');
+      const studioEl = document.getElementById('pf-dap-studio');
+
+      collapseOthers('pf-dap-studio');
+
+      if (studioEl) {
+        if (studioEl.style.display !== 'none') {
+          slideClose(studioEl);
+        } else {
+          slideOpen(studioEl);
+        }
+        return;
+      }
+
+      const studio = document.createElement('div');
+      studio.id = 'pf-dap-studio';
+      studio.style.display = 'none';
+      scenBtn.parentNode.insertBefore(studio, scenBtn.nextSibling);
+
+      const oldEl = document.getElementById('pf-mc-planner');
+      if (oldEl) {
+        studio.appendChild(oldEl);
+        oldEl.style.display = 'block';
+      } else {
+        studio.innerHTML = '<div id="pf-mc-planner"></div>';
+        this._renderMCPlanner(computed, summary);
+      }
+
+      slideOpen(studio);
+    });
+
+        /* ── Сохранить в горизонты ── */
+    document.getElementById('pf-dap-save')?.addEventListener('click', async () => {
+      const saveBtn = document.getElementById('pf-dap-save');
+      const orig = saveBtn.textContent;
+      saveBtn.textContent = 'Сохраняю...';
+      saveBtn.disabled = true;
+      try {
+        const vals = {
+          short: document.getElementById('pf-dap-short').value.trim(),
+          mid:   document.getElementById('pf-dap-mid').value.trim(),
+          long:  document.getElementById('pf-dap-long').value.trim(),
+        };
+        ['short', 'mid', 'long'].forEach(key => {
+          const focusEl   = document.getElementById('pf-focus-' + key);
+          const outcomeEl = document.getElementById('pf-outcome-' + key);
+          if (focusEl)   focusEl.value   = vals[key].split('\n')[0] || '';
+          if (outcomeEl) outcomeEl.value = vals[key];
+        });
+        document.getElementById('pf-save-btn')?.click();
+        close();
+        window.App?.toast('Горизонты заполнены', 'success');
+      } catch (e) {
+        saveBtn.textContent = orig;
+        saveBtn.disabled = false;
+      }
+    });
+  },
+
+  _renderMCPlanner(computed, summary) {
     const el = document.getElementById('pf-mc-planner');
     if (!el) return;
     el.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text-muted);font-size:13px">Загрузка MC...</div>';
     // Инициализация после вставки DOM
-    setTimeout(() => this._initMCPlanner(computed), 0);
+    setTimeout(() => this._initMCPlanner(computed, summary), 0);
   },
 
-  async _initMCPlanner(computed) {
+  async _initMCPlanner(computed, summary = {}) {
     const el = document.getElementById('pf-mc-planner');
     if (!el) return;
 
     const totalMR    = computed.reduce((s,r) => s + (r.client.monthly_revenue||0), 0);
-    const avgLoyalty = computed.length ? Math.round(computed.reduce((s,r) => s+(r.loyalty??0),0)/computed.length) : 0;
-    const atRisk     = computed.filter(r => (r.bchs??100) < 30 || (r.revenueAtRisk||0) > 0).length;
-    const totalRAR   = computed.reduce((s,r) => s + (r.revenueAtRisk||0), 0);
-    const potMR      = computed.reduce((s,r) => s + (r.client.potential_revenue||r.client.monthly_revenue||0), 0);
-    const realization = potMR > 0 ? Math.round(totalMR / potMR * 100) : 0;
+    const avgLoyalty = summary.avgLoyalty ?? (computed.length ? Math.round(computed.reduce((s,r) => s+(r.loyalty??0),0)/computed.length) : 0);
+    const atRisk     = summary.atRiskCount ?? computed.filter(r => (r.bchs != null && r.bchs < 30) || (r.revenueAtRisk||0) > 0).length;
+    const totalRAR   = summary.totalRisk   ?? computed.reduce((s,r) => s + (r.revenueAtRisk||0), 0);
+    const realization = summary.avgPotential ?? 0;
 
     if (!document.getElementById('pf-mc-style')) {
       const s = document.createElement('style'); s.id = 'pf-mc-style';
@@ -3789,6 +4107,8 @@ document.getElementById('pf-ai-mode-sw')
       + '<div><span class="pf-studio-kpi-label">В риске</span><span class="pf-studio-kpi-val" id="st-s-risk" style="color:#dc2626">-</span></div>'
       + '<div><span class="pf-studio-kpi-label">Rev at Risk</span><span class="pf-studio-kpi-val" id="st-s-rar" style="color:#f59e0b">-</span></div>'
       + '<div><span class="pf-studio-kpi-label">Реализация</span><span class="pf-studio-kpi-val" id="st-s-real" style="color:#6366f1">-</span></div>'
+      + '<div><span class="pf-studio-kpi-label">Часы / клиент</span><span class="pf-studio-kpi-val" id="st-s-hours" style="color:#64748b">-</span></div>'
+      + '<div><span class="pf-studio-kpi-label">Топ Priority</span><span class="pf-studio-kpi-val" id="st-s-priority" style="color:#8b5cf6">-</span></div>'
       + '</div>'
       + '<div class="pf-studio-btn-row">'
       + '<button class="pf-studio-btn" id="st-now-btn">&#9889; Построить стратегию портфеля</button>'
@@ -3841,6 +4161,8 @@ document.getElementById('pf-ai-mode-sw')
     setTxt('st-s-risk',    atRisk + ' кл.');
     setTxt('st-s-rar',     '$' + Math.round(totalRAR/1000) + 'K');
     setTxt('st-s-real',    realization + '%');
+    setTxt('st-s-hours',    (summary.avgHours ?? 0) + 'h');
+    setTxt('st-s-priority', (summary.topPriority ?? 0));
 
     const mapHorizons = (text) => {
       const parseBlock = m => {
